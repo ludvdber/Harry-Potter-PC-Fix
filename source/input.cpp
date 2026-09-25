@@ -9,6 +9,7 @@
 #define DIRECTINPUT_VERSION 0x0800
 #include "hooks.h"
 #include <dinput.h>
+#include <cstring>
 
 #pragma comment(lib, "dxguid.lib")
 
@@ -219,6 +220,16 @@ HRESULT STDMETHODCALLTYPE GetDeviceState(IDirectInputDevice8A* self, DWORD size,
 		if (g_cfg.releaseStaleKeys)
 			HideStaleKeys(*d, static_cast<BYTE*>(data), returned);
 		RemapKeyboardState(static_cast<BYTE*>(data));
+		// A key that was up at the previous read and is down now starts a latency measurement.
+		static BYTE previous[256] = {};
+		const BYTE* keys = static_cast<BYTE*>(data);
+		for (int i = 0; i < 256; ++i)
+			if ((keys[i] & 0x80) && !(previous[i] & 0x80))
+			{
+				NoteKeyPressed();
+				break;
+			}
+		memcpy(previous, keys, 256);
 	}
 	return hr;
 }
@@ -237,7 +248,15 @@ HRESULT STDMETHODCALLTYPE GetDeviceData(IDirectInputDevice8A* self, DWORD size, 
 		hr = original(self, size, data, count, flags);
 	}
 	if (SUCCEEDED(hr) && d && d->keyboard && count && data)
+	{
 		RemapKeyboardEvents(data, *count, size);
+		for (DWORD i = 0; i < *count; ++i)
+			if (reinterpret_cast<const DIDEVICEOBJECTDATA*>(reinterpret_cast<const BYTE*>(data) + i * size)->dwData & 0x80)
+			{
+				NoteKeyPressed();
+				break;
+			}
+	}
 	return hr;
 }
 

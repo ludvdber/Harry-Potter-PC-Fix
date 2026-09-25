@@ -102,7 +102,20 @@ void LoadSettings(const char* iniPath)
 	c.alwaysOnTop = Bool(windowOld, "AlwaysOnTop", false);
 	c.dpiAware = Bool(windowOld, "DPIAware", false);
 	c.fpsLimit = Clamp(Int(windowOld, "FPSLimit", 0), 0, 1000);
-	c.showFps = Bool(window, "ShowFPS", Bool(windowOld, "DisplayFPSCounter", false));
+	// Overlay. ShowFPS lived in [Accio.Window] before the overlay had its own section.
+	static const char* const overlay[] = { "Accio.Overlay", nullptr };
+	c.showFps = Bool(overlay, "ShowFPS", Bool(window, "ShowFPS", Bool(windowOld, "DisplayFPSCounter", false)));
+	c.showFrameTime = Bool(overlay, "ShowFrameTime", false);
+	c.showGraph = Bool(overlay, "ShowGraph", false);
+	c.showCpu = Bool(overlay, "ShowCPU", false);
+	c.showGpu = Bool(overlay, "ShowGPU", false);
+	c.showVram = Bool(overlay, "ShowVRAM", false);
+	c.showRam = Bool(overlay, "ShowRAM", false);
+	c.showLatency = Bool(overlay, "ShowLatency", false);
+	c.overlayKey = Clamp(Int(overlay, "OverlayKey", VK_F10), 0, 255);
+	c.benchmarkKey = Clamp(Int(overlay, "BenchmarkKey", VK_F11), 0, 255);
+	c.overlayPosition = Clamp(Int(overlay, "Position", 1), 1, 4);
+	c.overlaySize = Clamp(Int(overlay, "Size", 100), 50, 300);
 	c.screenshotKey = Clamp(Int(windowOld, "ScreenshotKey", VK_F12), 0, 255);
 	c.retakeInput = Bool(window, "RetakeInputOnReturn", true);
 	c.releaseStaleKeys = Bool(window, "ReleaseKeysOnReturn", true);

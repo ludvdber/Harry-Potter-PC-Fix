@@ -24,6 +24,10 @@ public:
 	// Idempotent: a table already redirected is left alone.
 	bool Install(void* object);
 
+	// Puts the redirect back in a table we hold if something wrote over it, and chains to what it
+	// found there. Returns true when the slot had to be taken back.
+	bool Reclaim(void* object);
+
 	template <class Fn>
 	Fn Original(const void* object) const { return reinterpret_cast<Fn>(Lookup(object)); }
 

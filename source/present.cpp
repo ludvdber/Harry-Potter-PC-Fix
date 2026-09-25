@@ -1,8 +1,8 @@
 // Accio Launcher - PC fix for the EA Harry Potter games.
 // Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 //
-// What happens to each finished frame before it goes to the screen: image effects, the frame
-// counter, a screenshot when asked, then the wait that holds the chosen frame rate.
+// What happens to each finished frame before it goes to the screen: image effects, a screenshot
+// when asked, the overlay (overlay.cpp), then the wait that holds the chosen frame rate.
 
 #include "hooks.h"
 #include "render_state.h"
@@ -44,42 +44,6 @@ void WaitForFrameSlot()
 		Sleep(left * 1000 / g_freq.QuadPart > 2 ? 1 : 0);
 	}
 	g_nextFrame += period;
-}
-
-// ---- Frame counter overlay ---------------------------------------------------------------------
-
-ID3DXFont* g_font = nullptr;
-LONGLONG g_lastFrameTime = 0;
-float g_smoothedMs = 0;
-
-void DrawFrameCounter(IDirect3DDevice9* dev)
-{
-	if (!g_cfg.showFps)
-		return;
-	LARGE_INTEGER f, now;
-	QueryPerformanceFrequency(&f);
-	QueryPerformanceCounter(&now);
-	if (g_lastFrameTime)
-	{
-		const float ms = static_cast<float>(now.QuadPart - g_lastFrameTime) * 1000.0f / static_cast<float>(f.QuadPart);
-		g_smoothedMs = g_smoothedMs ? g_smoothedMs * 0.9f + ms * 0.1f : ms;
-	}
-	g_lastFrameTime = now.QuadPart;
-	if (!g_font)
-	{
-		const int height = g_backBufferHeight > 0 ? g_backBufferHeight / 36 : 24;
-		if (FAILED(D3DXCreateFontA(dev, height, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-			ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI", &g_font)))
-			return;
-	}
-	char text[48];
-	sprintf_s(text, "%.0f fps  %.1f ms", g_smoothedMs > 0 ? 1000.0f / g_smoothedMs : 0.0f, g_smoothedMs);
-	if (FAILED(dev->BeginScene()))
-		return;
-	RECT shadow = { 13, 11, 600, 200 }, face = { 12, 10, 600, 200 };
-	g_font->DrawTextA(nullptr, text, -1, &shadow, DT_NOCLIP, D3DCOLOR_ARGB(200, 0, 0, 0));
-	g_font->DrawTextA(nullptr, text, -1, &face, DT_NOCLIP, D3DCOLOR_ARGB(255, 214, 167, 44));
-	dev->EndScene();
 }
 
 // ---- Screenshots -------------------------------------------------------------------------------
@@ -130,9 +94,11 @@ void BeforePresent(IDirect3DDevice9* dev)
 {
 	InternalCalls inside;
 	RunPostEffects(dev);
-	DrawFrameCounter(dev);
-	TakeScreenshotIfAsked(dev);
+	TakeScreenshotIfAsked(dev);   // the picture is taken without the overlay
+	DrawOverlay(dev);
+	KeepDeviceRedirects(dev);
 	WaitForFrameSlot();
+	OverlayFrameSent();
 	g_depth.aoDoneThisFrame = false;
 	const LONG n = InterlockedIncrement(&g_frames);
 	if (n == 1 || n % 18000 == 0)
@@ -142,12 +108,10 @@ void BeforePresent(IDirect3DDevice9* dev)
 void OnDeviceLost()
 {
 	ReleaseEffects();
-	if (g_font)
-		g_font->OnLostDevice();
+	OverlayDeviceLost();
 }
 
 void OnDeviceRestored(IDirect3DDevice9*)
 {
-	if (g_font)
-		g_font->OnResetDevice();
+	OverlayDeviceRestored();
 }

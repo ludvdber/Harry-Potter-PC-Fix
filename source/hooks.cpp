@@ -41,6 +41,29 @@ bool MethodRedirect::Install(void* object)
 	return true;
 }
 
+bool MethodRedirect::Reclaim(void* object)
+{
+	if (!object)
+		return false;
+	void** table = *reinterpret_cast<void***>(object);
+	for (int i = 0; i < m_count; i++)
+	{
+		if (m_tables[i] != table)
+			continue;
+		void* current = table[m_index];
+		if (current == m_hook)
+			return false;
+		// Direct3D itself does this: after the first text drawn by D3DX, the system d3d9.dll
+		// writes its own Present back into the table (measured 2026-09-25), and from then on every
+		// frame went past the fix. What is found there becomes the original we call.
+		if (!WriteMemory(&table[m_index], &m_hook, sizeof(void*)))
+			return false;
+		m_originals[i] = current;
+		return true;
+	}
+	return false;
+}
+
 void* MethodRedirect::Lookup(const void* object) const
 {
 	void** table = *reinterpret_cast<void** const*>(object);

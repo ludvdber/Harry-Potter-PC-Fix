@@ -97,6 +97,7 @@
     <ClCompile Include="..\source\keys.cpp" />
     <ClCompile Include="..\source\direct3d.cpp" />
     <ClCompile Include="..\source\present.cpp" />
+    <ClCompile Include="..\source\overlay.cpp" />
     <ClCompile Include="..\source\effects.cpp" />
   </ItemGroup>
   <ItemGroup>

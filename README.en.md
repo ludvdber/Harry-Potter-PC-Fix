@@ -85,7 +85,11 @@ Each change is made in the executable once it is loaded, never on disk, and only
 | Supersampling | `SSAAFactor` | Renders 2 to 4 times larger. Very demanding. |
 | Render size | `RenderWidth`, `RenderHeight` | 0 = the size chosen in the game; -1 = the monitor's own. |
 
-Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screenshots`), a frame counter (`ShowFPS`), a frame-rate limit (`FPSLimit`), one frame of driver queue instead of three (`MaxFrameLatency`), and `DPIAware` for high-DPI screens.
+### Performance, like a benchmark tool (`[Accio.Overlay]`)
+
+Each line has its own switch, all off by default: frames per second (`ShowFPS`), frame time and "1% low" (`ShowFrameTime`), a graph of the last 240 frames (`ShowGraph`), processor use of the game and of its main thread (`ShowCPU`), graphics card load (`ShowGPU`), video memory (`ShowVRAM`) and memory (`ShowRAM`), latency from reading a key to sending the frame (`ShowLatency`). F10 shows or hides the panel (`OverlayKey`); F11 starts and stops a benchmark (`BenchmarkKey`): average, 1% and 0.1% low and worst frame on screen, and every frame in the `benchmarks` folder.
+
+Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screenshots`), a frame-rate limit (`FPSLimit`), one frame of driver queue instead of three (`MaxFrameLatency`), and `DPIAware` for high-DPI screens.
 
 ---
 

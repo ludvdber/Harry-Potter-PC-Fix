@@ -27,7 +27,6 @@ struct Settings
 	bool  keepRunning = true;       // keeps the game running when it loses focus
 	bool  dpiAware = false;
 	int   fpsLimit = 0;
-	bool  showFps = false;
 	int   screenshotKey = VK_F12;
 	bool  retakeInput = true;       // keyboard and mouse taken back when the game returns to the front
 	bool  releaseStaleKeys = true;  // keys released while away are released for the game too
@@ -68,6 +67,14 @@ struct Settings
 	bool  generateMipmaps = true;   // full mipmap chains for textures shipped without
 	bool  forceTrilinear = true;    // mipmaps used on every texture
 	int   maxFrameLatency = 1;      // frames the driver may queue; 0 = its own choice
+
+	// [Accio.Overlay] - overlay.cpp
+	bool  showFps = false, showFrameTime = false, showGraph = false, showCpu = false, showGpu = false;
+	bool  showVram = false, showRam = false, showLatency = false;
+	int   overlayKey = VK_F10;      // shows or hides the whole panel
+	int   benchmarkKey = VK_F11;    // starts and stops a recording
+	int   overlayPosition = 1;      // 1 top left, 2 top right, 3 bottom left, 4 bottom right
+	int   overlaySize = 100;        // percent
 };
 
 extern Settings g_cfg;
@@ -97,6 +104,7 @@ extern thread_local int g_internal;
 // ---------------------------------------------------------------------------------------------
 // direct3d.cpp
 IDirect3D9* HookDirect3D9(IDirect3D9* d3d);
+void KeepDeviceRedirects(IDirect3DDevice9* dev);   // after drawing with D3DX, see MethodRedirect::Reclaim
 
 // window.cpp
 void PrepareWindow(D3DPRESENT_PARAMETERS* pp, HWND focusWindow);
@@ -117,6 +125,13 @@ void ApplyGamePatches();
 void BeforePresent(IDirect3DDevice9* dev);
 void OnDeviceLost();
 void OnDeviceRestored(IDirect3DDevice9* dev);
+
+// overlay.cpp
+void DrawOverlay(IDirect3DDevice9* dev);
+void OverlayFrameSent();
+void OverlayDeviceLost();
+void OverlayDeviceRestored();
+void NoteKeyPressed();          // input.cpp: the game has just read a newly pressed key
 
 // effects.cpp
 void RunPostEffects(IDirect3DDevice9* dev);

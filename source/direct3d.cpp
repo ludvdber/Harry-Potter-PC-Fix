@@ -260,6 +260,21 @@ void HookDevice(IDirect3DDevice9* dev)
 	Log("Direct3D: device %p followed\n", dev);
 }
 
+void TakeBackRedirects(IDirect3DDevice9* dev)
+{
+	MethodRedirect* const all[] = { &g_Reset, &g_Present, &g_CreateTexture, &g_CreateDepthStencilSurface,
+		&g_SetRenderTarget, &g_SetDepthStencilSurface, &g_SetViewport, &g_SetTexture, &g_SetSamplerState };
+	static const char* const names[] = { "Reset", "Present", "CreateTexture", "CreateDepthStencilSurface",
+		"SetRenderTarget", "SetDepthStencilSurface", "SetViewport", "SetTexture", "SetSamplerState" };
+	static bool logged[_countof(all)] = {};
+	for (size_t i = 0; i < _countof(all); ++i)
+		if (all[i]->Reclaim(dev) && !logged[i])
+		{
+			logged[i] = true;
+			Log("Direct3D: %s had been written over, taken back (frame %ld)\n", names[i], g_frames);
+		}
+}
+
 HRESULT STDMETHODCALLTYPE CreateDevice(IDirect3D9* self, UINT adapter, D3DDEVTYPE type, HWND focus, DWORD flags,
 	D3DPRESENT_PARAMETERS* pp, IDirect3DDevice9** out)
 {
@@ -659,6 +674,11 @@ HRESULT STDMETHODCALLTYPE SetTexture(IDirect3DDevice9* self, DWORD stage, IDirec
 	}
 	return hr;
 }
+}
+
+void KeepDeviceRedirects(IDirect3DDevice9* dev)
+{
+	TakeBackRedirects(dev);
 }
 
 IDirect3D9* HookDirect3D9(IDirect3D9* d3d)

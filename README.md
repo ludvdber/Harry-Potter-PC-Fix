@@ -85,7 +85,11 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 | Suréchantillonnage | `SSAAFactor` | Rendu 2 à 4 fois plus grand. Très gourmand. |
 | Taille de rendu | `RenderWidth`, `RenderHeight` | 0 = la taille choisie dans le jeu ; -1 = celle de l'écran. |
 
-Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG dans `screenshots`), un compteur d'images (`ShowFPS`), une limite d'images/s (`FPSLimit`), une seule image d'avance chez le pilote au lieu de trois (`MaxFrameLatency`), et `DPIAware` pour les écrans à haute densité.
+### Performances, comme un outil de benchmark (`[Accio.Overlay]`)
+
+Chaque ligne s'active séparément, tout est coupé par défaut : images/s (`ShowFPS`), temps par image et « 1 % low » (`ShowFrameTime`), graphe des 240 dernières images (`ShowGraph`), processeur du jeu et de son fil principal (`ShowCPU`), charge de la carte graphique (`ShowGPU`), mémoire vidéo (`ShowVRAM`) et vive (`ShowRAM`), latence entre la lecture d'une touche et l'envoi de l'image (`ShowLatency`). F10 affiche ou cache le panneau (`OverlayKey`) ; F11 démarre puis arrête un benchmark (`BenchmarkKey`) : moyenne, 1 % et 0,1 % low et pire image à l'écran, et chaque image dans le dossier `benchmarks`.
+
+Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG dans `screenshots`), une limite d'images/s (`FPSLimit`), une seule image d'avance chez le pilote au lieu de trois (`MaxFrameLatency`), et `DPIAware` pour les écrans à haute densité.
 
 ---
 
@@ -128,7 +132,8 @@ Sortie : `data\d3d9.dll`. Sans aucun jeu, `tests\run_keys_test.bat` vérifie la 
 | `source/input.cpp` | DirectInput : retour au premier plan, touches bloquées |
 | `source/keys.cpp` | `[Accio.Keys]` |
 | `source/direct3d.cpp` | Création et réinitialisation du périphérique, textures, profondeur, échantillonneurs |
-| `source/present.cpp` | À chaque image : effets, compteur, captures, limite d'images/s |
+| `source/present.cpp` | À chaque image : effets, captures, affichage des performances, limite d'images/s |
+| `source/overlay.cpp` | `[Accio.Overlay]` : mesures, graphe, benchmark |
 | `source/effects.cpp`, `shaders.h` | Effets d'image |
 | `source/version.h` | Version inscrite dans la DLL (doit correspondre à `VERSION`) |
 | `data/HP4`, `data/HP5`, `data/HP6` | Le `d3d9.ini` de chaque jeu |
