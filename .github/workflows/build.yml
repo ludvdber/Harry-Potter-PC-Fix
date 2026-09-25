@@ -1,0 +1,154 @@
+# Compiles the fix (Release | Win32), runs its tests, and uploads data/d3d9.dll as an
+# artifact together with its SHA-256.
+#
+# Also called by release.yml (workflow_call), so the build is described in one place only.
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+    outputs:
+      sha256:
+        description: SHA-256 of data/d3d9.dll
+        value: ${{ jobs.build.outputs.sha256 }}
+      artifact-name:
+        description: Name of the artifact holding d3d9.dll and d3d9.dll.sha256
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Release | Win32
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      sha256: ${{ steps.verify.outputs.sha256 }}
+      artifact-name: d3d9-win32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The version lives in VERSION (read by release.yml for the tag) and in
+      # source/version.h (written into the DLL). They must agree.
+      - name: Check the version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw VERSION).Trim()
+          $header = Get-Content -Raw source/version.h
+          if ($header -notmatch '#define ACCIO_VERSION_STR "([0-9.]+)"') {
+            Write-Output '::error file=source/version.h::ACCIO_VERSION_STR not found.'
+            exit 1
+          }
+          if ($Matches[1] -ne $version) {
+            Write-Output "::error file=source/version.h::ACCIO_VERSION_STR is $($Matches[1]), VERSION is $version."
+            exit 1
+          }
+          $numbers = $version -replace '\.', ','
+          if ($header -notmatch "#define ACCIO_VERSION_NUM $numbers,0") {
+            Write-Output "::error file=source/version.h::ACCIO_VERSION_NUM must be $numbers,0."
+            exit 1
+          }
+          Write-Output "Version $version"
+
+      # The project uses the v143 toolset (Visual Studio 2022): prefer a VS 2022
+      # instance, otherwise take the newest one.
+      - name: Locate Visual Studio
+        id: vs
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vs = & $vswhere -products * -version '[17.0,18.0)' -requires Microsoft.Component.MSBuild -latest -property installationPath
+          if (-not $vs) {
+            $vs = & $vswhere -products * -requires Microsoft.Component.MSBuild -latest -property installationPath
+          }
+          $msbuild = if ($vs) { Join-Path $vs 'MSBuild\Current\Bin\MSBuild.exe' }
+          if (-not $msbuild -or -not (Test-Path -LiteralPath $msbuild)) {
+            Write-Output '::error::MSBuild not found on this runner.'
+            exit 1
+          }
+          Write-Output "Using $vs"
+          "path=$vs" >> $env:GITHUB_OUTPUT
+          "msbuild=$msbuild" >> $env:GITHUB_OUTPUT
+
+      - name: Build (Release | Win32)
+        shell: pwsh
+        env:
+          MSBUILD: ${{ steps.vs.outputs.msbuild }}
+        run: |
+          & $env:MSBUILD build\accio-fix.sln /p:Configuration=Release /p:Platform=Win32 /m /nologo /v:minimal /warnaserror
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::Build failed (MSBuild exit code $LASTEXITCODE)."
+            exit 1
+          }
+
+      # Key remapping ([Accio.Keys]) checked without a game. The test program is
+      # named like HP4's executable because the action names are HP4's.
+      - name: Tests
+        shell: cmd
+        env:
+          VS: ${{ steps.vs.outputs.path }}
+        run: |
+          call "%VS%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
+          cd tests
+          if not exist out mkdir out
+          cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source keys_test.cpp ..\source\keys.cpp /Feout\gof_f.exe /Foout\ user32.lib dxguid.lib || exit /b 1
+          out\gof_f.exe "%CD%\out\keys_test.ini"
+
+      # Fails unless data/d3d9.dll is a PE32 DLL for x86 (the games are 32-bit).
+      - name: Verify d3d9.dll
+        id: verify
+        shell: pwsh
+        run: |
+          function Fail([string] $message) {
+            Write-Output "::error::data/d3d9.dll: $message"
+            exit 1
+          }
+          $dll = 'data\d3d9.dll'
+          if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) { Fail 'not produced by the build.' }
+
+          $bytes = [IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $dll))
+          if ($bytes.Length -lt 0x40 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { Fail 'no MZ header.' }
+          $pe = [BitConverter]::ToInt32($bytes, 0x3C)
+          if ($pe -lt 0x40 -or $pe + 28 -gt $bytes.Length) { Fail 'truncated PE header.' }
+          if ([BitConverter]::ToUInt32($bytes, $pe) -ne 0x00004550) { Fail 'no PE signature.' }
+          $machine = [BitConverter]::ToUInt16($bytes, $pe + 4)
+          $characteristics = [BitConverter]::ToUInt16($bytes, $pe + 22)
+          $magic = [BitConverter]::ToUInt16($bytes, $pe + 24)
+          $linker = '{0}.{1:D2}' -f $bytes[$pe + 26], $bytes[$pe + 27]
+          if ($machine -ne 0x014C) { Fail ('machine is 0x{0:X4}, expected 0x014C (x86).' -f $machine) }
+          if ($magic -ne 0x010B) { Fail ('optional header magic is 0x{0:X3}, expected 0x10B (PE32).' -f $magic) }
+          if (($characteristics -band 0x2000) -eq 0) { Fail 'IMAGE_FILE_DLL flag not set, this is not a DLL.' }
+
+          $sha256 = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText((Join-Path $PWD 'data' 'd3d9.dll.sha256'), "$sha256  d3d9.dll`n")
+          "sha256=$sha256" >> $env:GITHUB_OUTPUT
+
+          $size = $bytes.Length
+          $info = (Get-Item -LiteralPath $dll).VersionInfo
+          Write-Output "d3d9.dll: PE32 DLL, x86, linker $linker, $size bytes, $($info.ProductName) $($info.FileVersion), SHA-256 $sha256"
+          @(
+            '### d3d9.dll (Release | Win32)'
+            ''
+            '| | |'
+            '|---|---|'
+            "| Product | $($info.ProductName) $($info.FileVersion) |"
+            '| Format | PE32 DLL, x86 (32-bit) |'
+            "| Linker | $linker |"
+            ('| Size | {0:N0} bytes ({1:N0} KiB) |' -f $size, [math]::Round($size / 1KB))
+            "| SHA-256 | ``$sha256`` |"
+            "| Commit | ``$env:GITHUB_SHA`` |"
+          ) -join "`n" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: d3d9-win32
+          path: |
+            data/d3d9.dll
+            data/d3d9.dll.sha256
+          if-no-files-found: error

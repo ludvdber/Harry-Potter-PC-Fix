@@ -1,0 +1,19 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+
+# Build intermediates
+build/obj/
+tests/out/
+
+# Compiled output (distributed via GitHub Releases, not committed)
+data/d3d9.dll
+data/d3d9.dll.sha256
+data/*.pdb
+
+# Local notes
+CLAUDE.md
+.claudeignore
