@@ -8,11 +8,14 @@
 # Build intermediates
 build/obj/
 tests/out/
+__pycache__/
 
 # Compiled output (distributed via GitHub Releases, not committed)
 data/d3d9.dll
 data/d3d9.dll.sha256
 data/*.pdb
+data/*.lib
+data/*.exp
 
 # Local notes
 CLAUDE.md

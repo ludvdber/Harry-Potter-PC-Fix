@@ -1,0 +1,63 @@
+name: Bug du correctif / Fix bug
+description: Un problème avec le correctif dans HP4, HP5 ou HP6. / A problem with the fix in HP4, HP5 or HP6.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci ! Le fichier **`d3d9_accio.log`** (à côté de l'exécutable du jeu) dit presque toujours ce qui s'est passé : joignez-le.
+        Thanks! The **`d3d9_accio.log`** file (next to the game's executable) nearly always tells what happened: please attach it.
+  - type: dropdown
+    id: jeu
+    attributes:
+      label: Jeu / Game
+      options:
+        - HP4 - La Coupe de feu / Goblet of Fire
+        - HP5 - L'Ordre du Phénix / Order of the Phoenix
+        - HP6 - Le Prince de sang-mêlé / Half-Blood Prince
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installé avec / Installed with
+      options:
+        - Accio Launcher
+        - À la main, depuis une release / By hand, from a release
+    validations:
+      required: true
+  - type: input
+    id: systeme
+    attributes:
+      label: Système et résolution / System and resolution
+      placeholder: Windows 11, 2560x1440 125 % / Linux (Proton), 1920x1080
+    validations:
+      required: true
+  - type: textarea
+    id: probleme
+    attributes:
+      label: Ce qui se passe / What happens
+      description: Et ce que vous attendiez. / And what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: etapes
+    attributes:
+      label: Comment le reproduire / How to reproduce
+      placeholder: |
+        1. Lancer le jeu, charger la partie dans…
+        2. Alt+Tab…
+  - type: textarea
+    id: journal
+    attributes:
+      label: d3d9_accio.log
+      description: Glissez le fichier ici, ou collez son contenu. / Drop the file here, or paste its content.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: ini
+    attributes:
+      label: Réglages modifiés / Changed settings
+      description: Les lignes de d3d9.ini que vous avez changées, s'il y en a. / Lines of d3d9.ini you changed, if any.
+      render: ini

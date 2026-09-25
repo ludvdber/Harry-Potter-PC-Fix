@@ -5,10 +5,21 @@ In short
 --------
 - You MAY read the code, fork this repository on GitHub, change it and build
   it, for your own personal, noncommercial use.
-- You MAY NOT distribute this software or any version of it, changed or not:
-  no binaries, releases, archives, mod packs or reuploads, on any site,
-  server or platform, free or paid. Your changes stay with you.
-- The only official source of this fix is Accio Launcher.
+- You MAY NOT distribute this software, or any part or version of it, changed
+  or not, compiled or as source code. This includes, without limitation:
+  binaries, releases, archives, installers, patches, mod packs, repacks and
+  reuploads, on any website, mod site (such as Nexus Mods, ModDB or
+  GameBanana), file host, forum, Discord server, membership or donation
+  platform (such as Patreon), launcher or game distribution, free or paid.
+- You MAY NOT sell the software, put it behind a payment, a subscription, a
+  donation requirement, a link shortener or an advertisement, or offer it as
+  part of any paid service.
+- You MAY NOT copy the software's code, in whole or in part, into another
+  work that you distribute.
+- You MAY NOT present any copy or derivative as official, nor use the names
+  "Accio Launcher" or "Harry Potter PC Fix" for anything built from this code.
+- The only official sources of this fix are Accio Launcher
+  (https://acciolauncher.be/) and the releases of this repository.
 
 Additional permission
 ---------------------
@@ -16,8 +27,15 @@ On top of the PolyForm Strict License 1.0.0 below, the licensor grants you a
 license to make changes and new works based on the software, for your own
 personal, noncommercial use only. You may not distribute those changes or
 new works, nor the software itself. Keeping a fork on GitHub, as GitHub's
-Terms of Service allow, is not a breach of these terms; publishing builds
-or releases from it is.
+Terms of Service allow, is not a breach of these terms; publishing builds,
+releases or copies from it anywhere is.
+
+Enforcement
+-----------
+Any distribution not allowed by these terms infringes the licensor's
+copyright. The licensor may have it removed by the service that hosts it
+(for instance through a DMCA notice or a notice under the EU Digital
+Services Act), without first contacting the person who published it.
 
 Third-party components keep their own licenses. They are listed in
 THIRD_PARTY_NOTICES.md, and nothing here restricts them.

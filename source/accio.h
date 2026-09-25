@@ -39,7 +39,7 @@ struct Settings
 	int   animationRate = 0;        // HP4: 0 = the game's own (20)
 	int   frameRateCap = -1;        // -1 = this game's default, 0 = the game's own
 	int   unlockFrameRate = -1;     // HP5 / HP6: -1 = this game's default
-	int   hazeOverlay = -1;         // HP4: -1 = this game's default (off), 1 = drawn as shipped
+	int   hazeOverlay = -1;         // HP4: 0 = skipped (default), 1 = drawn with the column cap, 2 = as shipped
 
 	// The same choices in the file format used before 2026-09-26, kept so that a player's old
 	// d3d9.ini goes on working. Their meaning depends on the game; game.cpp translates them.

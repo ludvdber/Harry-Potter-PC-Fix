@@ -68,11 +68,17 @@ struct Profile
 	Bytes capLoad;
 	int capLoadAt;
 
-	// HP4 draws a translucent overlay on some levels (two colours, a range, up to 256 vertices
-	// built on the stack). The earlier fix skipped it on every level, as the cure for crashes
-	// above 1080p in the Forbidden Forest, the lake, the maze and the graveyard. Skipping it
-	// turns the jump at the start of the method into an unconditional one.
+	// HP4 draws a haze on some levels (Forbidden Forest, lake, maze, graveyard): horizontal bands,
+	// each a triangle strip cut into 16-pixel columns across the screen. The strip is built in a
+	// stack array of 129 column pairs, so a screen wider than 2048 pixels overruns it and the game
+	// crashes (1920: 121 pairs; 2560: 161). `haze` is the jump at the start of the method, made
+	// unconditional to skip the haze (what the earlier fix did on every level); `hazeColumns` is
+	// the column count (add edi, 15 ; sar edi, 4 at `hazeColumnsAt`), replaced by a call that
+	// also caps it. The game derives each column's step from that count, so fewer, wider
+	// columns still span the whole screen.
 	Bytes haze;
+	Bytes hazeColumns;
+	int hazeColumnsAt;
 };
 
 const float kHp4Aspects[] = { 16.0f / 9, 16.0f / 10, 64.0f / 27, 43.0f / 18, 12.0f / 5, 32.0f / 9 };
@@ -98,6 +104,8 @@ const Profile* FindProfile(const char* exeName)
 			BYTES(0xF3, 0x0F, 0x10, 0x05, 0x88, 0x93, 0x74, 0x00, 0x8B, 0x1D, 0x44, 0x67, 0x92, 0x00), 4,
 			// jnz +0x7C1 ; mov eax, [0x0092FFD0] ; cmp eax, ecx ; je +0x0C ; cmp ...
 			BYTES(0x0F, 0x85, 0xC1, 0x07, 0x00, 0x00, 0xA1, 0xD0, 0xFF, 0x92, 0x00, 0x3B, 0xC1, 0x74, 0x0C, 0x81),
+			// cvttss2si edi, xmm1 ; add edi, 15 ; sar edi, 4 ; cmp ebx, 1
+			BYTES(0xF3, 0x0F, 0x2C, 0xF9, 0x83, 0xC7, 0x0F, 0xC1, 0xFF, 0x04, 0x83, 0xFB, 0x01), 4,
 		},
 		{
 			"hp.exe", "Order of the Phoenix",
@@ -110,7 +118,7 @@ const Profile* FindProfile(const char* exeName)
 			BYTES(0xC7, 0x05, 0x5C, 0xEA, 0xAE, 0x00, 0x02, 0x00, 0x00, 0x00), 6,
 			0x008E4C54, false, 120,
 			{ nullptr, 0 }, 0,
-			{ nullptr, 0 },
+			{ nullptr, 0 }, { nullptr, 0 }, 0,
 		},
 		{
 			"hp6.exe", "Half-Blood Prince",
@@ -124,7 +132,7 @@ const Profile* FindProfile(const char* exeName)
 			BYTES(0xC7, 0x05, 0x04, 0x95, 0xBA, 0x00, 0x02, 0x00, 0x00, 0x00), 6,
 			0x008A4474, true, 120,
 			{ nullptr, 0 }, 0,
-			{ nullptr, 0 },
+			{ nullptr, 0 }, { nullptr, 0 }, 0,
 		},
 	};
 	for (const Profile& p : profiles)
@@ -281,10 +289,42 @@ void HoldFrameRate(const Profile& p)
 		CloseHandle(t);
 }
 
-void SkipHaze(const Profile& p)
+// Replaces `add edi, 15 ; sar edi, 4`: the number of 16-pixel columns across the screen, capped
+// at the 127 column pairs (plus the closing one) the game's stack array holds. Flags are not
+// read afterwards (the next instruction is a cmp).
+__declspec(naked) void HazeColumns()
 {
-	if (!p.haze.data || g_cfg.hazeOverlay == 1)
+	__asm {
+		add edi, 15
+		sar edi, 4
+		cmp edi, 127
+		jle fits
+		mov edi, 127
+	fits:
+		ret
+	}
+}
+
+// 0 = skipped (the earlier fix), 1 = drawn with the column cap, 2 = drawn as shipped (crashes
+// on screens wider than 2048 pixels).
+void PatchHaze(const Profile& p)
+{
+	const int mode = g_cfg.hazeOverlay >= 0 ? g_cfg.hazeOverlay : 0;
+	if (!p.haze.data || mode == 2)
 		return;
+	if (mode == 1)
+	{
+		BYTE* site = Locate(p.hazeColumns, "haze column count");
+		if (!site)
+			return;
+		BYTE* const from = site + p.hazeColumnsAt;
+		BYTE call[6] = { 0xE8, 0, 0, 0, 0, 0x90 }; // call HazeColumns ; nop
+		const LONG rel = static_cast<LONG>(reinterpret_cast<LONG_PTR>(&HazeColumns) - reinterpret_cast<LONG_PTR>(from + 5));
+		memcpy(call + 1, &rel, sizeof(rel));
+		const bool ok = WriteMemory(from, call, sizeof(call));
+		Log("Game: haze drawn, columns capped at 127 %s\n", ok ? "" : "(NOT patched)");
+		return;
+	}
 	BYTE* at = Locate(p.haze, "haze overlay");
 	if (!at)
 		return;
@@ -313,5 +353,5 @@ void ApplyGamePatches()
 	PatchAnimations(*p);
 	PatchFrameInterval(*p);
 	HoldFrameRate(*p);
-	SkipHaze(*p);
+	PatchHaze(*p);
 }
