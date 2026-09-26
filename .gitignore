@@ -20,3 +20,6 @@ data/*.exp
 # Local notes
 CLAUDE.md
 .claudeignore
+
+# Fiches par jeu (notes locales, comme CLAUDE.md)
+notes/

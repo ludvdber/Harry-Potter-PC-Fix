@@ -39,6 +39,8 @@ struct Settings
 	int   frameRateCap = -1;        // -1 = this game's default, 0 = the game's own
 	int   unlockFrameRate = -1;     // HP5 / HP6: -1 = this game's default
 	int   hazeOverlay = -1;         // HP4: 0 = skipped (default), 1 = drawn with the column cap, 2 = as shipped
+	char  language[12] = "auto";    // HP6: the language the start menu opens on, see game.cpp
+	int   distanceFog = 1;          // HP6: 1 = as shipped, 0 = removed (sharp far hills)
 
 	// The same choices in the file format used before 2026-09-26, kept so that a player's old
 	// d3d9.ini goes on working. Their meaning depends on the game; game.cpp translates them.

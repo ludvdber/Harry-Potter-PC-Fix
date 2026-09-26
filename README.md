@@ -42,7 +42,8 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 | Format d'image | `AspectRatio` | Le jeu dessine en 4:3. 16:9 par défaut ici ; tout format fonctionne (16:10, 21:9, 32:9, 2.37…). |
 | Champ de vision | `FOV` | Un facteur sur les 114,6° du jeu : 1.15, 1.25 ou 1.40 élargissent la vue. |
 | Animations | `AnimationRate` | Les personnages sont animés à 20 images/s ; 25 ou 30 les rendent plus fluides. |
-| Référence d'images/s | `FrameRateCap` | 60 à l'origine, ce qui bride le jeu ; 120 par défaut, pour qu'il suive `FPSLimit` (100). |
+| Référence d'images/s | `FrameRateCap` | 60 à l'origine, ce qui bride le jeu ; 120 par défaut, pour qu'il suive `FPSLimit`. |
+| Images/s | `FPSLimit` | 120 par défaut (100 auparavant) : mesuré en jeu à 119 images/s de moyenne, 1 % low 111 contre 94, et le jeu ne va pas plus vite. |
 | Plantage au-delà de 2048 pixels | `HazeOverlay` | La brume de la Forêt interdite, du lac, du labyrinthe et du cimetière est rangée dans un tableau de 129 colonnes de 16 pixels : un écran plus large le fait déborder et le jeu plante. `1` la dessine avec un nombre de colonnes plafonné (colonnes plus larges, même brume) ; `0`, le défaut pour l'instant, la retire comme l'ancien correctif. |
 
 ### Dans *Harry Potter et l'Ordre du Phénix* (`hp.exe`)
@@ -66,6 +67,8 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 | Limite de 30 images/s levée | `UnlockFrameRate` | Le jeu démarre avec un intervalle de présentation de 2 (30 images/s) ; il passe à 1. |
 | Plafond d'images/s | `FrameRateCap` | Le plafond que le moteur garde en mémoire et remet parfois à zéro, tenu à 120 (sauf quand le moteur le met lui-même à 0). |
 | Images régulières | `FPSLimit` | 120 par défaut. Le plafond du jeu seul tient 120 images/s en moyenne, mais par à-coups : des images très rapides puis une attente de 25 ms (1 % low mesuré à 31 images/s, contre 102 avec la limite). |
+| Langue au démarrage | `Language` | Le menu des 16 langues s'ouvre sur celle de Windows et la prend seul au bout de 15 s, mais le jeu ne connaît qu'une variante de chaque langue : un Windows en français de Belgique, de Suisse ou du Canada, ou en espagnol tel que Windows le règle aujourd'hui en Espagne, le faisait démarrer en anglais. `auto` (défaut) ramène la langue de Windows à celle que le jeu connaît ; `fr`, `en`, `es`, `de`, `it`… choisissent ; `windows` laisse faire le jeu. |
+| Brouillard lointain | `DistanceFog` | Le jeu noie le décor lointain dans un voile vert : les collines autour du château y fondent. `0` le retire (collines nettes et contrastées, scène un peu plus sombre) ; `1`, le défaut, le garde tel que livré. |
 
 Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le disque, et seulement là où les octets attendus sont trouvés : une autre version du jeu tourne simplement sans changement, et le journal le dit.
 

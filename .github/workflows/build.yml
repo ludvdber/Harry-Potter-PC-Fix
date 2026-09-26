@@ -97,6 +97,29 @@ jobs:
             exit 1
           }
 
+      # Every DLL that d3d9.dll imports must exist on the player's PC, or the game
+      # stops before its first frame ("xxx.dll was not found"). A switch to the DLL
+      # runtime (/MD: VCRUNTIME140.dll, MSVCP140.dll), a Debug build (…D.dll) or
+      # a new library would pass every other step and fail only at the player's.
+      # d3dx9_43.dll is NOT part of Windows: it comes with the DirectX End-User
+      # Runtime (June 2010), which the games need anyway (xinput1_3.dll for HP5
+      # to HP7b, d3dx9_37.dll for HP7a/HP7b). Adding a name here is a decision.
+      - name: Check the imported DLLs
+        shell: cmd
+        env:
+          VS: ${{ steps.vs.outputs.path }}
+        run: |
+          call "%VS%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
+          dumpbin /nologo /dependents data\d3d9.dll > dependents.txt || exit /b 1
+          type dependents.txt
+          powershell -NoProfile -Command ^
+            "$allowed = 'kernel32.dll','user32.dll','winmm.dll','d3dx9_43.dll';" ^
+            "$names = Select-String -Path dependents.txt -Pattern '^\s+(\S+\.dll)\s*$' | ForEach-Object { $_.Matches[0].Groups[1].Value.ToLowerInvariant() };" ^
+            "if (-not $names) { Write-Output '::error::No imported DLL found in the dumpbin output.'; exit 1 }" ^
+            "$extra = $names | Where-Object { $_ -notin $allowed };" ^
+            "if ($extra) { Write-Output ('::error file=build/accio-fix.vcxproj::d3d9.dll imports ' + ($extra -join ', ') + ', not in the allowed list. A player without it cannot start the game.'); exit 1 }" ^
+            "Write-Output ('Imports: ' + ($names -join ', '))"
+
       # Key remapping ([Accio.Keys]) checked without a game (the test program is
       # named like HP4's executable because the action names are HP4's), then each
       # game's d3d9.ini read with the DLL's own reader, old file format included.

@@ -12,8 +12,12 @@ from pathlib import Path
 
 JEUX = {
     "HP4": dict(titre="Harry Potter and the Goblet of Fire", resolution="800x600",
-                fps_limit=100, center=1, dpi=0, fov_note="0 = as shipped (114.6 degrees)",
-                animations=True, cap=120, unlock=False, haze=True, aspect="16:9"),
+                fps_limit=120, center=1, dpi=0, fov_note="0 = as shipped (114.6 degrees)",
+                animations=True, cap=120, unlock=False, haze=True, aspect="16:9",
+                # Measured in game (2026-09-26, camp at night, F11 while walking): 100 -> 1 % low 94;
+                # 120 -> average 119, 1 % low 111-115, same positions at the same instants (not faster).
+                fps_note=("; 120: the frame-rate reference below (FrameRateCap) is 120 too; measured",
+                          "; at 119 FPS on average, 1 % low 111, game speed unchanged.")),
     "HP5": dict(titre="Harry Potter and the Order of the Phoenix", resolution="640x480",
                 fps_limit=120, center=1, dpi=1, fov_note="0 = as shipped",
                 animations=False, cap=120, unlock=True, haze=False,
@@ -29,7 +33,7 @@ JEUX = {
                               SSAOMinDelta="0.02", SSAOMaxDelta="0.15")),
     "HP6": dict(titre="Harry Potter and the Half-Blood Prince", resolution="640x480",
                 fps_limit=120, center=0, dpi=0, fov_note="0 = as shipped",
-                animations=False, cap=120, unlock=True, haze=False,
+                animations=False, cap=120, unlock=True, haze=False, language=True, fog=True,
                 # Measured in game (2026-09-26, same walk, F11): the game's own ceiling alone
                 # averages 120 in bursts, 1 % low 31 FPS; with FPSLimit=120, 1 % low 102.
                 fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
@@ -222,6 +226,22 @@ def ini(jeu, graphismes=None):
         a("; 0 = not drawn (the earlier fix's cure), 1 = drawn, with the crash fixed,")
         a("; 2 = drawn as shipped.")
         a("HazeOverlay=0")
+    if j.get("language"):
+        a("")
+        a("; The language the start menu opens on (and takes by itself after 15 s). The")
+        a("; game takes it from Windows but only knows one variant of each language:")
+        a("; French from Belgium, Switzerland or Canada, or Spanish as Windows gives it in")
+        a("; Spain today, opened on English.")
+        a("; auto = your Windows language, brought to the variant the game knows;")
+        a("; windows = as the game asks; or a language: en, fr, es, de, it, nl, pt,")
+        a("; pt-br, pl, ru, sv, da, fi, no, cs, hu (the game must have it on disk).")
+        a("Language=auto")
+    if j.get("fog"):
+        a("")
+        a("; The green haze the game lays over distant scenery (the hills around the")
+        a("; grounds melt into it). 1 = as shipped, 0 = removed: far hills sharp and")
+        a("; contrasted, the scene a little darker.")
+        a("DistanceFog=1")
     a("")
     a("")
     a("; ----------------------------------------------------------------------------")

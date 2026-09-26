@@ -7,9 +7,11 @@
 #include "hooks.h"
 #include "render_state.h"
 #include "d3dx9.h"
+#include <algorithm>
 #include <set>
 #include <tuple>
 #include <unordered_map>
+#include <vector>
 
 #pragma comment(lib, "d3dx9.lib")
 #pragma comment(lib, "dxguid.lib")
@@ -278,6 +280,10 @@ std::unordered_map<IDirect3DSurface9*, IDirect3DTexture9*> g_twinOfSurface;  // 
 std::unordered_map<IDirect3DSurface9*, IDirect3DSurface9*> g_surfaceOfTwin;  // our twin -> game's level 0
 std::unordered_map<IDirect3DSurface9*, IDirect3DSurface9*> g_depthTwins;     // game's depth -> ours
 std::unordered_map<IDirect3DSurface9*, IDirect3DSurface9*> g_depthOfTwin;    // ours -> game's depth
+// Game depths we still hold with no twin: a twin to be remade at another multisampling was
+// refused. Released like a twin's depth (PruneDepthTwins, ForgetSceneTwins); a hold nobody tracks
+// would make the next Reset fail on a live default-pool resource.
+std::vector<IDirect3DSurface9*> g_orphanDepths;
 D3DMULTISAMPLE_TYPE g_sceneMsaa = D3DMULTISAMPLE_NONE;
 D3DMULTISAMPLE_TYPE g_targetMsaa = D3DMULTISAMPLE_NONE; // of the target really bound at index 0
 SceneTwin* g_twinBound = nullptr;
@@ -399,6 +405,12 @@ IDirect3DSurface9* DepthFor(IDirect3DDevice9* dev, IDirect3DSurface9* depth)
 		g_depthTwins.erase(it);
 		held = true;
 	}
+	else if (auto orphan = std::find(g_orphanDepths.begin(), g_orphanDepths.end(), depth);
+			 orphan != g_orphanDepths.end())
+	{
+		g_orphanDepths.erase(orphan); // the hold carries over to the new twin, or back below
+		held = true;
+	}
 	IDirect3DSurface9* twin = nullptr;
 	HRESULT hr;
 	{
@@ -414,6 +426,9 @@ IDirect3DSurface9* DepthFor(IDirect3DDevice9* dev, IDirect3DSurface9* depth)
 			Log("Direct3D: multisampled depth %ux%u refused, hr=0x%lX\n", d.Width, d.Height, static_cast<unsigned long>(hr));
 		}
 		// A hold left over stays: the device is about to bind this depth, it must not die first.
+		// Tracked, so that it goes once the depth is free again.
+		if (held)
+			g_orphanDepths.push_back(depth);
 		return depth;
 	}
 	if (!held)
@@ -427,11 +442,23 @@ IDirect3DSurface9* DepthFor(IDirect3DDevice9* dev, IDirect3DSurface9* depth)
 // bound. Kept while bound: the game may have released a depth it still draws with.
 void PruneDepthTwins(IDirect3DDevice9* dev)
 {
-	if (g_depthTwins.empty())
+	if (g_depthTwins.empty() && g_orphanDepths.empty())
 		return;
 	IDirect3DSurface9* bound = nullptr;
 	if (FAILED(dev->GetDepthStencilSurface(&bound)))
 		bound = nullptr;
+	for (auto it = g_orphanDepths.begin(); it != g_orphanDepths.end();)
+	{
+		IDirect3DSurface9* game = *it;
+		game->AddRef();
+		if (game->Release() == 1 && game != bound)
+		{
+			game->Release();
+			it = g_orphanDepths.erase(it);
+		}
+		else
+			++it;
+	}
 	for (auto it = g_depthTwins.begin(); it != g_depthTwins.end();)
 	{
 		IDirect3DSurface9* game = it->first;
@@ -516,6 +543,9 @@ void ForgetSceneTwins(IDirect3DDevice9* dev)
 		twin->Release();
 		depth->Release(); // our hold (see DepthFor)
 	}
+	for (IDirect3DSurface9* depth : g_orphanDepths)
+		depth->Release();
+	g_orphanDepths.clear();
 	g_sceneTwins.clear();
 	g_twinOfSurface.clear();
 	g_surfaceOfTwin.clear();

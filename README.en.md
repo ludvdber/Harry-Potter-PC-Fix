@@ -42,7 +42,8 @@ It turns the game's exclusive full screen into a borderless window that survives
 | Aspect ratio | `AspectRatio` | The game renders 4:3. 16:9 by default here; any ratio works (16:10, 21:9, 32:9, 2.37…). |
 | Field of view | `FOV` | A factor on the game's 114.6 degrees: 1.15, 1.25 or 1.40 widen the view. |
 | Animation rate | `AnimationRate` | Characters are animated at 20 frames per second; 25 or 30 makes them smoother. |
-| Frame-rate reference | `FrameRateCap` | 60 as shipped, which holds the game back; 120 by default, so that it can follow `FPSLimit` (100). |
+| Frame-rate reference | `FrameRateCap` | 60 as shipped, which holds the game back; 120 by default, so that it can follow `FPSLimit`. |
+| Frame rate | `FPSLimit` | 120 by default (100 before): measured in game at 119 fps on average, 1% low 111 against 94, and the game does not run faster. |
 | Crash above 2048 pixels | `HazeOverlay` | The haze of the Forbidden Forest, the lake, the maze and the graveyard is built in a fixed array of 129 columns 16 pixels wide: a wider screen overruns it and the game crashes. `1` draws it with the column count capped (wider columns, same haze); `0`, the default for now, skips it as the earlier fix did. |
 
 ### Inside *Harry Potter and the Order of the Phoenix* (`hp.exe`)
@@ -66,6 +67,8 @@ It turns the game's exclusive full screen into a borderless window that survives
 | 30 fps limit lifted | `UnlockFrameRate` | The game starts with a presentation interval of 2 (30 frames per second); it becomes 1. |
 | Frame-rate ceiling | `FrameRateCap` | The ceiling the engine keeps in memory and sometimes resets, held at 120 (left alone while the engine sets it to 0). |
 | Even frames | `FPSLimit` | 120 by default. The game's own ceiling alone holds 120 frames per second on average, but in bursts: very fast frames, then a 25 ms wait (1% low measured at 31 fps, against 102 with the limit). |
+| Start-up language | `Language` | The menu of 16 languages opens on the Windows language and takes it by itself after 15 s, but the game knows only one variant of each language: Windows in French from Belgium, Switzerland or Canada, or in Spanish as Windows sets it in Spain today, made it start in English. `auto` (default) brings the Windows language to the one the game knows; `fr`, `en`, `es`, `de`, `it`… choose; `windows` leaves it to the game. |
+| Distance fog | `DistanceFog` | The game drowns distant scenery in a green haze: the hills around the castle melt into it. `0` removes it (sharp, contrasted hills, the scene a little darker); `1`, the default, keeps it as shipped. |
 
 Each change is made in the executable once it is loaded, never on disk, and only where the expected bytes are found: another build of a game simply runs unchanged, and the log says so.
 

@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 void Log(const char*, ...) {}
@@ -51,7 +52,7 @@ int main(int argc, char** argv)
 	{
 		const char* game = "HP4";
 		Load(data + "\\HP4\\d3d9.ini");
-		EXPECT(c.fpsLimit == 100 && c.centerWindow && !c.dpiAware);
+		EXPECT(c.fpsLimit == 120 && c.centerWindow && !c.dpiAware);
 		EXPECT(Near(c.aspectRatio, 16.0f / 9));
 		EXPECT(c.animationRate == 0 && c.frameRateCap == 120 && c.hazeOverlay == 0);
 		EXPECT(!c.fxaa && c.msaa == 0 && !c.transparencyAa && c.anisotropy == 0 && !c.grading && !c.ssao && !c.bloom && !c.godRays);
@@ -77,6 +78,7 @@ int main(int argc, char** argv)
 		Load(data + "\\HP6\\d3d9.ini");
 		EXPECT(c.fpsLimit == 120 && !c.centerWindow && !c.dpiAware);
 		EXPECT(c.unlockFrameRate == 1 && c.frameRateCap == 120);
+		EXPECT(strcmp(c.language, "auto") == 0 && c.distanceFog == 1);
 		EXPECT(!c.fxaa && c.msaa == 0 && !c.transparencyAa && !c.grading && !c.ssao);
 	}
 	// HP7 parts 1 and 2: the window and focus of the others, 60 fps without the game's own

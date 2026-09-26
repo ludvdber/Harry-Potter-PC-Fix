@@ -393,6 +393,42 @@ void HoldFrameRate(const Profile& p)
 		CloseHandle(t);
 }
 
+// HP6 hides its distance in a green haze: the far hills of the grounds melt into it, what Ludo saw
+// as "very blurred far away, like a fog". The engine has a switch for it, DisableFog, read from
+// HKCU\...\GameSettings (absent = 0, fog on) into a global when the main window is made, then read
+// when a level loads (0x005EE852; the engine sets it itself on cards too old for the fog). Written
+// during play it changes nothing; written before the level loads, the hills come out sharp (seen
+// 2026-09-26, grounds: contrast of the far third of the image 21-27 -> 25-30). Held by a thread,
+// since the settings are read after this DLL loads. HP5 has the same switch (0x00BF1964), not
+// seen yet: left alone.
+DWORD WINAPI HoldFogOff(LPVOID param)
+{
+	auto* at = static_cast<volatile LONG*>(param);
+	for (;;)
+	{
+		if (*at == 0)
+			*at = 1;
+		Sleep(20);
+	}
+}
+
+void RemoveDistanceFog(const char* exeName)
+{
+	if (g_cfg.distanceFog != 0 || _stricmp(exeName, "hp6.exe") != 0)
+		return;
+	auto* at = reinterpret_cast<LONG*>(0x00CF198C);
+	MEMORY_BASIC_INFORMATION mbi = {};
+	if (!VirtualQuery(at, &mbi, sizeof(mbi)) || !(mbi.Protect & (PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE)))
+	{
+		Log("Game: distance fog switch not writable, fog left on\n");
+		return;
+	}
+	HANDLE t = CreateThread(nullptr, 0, HoldFogOff, at, 0, nullptr);
+	Log("Game: distance fog removed %s\n", t ? "" : "(thread FAILED)");
+	if (t)
+		CloseHandle(t);
+}
+
 // Counted for the log (ReportHaze): whether the haze is drawn at all, and how wide it asked.
 LONG g_hazeCalls = 0;
 LONG g_hazeWidest = 0;
@@ -445,6 +481,88 @@ void PatchHaze(const Profile& p)
 	const bool ok = WriteMemory(at, jump, sizeof(jump));
 	Log("Game: haze overlay skipped %s\n", ok ? "" : "(NOT patched)");
 }
+
+// HP6 opens on a menu of 16 languages, on the language Windows gives GetUserDefaultLangID, looked
+// up EXACTLY in a table of 21 (EN-US 0x0409, EN-GB 0x0809, FR-FR 0x040C, ES-ES 0x040A...). Any
+// other variant is not found and the menu opens on English, which it takes by itself after some
+// 15 s: French from Belgium (0x080C), Switzerland or Canada, Spanish as Windows reports it in Spain
+// today (0x0C0A) or in Latin America, Swiss or Austrian German... Seen 2026-09-26: Windows in
+// French (Belgium), menu on English; Language=auto, menu on Francais; Language=es, on Espanol.
+// The executable's own import is redirected. The table's entry also sets the character set of
+// text input, the same for every variant of a language. HP4 and HP5 carry the same table but
+// never ask it at start-up (seen: no call in 12 s, their menu on Francais whatever the answer):
+// their menu is left alone.
+struct GameLanguage
+{
+	const char* code;
+	LANGID id;
+};
+const GameLanguage kGameLanguages[] = {
+	{ "en", 0x0809 }, { "en-gb", 0x0809 }, { "en-us", 0x0409 }, { "fr", 0x040C }, { "de", 0x0407 },
+	{ "it", 0x0410 }, { "es", 0x040A }, { "nl", 0x0413 }, { "sv", 0x041D }, { "fi", 0x040B },
+	{ "da", 0x0406 }, { "no", 0x0414 }, { "pt", 0x0816 }, { "pt-br", 0x0416 }, { "pl", 0x0415 },
+	{ "cs", 0x0405 }, { "hu", 0x040E }, { "ru", 0x0419 },
+};
+LANGID g_languageAnswer = 0;
+
+// A variant of a language the table knows only once: its one entry. English and Portuguese have
+// two entries each, left as Windows says.
+LANGID TableVariant(LANGID id)
+{
+	switch (PRIMARYLANGID(id))
+	{
+	case LANG_FRENCH: return 0x040C;
+	case LANG_GERMAN: return 0x0407;
+	case LANG_ITALIAN: return 0x0410;
+	case LANG_SPANISH: return 0x040A;
+	case LANG_DUTCH: return 0x0413;
+	case LANG_SWEDISH: return 0x041D;
+	case LANG_NORWEGIAN: return 0x0414;
+	default: return id;
+	}
+}
+
+LANGID WINAPI GetUserDefaultLangIDForGame()
+{
+	static LONG said = 0;
+	if (!InterlockedExchange(&said, 1))
+		Log("Game: language menu asked, answered 0x%04X (Windows: 0x%04X)\n", g_languageAnswer, GetUserDefaultLangID());
+	return g_languageAnswer;
+}
+
+void ChooseLanguage(const char* exeName)
+{
+	const char* want = g_cfg.language;
+	if (_stricmp(exeName, "hp6.exe") != 0 || _stricmp(want, "windows") == 0)
+		return;
+	const LANGID windows = GetUserDefaultLangID();
+	LANGID answer = 0;
+	if (_stricmp(want, "auto") == 0 || !*want)
+	{
+		answer = TableVariant(windows);
+	}
+	else
+	{
+		for (const GameLanguage& l : kGameLanguages)
+			if (_stricmp(want, l.code) == 0)
+				answer = l.id;
+		if (!answer)
+		{
+			Log("Game: Language=%s is not one this fix knows, the menu opens as Windows says\n", want);
+			return;
+		}
+	}
+	if (answer == windows)
+	{
+		Log("Game: language menu opens on 0x%04X, as Windows says\n", windows);
+		return;
+	}
+	g_languageAnswer = answer;
+	const bool ok = RedirectImport(g_exe, "kernel32.dll", "GetUserDefaultLangID",
+		reinterpret_cast<void*>(GetUserDefaultLangIDForGame)) != nullptr;
+	Log("Game: language menu opens on 0x%04X instead of 0x%04X (Language=%s) %s\n", answer, windows, want,
+		ok ? "" : "(NOT redirected)");
+}
 }
 
 void ApplyGamePatches()
@@ -468,6 +586,8 @@ void ApplyGamePatches()
 	PatchFrameInterval(*p);
 	HoldFrameRate(*p);
 	PatchHaze(*p);
+	ChooseLanguage(p->exe);
+	RemoveDistanceFog(p->exe);
 }
 
 // Once a frame: the first haze drawn, and the first one the cap had to shorten.
