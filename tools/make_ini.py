@@ -15,8 +15,12 @@ JEUX = {
                 fps_limit=100, center=1, dpi=0, fov_note="0 = as shipped (114.6 degrees)",
                 animations=True, cap=120, unlock=False, haze=True, aspect="16:9"),
     "HP5": dict(titre="Harry Potter and the Order of the Phoenix", resolution="640x480",
-                fps_limit=0, center=1, dpi=1, fov_note="0 = as shipped",
+                fps_limit=120, center=1, dpi=1, fov_note="0 = as shipped",
                 animations=False, cap=120, unlock=True, haze=False,
+                # Measured in game (2026-09-26, common room, F11): the same bursts as HP6,
+                # 1 % low 38 FPS alone; with FPSLimit=120, 1 % low 84.
+                fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
+                          "; of fast frames and waits of 25 ms (1 % low 38 FPS, against 84)."),
                 # The image HP5 has shipped with since the fix existed (validated in game).
                 graphics=dict(FXAA=1, Antialiasing=16, AnisotropicFiltering=16, TextureLODBias=-1.5,
                               VSync=1, ColorGrading=1, Vibrance="0.45", Vignette="0.08", Gain="1.08",
@@ -46,7 +50,7 @@ JEUX = {
                  unlock_off=True),
 }
 
-GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
+GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
                     SSAAFactor=1, ShadowMapScale=1, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
                     Tint="0.00", Contrast="0.00", SplitTone="0.00", SSAO=0, SSAOStrength="0.50",
@@ -267,6 +271,11 @@ def ini(jeu, graphismes=None):
     a("; card cannot). Reaches the 3D scene only with SSAO=0: ambient occlusion reads")
     a("; the scene depth, which Direct3D 9 cannot multisample.")
     a(f"Antialiasing={g['Antialiasing']}")
+    a("")
+    a("; With Antialiasing: hair and leaves smoothed too (their cut-out edges).")
+    a("; NVIDIA cards only, elsewhere no change. Costs frames where there are many")
+    a("; leaves (HP6, 2560x1440, RTX 2060 SUPER: 1 % low 101 -> 76 FPS).")
+    a(f"TransparencyAntialiasing={g['TransparencyAntialiasing']}")
     a("")
     a("; Texture sharpness at an angle: 0, 2, 4, 8 or 16.")
     a(f"AnisotropicFiltering={g['AnisotropicFiltering']}")

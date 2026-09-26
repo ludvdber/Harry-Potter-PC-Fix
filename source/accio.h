@@ -49,6 +49,7 @@ struct Settings
 	bool  fxaa = false;
 	float sharpness = 0.40f;
 	int   msaa = 0;
+	bool  transparencyAa = false;   // alpha-tested edges (hair, leaves) smoothed too, with msaa
 	int   anisotropy = 0;
 	float lodBias = 0.0f;
 	int   ssaa = 1;

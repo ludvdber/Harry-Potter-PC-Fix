@@ -54,13 +54,13 @@ int main(int argc, char** argv)
 		EXPECT(c.fpsLimit == 100 && c.centerWindow && !c.dpiAware);
 		EXPECT(Near(c.aspectRatio, 16.0f / 9));
 		EXPECT(c.animationRate == 0 && c.frameRateCap == 120 && c.hazeOverlay == 0);
-		EXPECT(!c.fxaa && c.msaa == 0 && c.anisotropy == 0 && !c.grading && !c.ssao && !c.bloom && !c.godRays);
+		EXPECT(!c.fxaa && c.msaa == 0 && !c.transparencyAa && c.anisotropy == 0 && !c.grading && !c.ssao && !c.bloom && !c.godRays);
 	}
 	{
 		// The image HP5 has shipped with: Ludo's tuning, value for value.
 		const char* game = "HP5";
 		Load(data + "\\HP5\\d3d9.ini");
-		EXPECT(c.fpsLimit == 0 && c.centerWindow && c.dpiAware);
+		EXPECT(c.fpsLimit == 120 && c.centerWindow && c.dpiAware);
 		EXPECT(Near(c.aspectRatio, 0.0f) && c.unlockFrameRate == 1 && c.frameRateCap == 120 && c.hazeOverlay == -1);
 		EXPECT(c.fxaa && Near(c.sharpness, 0.40f) && c.msaa == 16 && c.anisotropy == 16);
 		EXPECT(Near(c.lodBias, -1.5f) && c.vsync && c.ssaa == 1 && c.shadowScale == 1);
@@ -77,7 +77,7 @@ int main(int argc, char** argv)
 		Load(data + "\\HP6\\d3d9.ini");
 		EXPECT(c.fpsLimit == 120 && !c.centerWindow && !c.dpiAware);
 		EXPECT(c.unlockFrameRate == 1 && c.frameRateCap == 120);
-		EXPECT(!c.fxaa && c.msaa == 0 && !c.grading && !c.ssao);
+		EXPECT(!c.fxaa && c.msaa == 0 && !c.transparencyAa && !c.grading && !c.ssao);
 	}
 	// HP7 parts 1 and 2: the window and focus of the others, 60 fps without the game's own
 	// 30 fps wait, and the field of view the earlier fix gave every player.
@@ -90,7 +90,7 @@ int main(int argc, char** argv)
 		EXPECT(c.fpsLimit == 60 && c.centerWindow && !c.dpiAware);
 		EXPECT(c.renderWidth == 0 && c.renderHeight == 0);
 		EXPECT(c.legacyAspectIndex == 0 && c.legacyFov == 0);
-		EXPECT(!c.fxaa && c.msaa == 0 && c.anisotropy == 0 && !c.grading && !c.ssao && !c.bloom && !c.godRays);
+		EXPECT(!c.fxaa && c.msaa == 0 && !c.transparencyAa && c.anisotropy == 0 && !c.grading && !c.ssao && !c.bloom && !c.godRays);
 	}
 	{
 		const char* game = "HP7a";

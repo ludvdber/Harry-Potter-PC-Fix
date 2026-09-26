@@ -21,6 +21,14 @@ namespace
 {
 // ---- Presentation parameters ---------------------------------------------------------------
 
+// Hair and leaves are cut out by the alpha test, which multisampling leaves in steps: a pixel is
+// in or out. NVIDIA's drivers run that test once per sample while D3DRS_ADAPTIVETESS_Y holds the
+// code 'SSAA' (transparency supersampling). Asked for while the bound target is multisampled
+// (SetRenderTarget), D3DFMT_UNKNOWN otherwise. Other cards: nothing changes. Their 'ATOC' (alpha
+// to coverage) was tried first: no visible change in HP6 (2026-09-26).
+constexpr DWORD kSsaa = MAKEFOURCC('S', 'S', 'A', 'A');
+bool g_ssaaSupported = false;
+
 void CheckDepthTexture(IDirect3D9* d3d, UINT adapter, D3DDEVTYPE type)
 {
 	static bool checked = false;
@@ -33,6 +41,12 @@ void CheckDepthTexture(IDirect3D9* d3d, UINT adapter, D3DDEVTYPE type)
 	const D3DFORMAT display = SUCCEEDED(d3d->GetAdapterDisplayMode(adapter, &mode)) ? mode.Format : D3DFMT_X8R8G8B8;
 	g_depth.supported = SUCCEEDED(d3d->CheckDeviceFormat(adapter, type, display, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_TEXTURE, D3DFMT_INTZ));
 	Log("Direct3D: depth as texture (INTZ) %s\n", g_depth.supported ? "available" : "not available");
+	if (g_cfg.transparencyAa && g_cfg.msaa > 0)
+	{
+		g_ssaaSupported = SUCCEEDED(d3d->CheckDeviceFormat(adapter, type, display, 0, D3DRTYPE_SURFACE,
+			static_cast<D3DFORMAT>(kSsaa)));
+		Log("Direct3D: transparency supersampling %s\n", g_ssaaSupported ? "available (NVIDIA)" : "not available");
+	}
 }
 
 // Size of the monitor in physical pixels, whatever the display scaling.
@@ -934,6 +948,17 @@ HRESULT STDMETHODCALLTYPE SetRenderTarget(IDirect3DDevice9* self, DWORD index, I
 		g_targetMsaa = (target && SUCCEEDED(target->GetDesc(&d))) ? d.MultiSampleType : D3DMULTISAMPLE_NONE;
 	}
 	RebindDepth(self);
+	if (g_ssaaSupported)
+	{
+		static bool said = false;
+		if (!said && g_targetMsaa != D3DMULTISAMPLE_NONE)
+		{
+			said = true;
+			Log("Direct3D: alpha-tested edges supersampled (frame %ld)\n", g_frames);
+		}
+		InternalCalls inside;
+		self->SetRenderState(D3DRS_ADAPTIVETESS_Y, g_targetMsaa != D3DMULTISAMPLE_NONE ? kSsaa : D3DFMT_UNKNOWN);
+	}
 	return hr;
 }
 

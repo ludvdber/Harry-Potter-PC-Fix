@@ -54,6 +54,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 | Field of view | `FOV` | A factor on the game's own view: 1.15, 1.25 or 1.40 widen it. |
 | 30 fps limit lifted | `UnlockFrameRate` | The game starts with a presentation interval of 2 (30 frames per second); it becomes 1. |
 | Frame-rate ceiling | `FrameRateCap` | The ceiling the engine keeps in memory and sometimes resets, held at 120. |
+| Even frames | `FPSLimit` | 120 by default, for the same reason as in *Half-Blood Prince*: the game's own ceiling alone works in bursts (1% low measured at 38 fps in the common room, against 84 with the limit). |
 
 ### Inside *Harry Potter and the Half-Blood Prince* (`hp6.exe`)
 
@@ -78,6 +79,7 @@ Each change is made in the executable once it is loaded, never on disk, and only
 |---|---|---|
 | Mipmaps built for every texture | `GenerateMipmaps`, `ForceTrilinear` | Most textures ship without smaller copies for the distance, which makes them shimmer and blur far away. The copies are built as each texture loads. |
 | MSAA | `Antialiasing` | Applied to the 3D scene itself: the games draw it into an image of their own before copying it to the screen, and MSAA on the screen alone never reached it. Stepped down (16, 8, 4, 2, off) until the graphics card accepts it, instead of switching off. No effect on the scene with `SSAO=1` (Direct3D 9 cannot multisample the depth that ambient occlusion reads). |
+| Smooth hair and leaves | `TransparencyAntialiasing` | With `Antialiasing`: the cut-out edges of hair, leaves and grass stay stepped under MSAA alone; they are supersampled (NVIDIA cards only, no effect elsewhere). Seen in Goblet of Fire (hair on the character screen) and Half-Blood Prince (pine trees, hair). Cost measured on an RTX 2060 SUPER: 1% low from 101 to 76 fps in Half-Blood Prince at 2560×1440, from 94 to 84 in Goblet of Fire. Off by default. |
 | Anisotropic filtering, texture sharpness | `AnisotropicFiltering`, `TextureLODBias` | Forced on every texture. |
 | FXAA with sharpening | `FXAA`, `Sharpness` | One pass over the finished frame; it also carries the effects below. |
 | Colour grading | `ColorGrading` and the values under it | Lift, gain, gamma, white balance, contrast, vibrance, split toning, vignette. |
