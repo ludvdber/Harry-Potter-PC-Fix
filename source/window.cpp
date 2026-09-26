@@ -24,7 +24,7 @@ MONITORINFO MonitorOf(HWND hwnd)
 	return mi;
 }
 
-bool OursOrNone(HWND other)
+bool Ours(HWND other)
 {
 	if (!other)
 		return false;
@@ -42,8 +42,8 @@ bool IsLeaving(UINT msg, WPARAM wp, LPARAM lp)
 {
 	switch (msg)
 	{
-	case WM_ACTIVATE:    return LOWORD(wp) == WA_INACTIVE && !OursOrNone(reinterpret_cast<HWND>(lp));
-	case WM_KILLFOCUS:   return !OursOrNone(reinterpret_cast<HWND>(wp));
+	case WM_ACTIVATE:    return LOWORD(wp) == WA_INACTIVE && !Ours(reinterpret_cast<HWND>(lp));
+	case WM_KILLFOCUS:   return !Ours(reinterpret_cast<HWND>(wp));
 	case WM_ACTIVATEAPP: return !wp;
 	case WM_NCACTIVATE:  return !wp;
 	default:             return false;

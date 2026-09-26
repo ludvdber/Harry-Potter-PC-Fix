@@ -120,6 +120,9 @@ void RemapKeyboardState(BYTE* keys);
 
 // game.cpp
 void ApplyGamePatches();
+void ApplyLateGamePatches(LONG frame); // present.cpp: what the game decrypts after starting
+void ReportHaze();              // present.cpp, once a frame: HP4's haze seen (HazeOverlay=1)
+void ReportMipmaps(LONG frame);  // direct3d.cpp, once a frame: mipmap chains made and filled
 
 // present.cpp
 void BeforePresent(IDirect3DDevice9* dev);

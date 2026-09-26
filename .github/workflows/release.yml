@@ -111,7 +111,7 @@ jobs:
           mkdir release
           cp build-output/d3d9.dll release/
           # One zip per game: data/<game>/d3d9.ini next to the same d3d9.dll.
-          declare -A names=([HP4]=Goblet-of-Fire [HP5]=Order-of-the-Phoenix [HP6]=Half-Blood-Prince)
+          declare -A names=([HP4]=Goblet-of-Fire [HP5]=Order-of-the-Phoenix [HP6]=Half-Blood-Prince [HP7a]=Deathly-Hallows-Part-1 [HP7b]=Deathly-Hallows-Part-2)
           for dir in data/*/; do
             game=$(basename "$dir")
             name=${names[$game]:?"no release name for data/$game"}

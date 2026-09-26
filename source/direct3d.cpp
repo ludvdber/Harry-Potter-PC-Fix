@@ -7,6 +7,8 @@
 #include "hooks.h"
 #include "render_state.h"
 #include "d3dx9.h"
+#include <set>
+#include <tuple>
 #include <unordered_map>
 
 #pragma comment(lib, "d3dx9.lib")
@@ -183,6 +185,9 @@ using SetDepthFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, IDirect3DSurfa
 using SetViewportFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, const D3DVIEWPORT9*);
 using SetTextureFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, DWORD, IDirect3DBaseTexture9*);
 using SetSamplerFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, DWORD, D3DSAMPLERSTATETYPE, DWORD);
+using SetStateFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, D3DRENDERSTATETYPE, DWORD);
+using TargetDataFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, IDirect3DSurface9*, IDirect3DSurface9*);
+using StretchRectFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, IDirect3DSurface9*, const RECT*, IDirect3DSurface9*, const RECT*, D3DTEXTUREFILTERTYPE);
 using UnlockFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DTexture9*, UINT);
 using ReleaseFn = ULONG(STDMETHODCALLTYPE*)(IDirect3DTexture9*);
 
@@ -195,9 +200,12 @@ HRESULT STDMETHODCALLTYPE PresentEx(IDirect3DDevice9Ex*, const RECT*, const RECT
 HRESULT STDMETHODCALLTYPE ChainPresent(IDirect3DSwapChain9*, const RECT*, const RECT*, HWND, const RGNDATA*, DWORD);
 HRESULT STDMETHODCALLTYPE CreateTexture(IDirect3DDevice9*, UINT, UINT, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DTexture9**, HANDLE*);
 HRESULT STDMETHODCALLTYPE CreateDepthStencilSurface(IDirect3DDevice9*, UINT, UINT, D3DFORMAT, D3DMULTISAMPLE_TYPE, DWORD, BOOL, IDirect3DSurface9**, HANDLE*);
+HRESULT STDMETHODCALLTYPE GetRenderTargetData(IDirect3DDevice9*, IDirect3DSurface9*, IDirect3DSurface9*);
+HRESULT STDMETHODCALLTYPE StretchRect(IDirect3DDevice9*, IDirect3DSurface9*, const RECT*, IDirect3DSurface9*, const RECT*, D3DTEXTUREFILTERTYPE);
 HRESULT STDMETHODCALLTYPE SetRenderTarget(IDirect3DDevice9*, DWORD, IDirect3DSurface9*);
 HRESULT STDMETHODCALLTYPE SetDepthStencilSurface(IDirect3DDevice9*, IDirect3DSurface9*);
 HRESULT STDMETHODCALLTYPE SetViewport(IDirect3DDevice9*, const D3DVIEWPORT9*);
+HRESULT STDMETHODCALLTYPE SetRenderState(IDirect3DDevice9*, D3DRENDERSTATETYPE, DWORD);
 HRESULT STDMETHODCALLTYPE SetTexture(IDirect3DDevice9*, DWORD, IDirect3DBaseTexture9*);
 HRESULT STDMETHODCALLTYPE SetSamplerState(IDirect3DDevice9*, DWORD, D3DSAMPLERSTATETYPE, DWORD);
 HRESULT STDMETHODCALLTYPE UnlockRect(IDirect3DTexture9*, UINT);
@@ -210,9 +218,12 @@ REDIRECT(16, Reset);                   // IDirect3DDevice9
 REDIRECT(17, Present);
 REDIRECT(23, CreateTexture);
 REDIRECT(29, CreateDepthStencilSurface);
+REDIRECT(32, GetRenderTargetData);
+REDIRECT(34, StretchRect);
 REDIRECT(37, SetRenderTarget);
 REDIRECT(39, SetDepthStencilSurface);
 REDIRECT(47, SetViewport);
+REDIRECT(57, SetRenderState);
 REDIRECT(65, SetTexture);
 REDIRECT(69, SetSamplerState);
 REDIRECT(121, PresentEx);              // IDirect3DDevice9Ex
@@ -228,6 +239,277 @@ MethodRedirect g_ReleaseTexture(2, reinterpret_cast<void*>(ReleaseTexture));
 // {5D3E4A10-7C0B-4E8B-9A51-6B3C2F0D8E21}
 const GUID kFillMips = { 0x5d3e4a10, 0x7c0b, 0x4e8b, { 0x9a, 0x51, 0x6b, 0x3c, 0x2f, 0x0d, 0x8e, 0x21 } };
 LONG g_mipsFilled = 0;
+// Chains made, by pool: the game fills a texture of the default pool without locking it (a copy
+// from memory), so its chain may never be filled here. Counted to see whether that happens.
+LONG g_mipChains = 0, g_mipChainsDefault = 0;
+
+
+// ---- Multisampled scene (Antialiasing) ---------------------------------------------------
+// HP4 and HP6 draw their 3D scene into a render-target TEXTURE the size of the image, with a
+// depth of their own, then copy it to the back buffer (measured 2026-09-25): multisampling the
+// back buffer alone never reached the scene. That texture gets a multisampled twin, bound in its
+// place while the game draws into it and resolved into it when the game moves on. A depth used
+// with a multisampled target gets a multisampled twin too, since Direct3D 9 wants both to match.
+// Off with ambient occlusion: it reads the scene depth as an INTZ texture, which cannot be
+// multisampled.
+
+struct SceneTwin
+{
+	IDirect3DSurface9* surface = nullptr; // the game's level 0, compared against, not owned
+	IDirect3DSurface9* msaa = nullptr;    // ours
+	bool dirty = false;                   // drawn into since the last resolve
+};
+std::unordered_map<IDirect3DTexture9*, SceneTwin> g_sceneTwins;
+std::unordered_map<IDirect3DSurface9*, IDirect3DTexture9*> g_twinOfSurface;  // game's level 0 -> texture
+std::unordered_map<IDirect3DSurface9*, IDirect3DSurface9*> g_surfaceOfTwin;  // our twin -> game's level 0
+std::unordered_map<IDirect3DSurface9*, IDirect3DSurface9*> g_depthTwins;     // game's depth -> ours
+std::unordered_map<IDirect3DSurface9*, IDirect3DSurface9*> g_depthOfTwin;    // ours -> game's depth
+D3DMULTISAMPLE_TYPE g_sceneMsaa = D3DMULTISAMPLE_NONE;
+D3DMULTISAMPLE_TYPE g_targetMsaa = D3DMULTISAMPLE_NONE; // of the target really bound at index 0
+SceneTwin* g_twinBound = nullptr;
+
+void DropTwin(std::unordered_map<IDirect3DTexture9*, SceneTwin>::iterator it)
+{
+	if (g_twinBound == &it->second)
+		g_twinBound = nullptr; // still bound: the device keeps it alive until the next target
+	g_twinOfSurface.erase(it->second.surface);
+	g_surfaceOfTwin.erase(it->second.msaa);
+	it->second.msaa->Release();
+	g_sceneTwins.erase(it);
+}
+
+// The twin of a target the game binds, if it still fits it. An address can come back for another
+// texture if its release went unseen (Direct3D has been seen rewriting method tables).
+SceneTwin* TwinFor(IDirect3DSurface9* target)
+{
+	auto key = target ? g_twinOfSurface.find(target) : g_twinOfSurface.end();
+	if (key == g_twinOfSurface.end())
+		return nullptr;
+	auto it = g_sceneTwins.find(key->second);
+	if (it == g_sceneTwins.end())
+	{
+		g_twinOfSurface.erase(key);
+		return nullptr;
+	}
+	D3DSURFACE_DESC a, b;
+	if (SUCCEEDED(target->GetDesc(&a)) && SUCCEEDED(it->second.msaa->GetDesc(&b)) && a.Width == b.Width
+		&& a.Height == b.Height && a.Format == b.Format)
+		return &it->second;
+	DropTwin(it);
+	return nullptr;
+}
+
+void DecideSceneMsaa(const D3DPRESENT_PARAMETERS* pp)
+{
+	g_sceneMsaa = D3DMULTISAMPLE_NONE;
+	if (!pp || pp->MultiSampleType == D3DMULTISAMPLE_NONE)
+		return;
+	if (g_cfg.ssao && g_depth.supported)
+	{
+		static bool said = false;
+		if (!said)
+		{
+			said = true;
+			Log("Direct3D: Antialiasing reaches the back buffer only: ambient occlusion reads the scene depth "
+			    "as a texture, which Direct3D 9 cannot multisample\n");
+		}
+		return;
+	}
+	g_sceneMsaa = pp->MultiSampleType;
+}
+
+void AddSceneTwin(IDirect3DDevice9* dev, IDirect3DTexture9* tex, UINT w, UINT h, D3DFORMAT format)
+{
+	IDirect3DSurface9* top = nullptr;
+	if (FAILED(tex->GetSurfaceLevel(0, &top)) || !top)
+		return;
+	top->Release(); // the texture keeps its own level alive
+	IDirect3DSurface9* msaa = nullptr;
+	HRESULT hr;
+	{
+		InternalCalls inside;
+		hr = dev->CreateRenderTarget(w, h, format, g_sceneMsaa, 0, FALSE, &msaa, nullptr);
+	}
+	if (FAILED(hr) || !msaa)
+	{
+		Log("Direct3D: scene %ux%u (format %d) not multisampled, hr=0x%lX\n", w, h, static_cast<int>(format),
+			static_cast<unsigned long>(hr));
+		return;
+	}
+	g_ReleaseTexture.Install(tex);
+	if (auto old = g_sceneTwins.find(tex); old != g_sceneTwins.end())
+		DropTwin(old); // left over from a texture whose release went unseen
+	g_sceneTwins[tex] = { top, msaa, false };
+	g_twinOfSurface[top] = tex;
+	g_surfaceOfTwin[msaa] = top;
+	Log("Direct3D: scene %ux%u (format %d) drawn with MSAA %d\n", w, h, static_cast<int>(format), static_cast<int>(g_sceneMsaa));
+}
+
+void Resolve(IDirect3DDevice9* dev, SceneTwin& t)
+{
+	if (!t.dirty)
+		return;
+	t.dirty = false;
+	InternalCalls inside;
+	const HRESULT hr = dev->StretchRect(t.msaa, nullptr, t.surface, nullptr, D3DTEXF_NONE);
+	static bool logged = false;
+	if (FAILED(hr) && !logged)
+	{
+		logged = true;
+		Log("Direct3D: multisampled scene not resolved, hr=0x%lX\n", static_cast<unsigned long>(hr));
+	}
+}
+
+// The depth to bind with the target really bound: the game's, or its multisampled twin when the
+// target is multisampled and the game's depth is not. The game's depth is HELD while it has a
+// twin: the device holds the twin in its place, and a game may release its own reference counting
+// on the device's, as Direct3D allows. Without that hold, the next change of target read a freed
+// surface.
+IDirect3DSurface9* DepthFor(IDirect3DDevice9* dev, IDirect3DSurface9* depth)
+{
+	if (!depth || g_targetMsaa == D3DMULTISAMPLE_NONE)
+		return depth;
+	D3DSURFACE_DESC d;
+	if (FAILED(depth->GetDesc(&d)) || d.MultiSampleType != D3DMULTISAMPLE_NONE)
+		return depth;
+	bool held = false;
+	auto it = g_depthTwins.find(depth);
+	if (it != g_depthTwins.end())
+	{
+		D3DSURFACE_DESC t;
+		if (SUCCEEDED(it->second->GetDesc(&t)) && t.MultiSampleType == g_targetMsaa)
+			return it->second;
+		// Another multisampling since: a new twin, the game's depth still held.
+		g_depthOfTwin.erase(it->second);
+		it->second->Release();
+		g_depthTwins.erase(it);
+		held = true;
+	}
+	IDirect3DSurface9* twin = nullptr;
+	HRESULT hr;
+	{
+		InternalCalls inside;
+		hr = dev->CreateDepthStencilSurface(d.Width, d.Height, d.Format, g_targetMsaa, 0, FALSE, &twin, nullptr);
+	}
+	if (FAILED(hr) || !twin)
+	{
+		static bool logged = false;
+		if (!logged)
+		{
+			logged = true;
+			Log("Direct3D: multisampled depth %ux%u refused, hr=0x%lX\n", d.Width, d.Height, static_cast<unsigned long>(hr));
+		}
+		// A hold left over stays: the device is about to bind this depth, it must not die first.
+		return depth;
+	}
+	if (!held)
+		depth->AddRef();
+	g_depthTwins[depth] = twin;
+	g_depthOfTwin[twin] = depth;
+	return twin;
+}
+
+// Once a frame: a twin goes with its game depth once nobody else holds that depth and neither is
+// bound. Kept while bound: the game may have released a depth it still draws with.
+void PruneDepthTwins(IDirect3DDevice9* dev)
+{
+	if (g_depthTwins.empty())
+		return;
+	IDirect3DSurface9* bound = nullptr;
+	if (FAILED(dev->GetDepthStencilSurface(&bound)))
+		bound = nullptr;
+	for (auto it = g_depthTwins.begin(); it != g_depthTwins.end();)
+	{
+		IDirect3DSurface9* game = it->first;
+		game->AddRef();
+		const ULONG refs = game->Release();
+		if (refs == 1 && game != bound && it->second != bound)
+		{
+			g_depthOfTwin.erase(it->second);
+			it->second->Release();
+			game->Release();
+			it = g_depthTwins.erase(it);
+		}
+		else
+			++it;
+	}
+	if (bound)
+		bound->Release();
+}
+
+// A copy out of the scene texture reads what is drawn so far. Our twin, which GetRenderTarget
+// hands out while it is bound, stands for the game's texture: multisampled, it could not be read
+// back to memory.
+IDirect3DSurface9* SceneSource(IDirect3DDevice9* dev, IDirect3DSurface9* src)
+{
+	if (g_internal || !src || g_sceneTwins.empty())
+		return src;
+	if (auto back = g_surfaceOfTwin.find(src); back != g_surfaceOfTwin.end())
+		src = back->second;
+	if (auto key = g_twinOfSurface.find(src); key != g_twinOfSurface.end())
+		if (auto it = g_sceneTwins.find(key->second); it != g_sceneTwins.end())
+		{
+			Resolve(dev, it->second);
+			if (g_twinBound == &it->second)
+				it->second.dirty = true; // still the target: what is drawn next counts too
+		}
+	return src;
+}
+
+// After a change of target: the depth in place must match it. Read from Direct3D rather than
+// remembered, since the game may never have set one (the automatic depth stays bound).
+void RebindDepth(IDirect3DDevice9* dev)
+{
+	IDirect3DSurface9* bound = nullptr;
+	if (FAILED(dev->GetDepthStencilSurface(&bound)) || !bound)
+		return; // no depth: nothing to match
+	IDirect3DSurface9* game = bound;
+	if (auto it = g_depthOfTwin.find(bound); it != g_depthOfTwin.end())
+		game = it->second;
+	IDirect3DSurface9* wanted = DepthFor(dev, game);
+	if (wanted != bound)
+		g_SetDepthStencilSurface.Original<SetDepthFn>(dev)(dev, wanted);
+	bound->Release();
+}
+
+// Before a Reset: nothing of ours bound, all of it released (a Reset refuses to run while any
+// resource of the default pool is alive). The back buffer and no depth rather than the game's
+// surfaces: the game may already have released those, and Reset binds its own anyway. A twin
+// whose texture went while bound is still bound, hence the check on the multisampling seen.
+void ForgetSceneTwins(IDirect3DDevice9* dev)
+{
+	if (dev && (!g_sceneTwins.empty() || !g_depthTwins.empty() || g_targetMsaa != D3DMULTISAMPLE_NONE))
+	{
+		InternalCalls inside;
+		IDirect3DSurface9* bb = nullptr;
+		if (SUCCEEDED(dev->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &bb)) && bb)
+		{
+			dev->SetRenderTarget(0, bb);
+			bb->Release();
+		}
+		IDirect3DSurface9* bound = nullptr;
+		if (SUCCEEDED(dev->GetDepthStencilSurface(&bound)) && bound)
+		{
+			if (g_depthOfTwin.count(bound))
+				dev->SetDepthStencilSurface(nullptr);
+			bound->Release();
+		}
+	}
+	for (auto& [tex, twin] : g_sceneTwins)
+		twin.msaa->Release();
+	for (auto& [depth, twin] : g_depthTwins)
+	{
+		twin->Release();
+		depth->Release(); // our hold (see DepthFor)
+	}
+	g_sceneTwins.clear();
+	g_twinOfSurface.clear();
+	g_surfaceOfTwin.clear();
+	g_depthTwins.clear();
+	g_depthOfTwin.clear();
+	g_twinBound = nullptr;
+	g_targetMsaa = D3DMULTISAMPLE_NONE;
+}
 
 void HookDevice(IDirect3DDevice9* dev)
 {
@@ -235,9 +517,12 @@ void HookDevice(IDirect3DDevice9* dev)
 	g_Present.Install(dev);
 	g_CreateTexture.Install(dev);
 	g_CreateDepthStencilSurface.Install(dev);
+	g_GetRenderTargetData.Install(dev);
+	g_StretchRect.Install(dev);
 	g_SetRenderTarget.Install(dev);
 	g_SetDepthStencilSurface.Install(dev);
 	g_SetViewport.Install(dev);
+	g_SetRenderState.Install(dev);
 	g_SetTexture.Install(dev);
 	g_SetSamplerState.Install(dev);
 
@@ -263,9 +548,12 @@ void HookDevice(IDirect3DDevice9* dev)
 void TakeBackRedirects(IDirect3DDevice9* dev)
 {
 	MethodRedirect* const all[] = { &g_Reset, &g_Present, &g_CreateTexture, &g_CreateDepthStencilSurface,
-		&g_SetRenderTarget, &g_SetDepthStencilSurface, &g_SetViewport, &g_SetTexture, &g_SetSamplerState };
+		&g_GetRenderTargetData, &g_StretchRect, &g_SetRenderTarget, &g_SetDepthStencilSurface, &g_SetViewport, &g_SetRenderState,
+		&g_SetTexture, &g_SetSamplerState };
 	static const char* const names[] = { "Reset", "Present", "CreateTexture", "CreateDepthStencilSurface",
-		"SetRenderTarget", "SetDepthStencilSurface", "SetViewport", "SetTexture", "SetSamplerState" };
+		"GetRenderTargetData", "StretchRect", "SetRenderTarget", "SetDepthStencilSurface", "SetViewport", "SetRenderState",
+		"SetTexture", "SetSamplerState" };
+	static_assert(_countof(all) == _countof(names));
 	static bool logged[_countof(all)] = {};
 	for (size_t i = 0; i < _countof(all); ++i)
 		if (all[i]->Reclaim(dev) && !logged[i])
@@ -290,6 +578,7 @@ HRESULT STDMETHODCALLTYPE CreateDevice(IDirect3D9* self, UINT adapter, D3DDEVTYP
 	Log("Direct3D: device created, hr=0x%lX\n", static_cast<unsigned long>(hr));
 	if (SUCCEEDED(hr) && out && *out)
 	{
+		DecideSceneMsaa(pp);
 		HookDevice(*out);
 		OnDeviceRestored(*out);
 	}
@@ -313,17 +602,32 @@ HRESULT STDMETHODCALLTYPE CreateDeviceEx(IDirect3D9Ex* self, UINT adapter, D3DDE
 	Log("Direct3D: Ex device created, hr=0x%lX\n", static_cast<unsigned long>(hr));
 	if (SUCCEEDED(hr) && out && *out)
 	{
+		DecideSceneMsaa(pp);
 		HookDevice(*out);
 		OnDeviceRestored(*out);
 	}
 	return hr;
 }
 
-void BeforeReset()
+void BeforeReset(IDirect3DDevice9* dev)
 {
 	OnDeviceLost();
 	ForgetBigTargets();
+	ForgetSceneTwins(dev);
 	g_boundDepth = nullptr;
+}
+
+// Reset takes the ini's multisampling as it stands: 16 on a card that stops at 8 switched it off.
+void FitMultisamplingOnReset(IDirect3DDevice9* dev, D3DPRESENT_PARAMETERS* pp)
+{
+	IDirect3D9* d3d = nullptr;
+	D3DDEVICE_CREATION_PARAMETERS cp = {};
+	if (SUCCEEDED(dev->GetDirect3D(&d3d)) && d3d)
+	{
+		if (SUCCEEDED(dev->GetCreationParameters(&cp)))
+			FitMultisampling(d3d, cp.AdapterOrdinal, cp.DeviceType, pp);
+		d3d->Release();
+	}
 }
 
 HRESULT STDMETHODCALLTYPE Reset(IDirect3DDevice9* self, D3DPRESENT_PARAMETERS* pp)
@@ -331,14 +635,18 @@ HRESULT STDMETHODCALLTYPE Reset(IDirect3DDevice9* self, D3DPRESENT_PARAMETERS* p
 	const auto original = g_Reset.Original<ResetFn>(self);
 	if (g_internal || !pp)
 		return original(self, pp);
-	BeforeReset();
+	BeforeReset(self);
 	PrepareWindow(pp, nullptr);
 	const D3DFORMAT gameDepth = pp->AutoDepthStencilFormat;
 	AdjustPresentation(pp);
+	FitMultisamplingOnReset(self, pp);
 	const HRESULT hr = WithFallbacks(pp, gameDepth, [&] { return original(self, pp); });
 	Log("Direct3D: reset, hr=0x%lX\n", static_cast<unsigned long>(hr));
 	if (SUCCEEDED(hr))
+	{
+		DecideSceneMsaa(pp);
 		OnDeviceRestored(self);
+	}
 	return hr;
 }
 
@@ -347,16 +655,20 @@ HRESULT STDMETHODCALLTYPE ResetEx(IDirect3DDevice9Ex* self, D3DPRESENT_PARAMETER
 	const auto original = g_ResetEx.Original<ResetExFn>(self);
 	if (g_internal || !pp)
 		return original(self, pp, mode);
-	BeforeReset();
+	BeforeReset(self);
 	PrepareWindow(pp, nullptr);
 	if (g_cfg.windowed)
 		mode = nullptr;
 	const D3DFORMAT gameDepth = pp->AutoDepthStencilFormat;
 	AdjustPresentation(pp);
+	FitMultisamplingOnReset(self, pp);
 	const HRESULT hr = WithFallbacks(pp, gameDepth, [&] { return original(self, pp, mode); });
 	Log("Direct3D: Ex reset, hr=0x%lX\n", static_cast<unsigned long>(hr));
 	if (SUCCEEDED(hr))
+	{
+		DecideSceneMsaa(pp);
 		OnDeviceRestored(self);
+	}
 	return hr;
 }
 
@@ -367,6 +679,7 @@ HRESULT STDMETHODCALLTYPE Present(IDirect3DDevice9* self, const RECT* src, const
 	const auto original = g_Present.Original<PresentFn>(self);
 	if (g_internal)
 		return original(self, src, dst, wnd, dirty);
+	PruneDepthTwins(self);
 	BeforePresent(self);
 	InternalCalls inside;
 	return original(self, src, dst, wnd, dirty);
@@ -377,6 +690,7 @@ HRESULT STDMETHODCALLTYPE PresentEx(IDirect3DDevice9Ex* self, const RECT* src, c
 	const auto original = g_PresentEx.Original<PresentExFn>(self);
 	if (g_internal)
 		return original(self, src, dst, wnd, dirty, flags);
+	PruneDepthTwins(self);
 	BeforePresent(self);
 	InternalCalls inside;
 	return original(self, src, dst, wnd, dirty, flags);
@@ -390,6 +704,7 @@ HRESULT STDMETHODCALLTYPE ChainPresent(IDirect3DSwapChain9* self, const RECT* sr
 	IDirect3DDevice9* dev = nullptr;
 	if (SUCCEEDED(self->GetDevice(&dev)) && dev)
 	{
+		PruneDepthTwins(dev);
 		BeforePresent(dev);
 		dev->Release();
 	}
@@ -431,9 +746,24 @@ HRESULT STDMETHODCALLTYPE CreateTexture(IDirect3DDevice9* self, UINT w, UINT h, 
 		return hr;
 
 	IDirect3DTexture9* tex = *out;
+	if (usage & D3DUSAGE_RENDERTARGET)
+	{
+		// Where the game draws: a scene-sized target of its own is drawn without the back
+		// buffer's multisampling. Once per size and format.
+		static std::set<std::tuple<UINT, UINT, int>> seen;
+		if (seen.insert({ askedW, askedH, static_cast<int>(format) }).second)
+			Log("Direct3D: game render target %ux%u (format %d, pool %d)\n", askedW, askedH, static_cast<int>(format),
+				static_cast<int>(pool));
+		if (g_sceneMsaa != D3DMULTISAMPLE_NONE && pool == D3DPOOL_DEFAULT && !big
+			&& static_cast<int>(w) == g_backBufferWidth && static_cast<int>(h) == g_backBufferHeight)
+			AddSceneTwin(self, tex, w, h, format);
+	}
 	g_UnlockRect.Install(tex);
 	if (withChain)
 	{
+		InterlockedIncrement(&g_mipChains);
+		if (pool == D3DPOOL_DEFAULT)
+			InterlockedIncrement(&g_mipChainsDefault);
 		const BYTE one = 1;
 		tex->SetPrivateData(kFillMips, &one, sizeof(one), 0);
 	}
@@ -494,6 +824,8 @@ ULONG STDMETHODCALLTYPE ReleaseTexture(IDirect3DTexture9* self)
 			g_bigSurfaces.erase(it->second);
 			g_bigTextures.erase(it);
 		}
+		if (auto twin = g_sceneTwins.find(self); twin != g_sceneTwins.end())
+			DropTwin(twin);
 	}
 	return left;
 }
@@ -505,6 +837,12 @@ HRESULT STDMETHODCALLTYPE CreateDepthStencilSurface(IDirect3DDevice9* self, UINT
 	if (g_internal)
 		return original(self, w, h, format, ms, quality, discard, out, shared);
 
+	{
+		// A depth the game creates itself keeps its own multisampling, whatever the back buffer's.
+		static std::set<std::tuple<UINT, UINT, int>> seen;
+		if (seen.insert({ w, h, static_cast<int>(ms) }).second)
+			Log("Direct3D: game depth %ux%u (format 0x%X, MSAA %d)\n", w, h, static_cast<unsigned>(format), static_cast<int>(ms));
+	}
 	// A shadow target's depth grows with it: Direct3D wants depth at least as large as the target.
 	bool big = false;
 	if (g_cfg.shadowScale > 1 && ms == D3DMULTISAMPLE_NONE && ShadowSized(w, h))
@@ -548,6 +886,17 @@ HRESULT STDMETHODCALLTYPE CreateDepthStencilSurface(IDirect3DDevice9* self, UINT
 	return original(self, w, h, format, ms, quality, discard, out, shared);
 }
 
+HRESULT STDMETHODCALLTYPE GetRenderTargetData(IDirect3DDevice9* self, IDirect3DSurface9* src, IDirect3DSurface9* dst)
+{
+	return g_GetRenderTargetData.Original<TargetDataFn>(self)(self, SceneSource(self, src), dst);
+}
+
+HRESULT STDMETHODCALLTYPE StretchRect(IDirect3DDevice9* self, IDirect3DSurface9* src, const RECT* srcRect,
+	IDirect3DSurface9* dst, const RECT* dstRect, D3DTEXTUREFILTERTYPE filter)
+{
+	return g_StretchRect.Original<StretchRectFn>(self)(self, SceneSource(self, src), srcRect, dst, dstRect, filter);
+}
+
 HRESULT STDMETHODCALLTYPE SetRenderTarget(IDirect3DDevice9* self, DWORD index, IDirect3DSurface9* target)
 {
 	if (!g_internal && index == 0 && g_cfg.shadowScale > 1)
@@ -560,12 +909,44 @@ HRESULT STDMETHODCALLTYPE SetRenderTarget(IDirect3DDevice9* self, DWORD index, I
 			g_targetH = it->second.second;
 		}
 	}
-	return g_SetRenderTarget.Original<SetTargetFn>(self)(self, index, target);
+	const auto original = g_SetRenderTarget.Original<SetTargetFn>(self);
+	if (g_internal || index != 0 || g_sceneMsaa == D3DMULTISAMPLE_NONE)
+		return original(self, index, target);
+
+	// The game may hand back what GetRenderTarget gave it: our twin stands for its texture.
+	if (auto back = target ? g_surfaceOfTwin.find(target) : g_surfaceOfTwin.end(); back != g_surfaceOfTwin.end())
+		target = back->second;
+	SceneTwin* twin = TwinFor(target);
+	const HRESULT hr = original(self, 0, twin ? twin->msaa : target);
+	if (FAILED(hr))
+		return hr;
+	if (g_twinBound && g_twinBound != twin)
+		Resolve(self, *g_twinBound); // the scene is finished: into the game's texture
+	g_twinBound = twin;
+	if (twin)
+	{
+		twin->dirty = true;
+		g_targetMsaa = g_sceneMsaa;
+	}
+	else
+	{
+		D3DSURFACE_DESC d;
+		g_targetMsaa = (target && SUCCEEDED(target->GetDesc(&d))) ? d.MultiSampleType : D3DMULTISAMPLE_NONE;
+	}
+	RebindDepth(self);
+	return hr;
 }
 
 HRESULT STDMETHODCALLTYPE SetDepthStencilSurface(IDirect3DDevice9* self, IDirect3DSurface9* depth)
 {
 	const auto original = g_SetDepthStencilSurface.Original<SetDepthFn>(self);
+	if (!g_internal && g_sceneMsaa != D3DMULTISAMPLE_NONE)
+	{
+		if (auto it = depth ? g_depthOfTwin.find(depth) : g_depthOfTwin.end(); it != g_depthOfTwin.end())
+			depth = it->second;
+		g_boundDepth = depth;
+		return original(self, DepthFor(self, depth));
+	}
 	if (g_internal || !g_depth.surface)
 		return original(self, depth);
 
@@ -622,6 +1003,24 @@ HRESULT STDMETHODCALLTYPE SetViewport(IDirect3DDevice9* self, const D3DVIEWPORT9
 	return original(self, vp);
 }
 
+// A multisampled target is only antialiased while this state is on: a game written without
+// multisampling may switch it off, which leaves the samples all alike.
+HRESULT STDMETHODCALLTYPE SetRenderState(IDirect3DDevice9* self, D3DRENDERSTATETYPE state, DWORD value)
+{
+	const auto original = g_SetRenderState.Original<SetStateFn>(self);
+	if (!g_internal && state == D3DRS_MULTISAMPLEANTIALIAS && !value && g_sceneMsaa != D3DMULTISAMPLE_NONE)
+	{
+		static bool logged = false;
+		if (!logged)
+		{
+			logged = true;
+			Log("Direct3D: the game switches multisample antialiasing off, kept on\n");
+		}
+		value = TRUE;
+	}
+	return original(self, state, value);
+}
+
 // The games ask for bilinear filtering without mipmaps, point filtering in places, and a
 // sharpness bias of their own; these are overridden per the ini.
 DWORD SamplerValue(D3DSAMPLERSTATETYPE type, DWORD value)
@@ -654,6 +1053,18 @@ HRESULT STDMETHODCALLTYPE SetSamplerState(IDirect3DDevice9* self, DWORD sampler,
 
 HRESULT STDMETHODCALLTYPE SetTexture(IDirect3DDevice9* self, DWORD stage, IDirect3DBaseTexture9* tex)
 {
+	if (!g_internal && tex && !g_sceneTwins.empty())
+	{
+		// Read before the game has moved to another target: the scene drawn so far first.
+		// A key only: a cube or volume texture simply is not found.
+		auto it = g_sceneTwins.find(reinterpret_cast<IDirect3DTexture9*>(tex));
+		if (it != g_sceneTwins.end())
+		{
+			Resolve(self, it->second);
+			if (g_twinBound == &it->second)
+				it->second.dirty = true; // still the target: what is drawn next counts too
+		}
+	}
 	const HRESULT hr = g_SetTexture.Original<SetTextureFn>(self)(self, stage, tex);
 	if (g_internal || FAILED(hr) || !tex)
 		return hr;
@@ -695,7 +1106,12 @@ IDirect3D9* HookDirect3D9(IDirect3D9* d3d)
 	return d3d;
 }
 
-LONG MipmapsFilled()
+void ReportMipmaps(LONG frame)
 {
-	return g_mipsFilled;
+	static LONG said[3] = { -1, -1, -1 };
+	const LONG now[3] = { g_mipChains, g_mipChainsDefault, g_mipsFilled };
+	if (frame % 1200 || !memcmp(now, said, sizeof(now)))
+		return;
+	memcpy(said, now, sizeof(now));
+	Log("Mipmaps: %ld chains made (%ld in the default pool), %ld filled (frame %ld)\n", now[0], now[1], now[2], frame);
 }

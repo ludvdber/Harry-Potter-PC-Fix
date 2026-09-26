@@ -100,7 +100,10 @@ void BeforePresent(IDirect3DDevice9* dev)
 	WaitForFrameSlot();
 	OverlayFrameSent();
 	g_depth.aoDoneThisFrame = false;
+	ReportHaze();
 	const LONG n = InterlockedIncrement(&g_frames);
+	ApplyLateGamePatches(n);
+	ReportMipmaps(n);
 	if (n == 1 || n % 18000 == 0)
 		Log("Present: frame %ld\n", n);
 }

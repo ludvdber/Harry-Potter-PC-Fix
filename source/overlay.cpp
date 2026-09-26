@@ -312,26 +312,6 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 	bb->GetDesc(&desc);
 	const float scale = desc.Height / 1080.0f * g_cfg.overlaySize / 100.0f;
 	const int fontHeight = std::max(10, static_cast<int>(22 * scale));
-	if (g_font && g_fontHeight != fontHeight)
-	{
-		g_font->Release();
-		g_font = nullptr;
-	}
-	if (!g_font)
-	{
-		if (FAILED(D3DXCreateFontA(dev, fontHeight, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-			ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI", &g_font)))
-		{
-			static bool logged = false;
-			if (!logged)
-				Log("Overlay: font NOT created\n");
-			logged = true;
-			g_font = nullptr;
-			bb->Release();
-			return;
-		}
-		g_fontHeight = fontHeight;
-	}
 
 	// The lines, in the order they are shown.
 	char lines[9][160];
@@ -373,6 +353,28 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 		Once("nothing to show");
 		bb->Release();
 		return;
+	}
+	// The font only once there is text: the shipped ini shows nothing, and the first D3DX font is
+	// what makes the system's d3d9.dll write over our method slots (see KeepDeviceRedirects).
+	if (n && g_font && g_fontHeight != fontHeight)
+	{
+		g_font->Release();
+		g_font = nullptr;
+	}
+	if (n && !g_font)
+	{
+		if (FAILED(D3DXCreateFontA(dev, fontHeight, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+			ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI", &g_font)))
+		{
+			static bool logged = false;
+			if (!logged)
+				Log("Overlay: font NOT created\n");
+			logged = true;
+			g_font = nullptr;
+			bb->Release();
+			return;
+		}
+		g_fontHeight = fontHeight;
 	}
 
 	// Panel size and corner.

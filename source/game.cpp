@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 //
 // What is changed inside each game executable. Every address and byte sequence below was read
-// in the retail executables (gof_f.exe, hp.exe, hp6.exe; no ASLR, base 0x400000) and each
+// in the retail executables (gof_f.exe, hp.exe, hp6.exe, hp7.exe; no ASLR, base 0x400000) and each
 // sequence occurs exactly once in its file. A change whose bytes are not found is skipped and
 // logged: a different build of the game then runs as it always did.
 
@@ -23,6 +23,8 @@ enum class FovKind
 	None,
 	Degrees,          // the field of view itself, in degrees
 	RadiansPerDegree, // the pi/180 the engine multiplies angles by: raising it widens the view
+	RadiansPerDegreeDouble, // the same, stored as a double (HP7 part 2)
+	RadiansPerDegreeLoad,   // one load of a shared double pi/180, pointed at our own value (HP7 part 1)
 };
 
 struct Profile
@@ -79,11 +81,27 @@ struct Profile
 	Bytes haze;
 	Bytes hazeColumns;
 	int hazeColumnsAt;
+
+	// HP7 part 1 waits, spinning on QueryPerformanceCounter, until 33.3 ms have passed since the
+	// previous frame before each Present: a 30 frames per second limit of its own. `frameWait` is
+	// the `je rel32` that skips the wait when no previous frame was timed, at `frameWaitAt`; made
+	// unconditional, the wait never runs and FPSLimit sets the pace. The earlier fix only did it
+	// while the 9 key was toggled.
+	Bytes frameWait;
+	int frameWaitAt;
+
+	// FovKind::RadiansPerDegreeLoad: the `fld qword [fovAddress]` whose 32-bit address is at
+	// `fovLoadAt` of `fovLoad`. The constant itself is read by dozens of other conversions.
+	Bytes fovLoad;
+	int fovLoadAt;
 };
 
 const float kHp4Aspects[] = { 16.0f / 9, 16.0f / 10, 64.0f / 27, 43.0f / 18, 12.0f / 5, 32.0f / 9 };
 const float kHp56Aspects[] = { 16.0f / 10, 64.0f / 27, 43.0f / 18, 12.0f / 5, 32.0f / 9 };
+// The earlier HP7 fix's `fullscreenaspectratio` 1..5 (its ini: 16:10, three 21:9, 32:10).
+const float kHp7Aspects[] = { 16.0f / 10, 64.0f / 27, 43.0f / 18, 12.0f / 5, 32.0f / 10 };
 const float kHp5Fovs[] = { 0.020f, 0.024f, 0.026f };
+const float kHp8Fovs[] = { 0.025f }; // the earlier fix's [FOV] fov=1
 const float kHp6Fovs[] = { 0.020f, 0.022f, 0.024f };
 constexpr float kPiOver180 = 0.01745329238f;
 
@@ -134,6 +152,41 @@ const Profile* FindProfile(const char* exeName)
 			{ nullptr, 0 }, 0,
 			{ nullptr, 0 }, { nullptr, 0 }, 0,
 		},
+		{
+			"hp7.exe", "Deathly Hallows Part 1",
+			{ nullptr, 0 }, 0, 0,
+			16.0f / 9, kHp7Aspects, 5,
+			// The camera's set-up converts its FOV, SprintFOV and DementorFOV (degrees) with one pi/180
+			// kept on the FPU stack; the earlier fix pointed that load at 0.03 for all players (x1.72).
+			FovKind::RadiansPerDegreeLoad, 0x00697370, kPiOver180, nullptr, 0,
+			{ nullptr, 0 }, 0,
+			{ nullptr, 0 }, 0,
+			0, false, 0,
+			{ nullptr, 0 }, 0,
+			{ nullptr, 0 }, { nullptr, 0 }, 0,
+			// mov ecx, [0x007B24C0] ; or ecx, [0x007B24C4] ; je +0xB2
+			BYTES(0x8B, 0x0D, 0xC0, 0x24, 0x7B, 0x00, 0x0B, 0x0D, 0xC4, 0x24, 0x7B, 0x00, 0x0F, 0x84, 0xB2, 0x00, 0x00, 0x00), 12,
+			// fld qword [0x00697370] ; mov eax, "SprintFOV" ; fmul st(1), st ; push ecx ; fxch st(1)
+			BYTES(0xDD, 0x05, 0x70, 0x73, 0x69, 0x00, 0xB8, 0xC4, 0x33, 0x68, 0x00, 0xDC, 0xC9, 0x51, 0xD9, 0xC9), 2,
+		},
+		{
+			// SecuROM: the code is encrypted in the file and decrypted while the game starts, even
+			// after Direct3D is created: the wait is looked for over the first frames
+			// (ApplyLateGamePatches). Found in memory at 0x00434D41 (2026-09-25).
+			"hp8.exe", "Deathly Hallows Part 2",
+			{ nullptr, 0 }, 0, 0,
+			0, nullptr, 0,
+			// pi/180 as a double (rounded through a float), read by some 70 conversions; the earlier
+			// fix's [FOV] fov=1 made it 0.025 (measured in the running game, 2026-09-25).
+			FovKind::RadiansPerDegreeDouble, 0x007E69F0, kPiOver180, kHp8Fovs, 1,
+			{ nullptr, 0 }, 0,
+			{ nullptr, 0 }, 0,
+			0, false, 0,
+			{ nullptr, 0 }, 0,
+			{ nullptr, 0 }, { nullptr, 0 }, 0,
+			// mov ecx, [0x00935FB0] ; or ecx, [0x00935FB4] ; je +0xAA
+			BYTES(0x8B, 0x0D, 0xB0, 0x5F, 0x93, 0x00, 0x0B, 0x0D, 0xB4, 0x5F, 0x93, 0x00, 0x0F, 0x84, 0xAA, 0x00, 0x00, 0x00), 12,
+		},
 	};
 	for (const Profile& p : profiles)
 		if (_stricmp(exeName, p.exe) == 0)
@@ -142,6 +195,7 @@ const Profile* FindProfile(const char* exeName)
 }
 
 HMODULE g_exe = nullptr;
+const Profile* g_profile = nullptr;
 
 BYTE* Locate(const Bytes& b, const char* what)
 {
@@ -170,8 +224,8 @@ void PatchAspect(const Profile& p)
 	float ratio = g_cfg.aspectRatio;
 	if (ratio <= 0 && g_cfg.legacyAspectIndex >= 1 && g_cfg.legacyAspectIndex <= p.oldAspectCount)
 		ratio = p.oldAspects[g_cfg.legacyAspectIndex - 1];
-	if (ratio <= 0 || ratio == p.aspect)
-		return;
+	if (p.aspect <= 0 || ratio <= 0 || ratio == p.aspect)
+		return; // p.aspect 0: the constant has not been found in this game
 	BYTE* at = FindPattern(g_exe, reinterpret_cast<const BYTE*>(&p.aspect), sizeof(float));
 	if (!at)
 	{
@@ -193,11 +247,43 @@ void PatchFov(const Profile& p)
 	{
 		if (p.oldFovs && g_cfg.legacyFov <= p.oldFovCount)
 			value = p.oldFovs[g_cfg.legacyFov - 1];
-		else if (!p.oldFovs)
+		else if (!p.oldFovs && p.fov == FovKind::Degrees)
 			value = static_cast<float>(g_cfg.legacyFov); // HP4 took degrees
 	}
 	if (value <= 0 || value == p.fovOriginal)
 		return;
+	if (p.fov == FovKind::RadiansPerDegreeLoad)
+	{
+		static double ours = 0;
+		BYTE* site = Locate(p.fovLoad, "field of view load");
+		DWORD address = 0;
+		if (!site)
+			return;
+		memcpy(&address, site + p.fovLoadAt, sizeof(address));
+		if (address != p.fovAddress || *reinterpret_cast<const double*>(p.fovAddress) != static_cast<double>(p.fovOriginal))
+		{
+			Log("Game: field of view load not as expected, left unchanged\n");
+			return;
+		}
+		ours = static_cast<double>(value);
+		const DWORD to = static_cast<DWORD>(reinterpret_cast<uintptr_t>(&ours));
+		const bool ok = WriteMemory(site + p.fovLoadAt, &to, sizeof(to));
+		Log("Game: camera field of view x%.3f %s\n", value / p.fovOriginal, ok ? "set" : "NOT set");
+		return;
+	}
+	if (p.fov == FovKind::RadiansPerDegreeDouble)
+	{
+		auto* at = reinterpret_cast<double*>(p.fovAddress);
+		const double was = p.fovOriginal, now = value;
+		if (IsBadReadPtr(at, sizeof(double)) || *at != was)
+		{
+			Log("Game: field of view constant not where expected, left unchanged\n");
+			return;
+		}
+		const bool ok = WriteMemory(at, &now, sizeof(double));
+		Log("Game: field of view %g (was %g) %s\n", now, was, ok ? "set" : "NOT set");
+		return;
+	}
 	auto* at = reinterpret_cast<float*>(p.fovAddress);
 	// Only over the value the retail executable holds: anything else is a build we have not read.
 	if (IsBadReadPtr(at, sizeof(float)) || *at != p.fovOriginal)
@@ -233,6 +319,24 @@ void PatchFrameInterval(const Profile& p)
 	Log("Game: frame interval 1 (30 fps limit lifted) %s\n", ok ? "set" : "NOT set");
 }
 
+// Returns false while the code is not there yet (HP7 part 2 decrypts it late, see
+// ApplyLateGamePatches); last logs its absence.
+bool PatchFrameWait(const Profile& p, bool last)
+{
+	if (!p.frameWait.data || g_cfg.unlockFrameRate == 0)
+		return true;
+	BYTE* at = FindPattern(g_exe, p.frameWait.data, p.frameWait.size);
+	if (!at)
+	{
+		if (last)
+			Log("Game: 30 fps wait code not found, left unchanged\n");
+		return false;
+	}
+	static const BYTE jump[] = { 0x90, 0xE9 }; // nop ; jmp rel32 (same target)
+	const bool ok = WriteMemory(at + p.frameWaitAt, jump, sizeof(jump));
+	Log("Game: 30 fps wait skipped (FPSLimit sets the pace, frame %ld) %s\n", g_frames, ok ? "set" : "NOT set");
+	return true;
+}
 struct CapJob
 {
 	float* address;
@@ -289,14 +393,23 @@ void HoldFrameRate(const Profile& p)
 		CloseHandle(t);
 }
 
+// Counted for the log (ReportHaze): whether the haze is drawn at all, and how wide it asked.
+LONG g_hazeCalls = 0;
+LONG g_hazeWidest = 0;
+
 // Replaces `add edi, 15 ; sar edi, 4`: the number of 16-pixel columns across the screen, capped
 // at the 127 column pairs (plus the closing one) the game's stack array holds. Flags are not
-// read afterwards (the next instruction is a cmp).
+// read afterwards (the next instruction is a cmp). Called from the render thread only.
 __declspec(naked) void HazeColumns()
 {
 	__asm {
 		add edi, 15
 		sar edi, 4
+		inc dword ptr [g_hazeCalls]
+		cmp edi, dword ptr [g_hazeWidest]
+		jle counted
+		mov dword ptr [g_hazeWidest], edi
+	counted:
 		cmp edi, 127
 		jle fits
 		mov edi, 127
@@ -347,6 +460,7 @@ void ApplyGamePatches()
 		return;
 	}
 	Log("Game: %s\n", p->name);
+	g_profile = p;
 	PatchResolution(*p);
 	PatchAspect(*p);
 	PatchFov(*p);
@@ -354,4 +468,30 @@ void ApplyGamePatches()
 	PatchFrameInterval(*p);
 	HoldFrameRate(*p);
 	PatchHaze(*p);
+}
+
+// Once a frame: the first haze drawn, and the first one the cap had to shorten.
+void ReportHaze()
+{
+	static LONG said = 0, cappedSaid = 0;
+	if (!said && g_hazeCalls)
+	{
+		said = 1;
+		Log("Game: haze drawn (frame %ld), %ld columns\n", g_frames, g_hazeWidest);
+	}
+	if (!cappedSaid && g_hazeWidest > 127)
+	{
+		cappedSaid = 1;
+		Log("Game: haze of %ld columns capped at 127 (frame %ld)\n", g_hazeWidest, g_frames);
+	}
+}
+// What can only be found once the game's own code runs: HP7 part 2's is encrypted in the file
+// (SecuROM) and decrypted piece by piece while the game starts, after Direct3D is created.
+// Tried at frames 1, 60, 600 and 3000 (a pattern search over the code costs a few ms).
+void ApplyLateGamePatches(LONG frame)
+{
+	static bool done = false;
+	if (done || !g_profile || (frame != 1 && frame != 60 && frame != 600 && frame != 3000))
+		return;
+	done = PatchFrameWait(*g_profile, frame == 3000) || frame == 3000;
 }

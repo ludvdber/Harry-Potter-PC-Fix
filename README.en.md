@@ -64,6 +64,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 | Field of view | `FOV` | A factor on the game's own view: 1.15, 1.25 or 1.40 widen it. |
 | 30 fps limit lifted | `UnlockFrameRate` | The game starts with a presentation interval of 2 (30 frames per second); it becomes 1. |
 | Frame-rate ceiling | `FrameRateCap` | The ceiling the engine keeps in memory and sometimes resets, held at 120 (left alone while the engine sets it to 0). |
+| Even frames | `FPSLimit` | 120 by default. The game's own ceiling alone holds 120 frames per second on average, but in bursts: very fast frames, then a 25 ms wait (1% low measured at 31 fps, against 102 with the limit). |
 
 Each change is made in the executable once it is loaded, never on disk, and only where the expected bytes are found: another build of a game simply runs unchanged, and the log says so.
 
@@ -76,7 +77,7 @@ Each change is made in the executable once it is loaded, never on disk, and only
 | | Setting | |
 |---|---|---|
 | Mipmaps built for every texture | `GenerateMipmaps`, `ForceTrilinear` | Most textures ship without smaller copies for the distance, which makes them shimmer and blur far away. The copies are built as each texture loads. |
-| MSAA | `Antialiasing` | Stepped down (16, 8, 4, 2, off) until the graphics card accepts it, instead of switching off. |
+| MSAA | `Antialiasing` | Applied to the 3D scene itself: the games draw it into an image of their own before copying it to the screen, and MSAA on the screen alone never reached it. Stepped down (16, 8, 4, 2, off) until the graphics card accepts it, instead of switching off. No effect on the scene with `SSAO=1` (Direct3D 9 cannot multisample the depth that ambient occlusion reads). |
 | Anisotropic filtering, texture sharpness | `AnisotropicFiltering`, `TextureLODBias` | Forced on every texture. |
 | FXAA with sharpening | `FXAA`, `Sharpness` | One pass over the finished frame; it also carries the effects below. |
 | Colour grading | `ColorGrading` and the values under it | Lift, gain, gamma, white balance, contrast, vibrance, split toning, vignette. |

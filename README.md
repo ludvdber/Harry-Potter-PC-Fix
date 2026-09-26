@@ -64,6 +64,7 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 | Champ de vision | `FOV` | Un facteur sur la vue du jeu : 1.15, 1.25 ou 1.40 l'élargissent. |
 | Limite de 30 images/s levée | `UnlockFrameRate` | Le jeu démarre avec un intervalle de présentation de 2 (30 images/s) ; il passe à 1. |
 | Plafond d'images/s | `FrameRateCap` | Le plafond que le moteur garde en mémoire et remet parfois à zéro, tenu à 120 (sauf quand le moteur le met lui-même à 0). |
+| Images régulières | `FPSLimit` | 120 par défaut. Le plafond du jeu seul tient 120 images/s en moyenne, mais par à-coups : des images très rapides puis une attente de 25 ms (1 % low mesuré à 31 images/s, contre 102 avec la limite). |
 
 Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le disque, et seulement là où les octets attendus sont trouvés : une autre version du jeu tourne simplement sans changement, et le journal le dit.
 
@@ -76,7 +77,7 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 | | Réglage | |
 |---|---|---|
 | Mipmaps pour toutes les textures | `GenerateMipmaps`, `ForceTrilinear` | La plupart des textures sont livrées sans copies réduites pour le lointain, d'où le scintillement et le flou à distance. Elles sont construites au chargement de chaque texture. |
-| MSAA | `Antialiasing` | Abaissé pas à pas (16, 8, 4, 2, rien) jusqu'à ce que la carte graphique l'accepte, au lieu de se couper. |
+| MSAA | `Antialiasing` | Appliqué à la scène 3D elle-même : les jeux la dessinent dans une image à eux avant de la recopier à l'écran, et un MSAA posé sur l'écran seul ne l'atteignait pas. Abaissé pas à pas (16, 8, 4, 2, rien) jusqu'à ce que la carte graphique l'accepte, au lieu de se couper. Sans effet sur la scène avec `SSAO=1` (Direct3D 9 ne sait pas multi-échantillonner la profondeur que lit l'occlusion). |
 | Filtrage anisotrope, netteté des textures | `AnisotropicFiltering`, `TextureLODBias` | Forcés sur toutes les textures. |
 | FXAA et accentuation | `FXAA`, `Sharpness` | Une passe sur l'image finie ; elle porte aussi les effets ci-dessous. |
 | Étalonnage des couleurs | `ColorGrading` et les valeurs dessous | Noirs, gain, gamma, balance des blancs, contraste, vibrance, virage partiel, vignettage. |

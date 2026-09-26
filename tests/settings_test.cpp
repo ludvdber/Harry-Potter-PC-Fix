@@ -30,7 +30,7 @@ int main(int argc, char** argv)
 {
 	if (argc < 3)
 		return 2;
-	const std::string data = argv[1]; // folder holding HP4, HP5 and HP6
+	const std::string data = argv[1]; // folder holding HP4, HP5, HP6, HP7a and HP7b
 	const std::string scratch = argv[2];
 	const Settings& c = g_cfg;
 
@@ -75,9 +75,35 @@ int main(int argc, char** argv)
 	{
 		const char* game = "HP6";
 		Load(data + "\\HP6\\d3d9.ini");
-		EXPECT(c.fpsLimit == 0 && !c.centerWindow && !c.dpiAware);
+		EXPECT(c.fpsLimit == 120 && !c.centerWindow && !c.dpiAware);
 		EXPECT(c.unlockFrameRate == 1 && c.frameRateCap == 120);
 		EXPECT(!c.fxaa && c.msaa == 0 && !c.grading && !c.ssao);
+	}
+	// HP7 parts 1 and 2: the window and focus of the others, 60 fps without the game's own
+	// 30 fps wait, and the field of view the earlier fix gave every player.
+	for (const char* game : { "HP7a", "HP7b" })
+	{
+		Load(data + "\\" + game + "\\d3d9.ini");
+		EXPECT(c.windowed && c.windowStyle == 1 && c.keepRunning);
+		EXPECT(c.retakeInput && c.releaseStaleKeys);
+		EXPECT(c.screenshotKey == VK_F12 && !c.showFps);
+		EXPECT(c.fpsLimit == 60 && c.centerWindow && !c.dpiAware);
+		EXPECT(c.renderWidth == 0 && c.renderHeight == 0);
+		EXPECT(c.legacyAspectIndex == 0 && c.legacyFov == 0);
+		EXPECT(!c.fxaa && c.msaa == 0 && c.anisotropy == 0 && !c.grading && !c.ssao && !c.bloom && !c.godRays);
+	}
+	{
+		const char* game = "HP7a";
+		Load(data + "\\HP7a\\d3d9.ini");
+		EXPECT(Near(c.fovScale, 1.7189f) && Near(c.aspectRatio, 0.0f));
+		EXPECT(c.unlockFrameRate == 1);
+	}
+	{
+		const char* game = "HP7b";
+		Load(data + "\\HP7b\\d3d9.ini");
+		EXPECT(Near(c.fovScale, 1.4324f));
+		// Kept at 30 until the Thief's Downfall cut-scene has been played at 60 (see make_ini.py).
+		EXPECT(c.unlockFrameRate == 0);
 	}
 	{
 		// A file in the earlier format, comments on the lines as players had them.
