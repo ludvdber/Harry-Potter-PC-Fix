@@ -46,6 +46,7 @@ int main(int argc, char** argv)
 		EXPECT(Near(c.fovScale, 0.0f));
 		EXPECT(c.renderWidth == 0 && c.renderHeight == 0);
 		EXPECT(c.generateMipmaps && c.forceTrilinear && c.maxFrameLatency == 1);
+		EXPECT(c.mipmapFilter == 0 && !c.mipmapCoverage);
 		EXPECT(c.legacyAspectIndex == 0 && c.legacyFov == 0);
 	}
 
@@ -63,6 +64,7 @@ int main(int argc, char** argv)
 		Load(data + "\\HP5\\d3d9.ini");
 		EXPECT(c.fpsLimit == 120 && c.centerWindow && c.dpiAware);
 		EXPECT(Near(c.aspectRatio, 0.0f) && c.unlockFrameRate == 1 && c.frameRateCap == 120 && c.hazeOverlay == -1);
+		EXPECT(c.distanceFog == 1); // the switch is wired, the fog stays as shipped
 		EXPECT(c.fxaa && Near(c.sharpness, 0.40f) && c.msaa == 16 && c.anisotropy == 16);
 		EXPECT(Near(c.lodBias, -1.5f) && c.vsync && c.ssaa == 1 && c.shadowScale == 1);
 		EXPECT(c.grading && Near(c.vibrance, 0.45f) && Near(c.vignette, 0.08f) && Near(c.lift, 0.0f));
@@ -179,6 +181,47 @@ int main(int argc, char** argv)
 		fclose(f);
 		Load(path);
 		EXPECT(c.compareKey == 255);
+	}
+
+	{
+		// How mipmaps are made: the sharp filter and kept coverage, a filter out of range capped.
+		const char* game = "mipmap filter";
+		const std::string path = scratch + "\\mipmaps.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nMipmapFilter=1\r\nMipmapCoverage=1\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.mipmapFilter == 1 && c.mipmapCoverage && c.generateMipmaps);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nMipmapFilter=7\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.mipmapFilter == 1 && !c.mipmapCoverage);
+	}
+	{
+		// Supersampling takes any factor (1.5 costs about half of 2), bounded to 1..4.
+		const char* game = "supersampling";
+		const std::string path = scratch + "\\ssaa.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nSSAAFactor=1.5\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(Near(c.ssaa, 1.5f));
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nSSAAFactor=9\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(Near(c.ssaa, 4.0f));
 	}
 
 	printf("%d failure(s)\n", failures);

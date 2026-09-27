@@ -3,7 +3,8 @@
 //
 // Mipmap levels built by the fix itself. They used to come from D3DXFilterTexture, which tied
 // the DLL to d3dx9_43.dll: a file Windows has never shipped, so on a fresh PC the game did not
-// start at all. The result is the same kind of image: a triangle filter, colours averaged as light
+// start at all. The result is the same kind of image: a triangle filter (or, in the ini, a sharp
+// one, and cut-outs that keep their coverage), colours averaged as light
 // rather than as sRGB numbers (a plain average darkens contrasted edges in the distance), 16-bit
 // formats dithered, compressed textures (DXT1 to DXT5) decoded, filtered and encoded again.
 
@@ -320,18 +321,52 @@ void EncodeAlpha5(const Rgba texels[16], uint8_t* out)
 
 // ---- Filtering --------------------------------------------------------------------------------
 
-// Tent weights for one output position: the source texels within `scale` of its centre.
-void Taps(int x, int srcSize, float scale, std::vector<std::pair<int, float>>& taps)
+// The sharp filter: sinc windowed by Kaiser, three output texels on each side, alpha 4. A
+// published recipe for mipmaps (sharper than a tent, far less ringing than a bare sinc).
+constexpr float kSharpRadius = 3.0f;
+constexpr float kKaiserAlpha = 4.0f;
+
+// Modified Bessel function of the first kind, order 0 (series; converges fast for these values).
+double BesselI0(double x)
+{
+	double sum = 1, term = 1;
+	for (int k = 1; k < 32; k++)
+	{
+		term *= (x / (2 * k)) * (x / (2 * k));
+		sum += term;
+		if (term < sum * 1e-12)
+			break;
+	}
+	return sum;
+}
+
+// Weight at distance t, in output texels.
+float SharpWeight(float t)
+{
+	const float r = t / kSharpRadius;
+	if (r <= -1.0f || r >= 1.0f)
+		return 0.0f;
+	const double window = BesselI0(kKaiserAlpha * std::sqrt(1.0 - double(r) * r)) / BesselI0(kKaiserAlpha);
+	const double pt = 3.14159265358979 * t;
+	const double sinc = std::fabs(pt) < 1e-6 ? 1.0 : std::sin(pt) / pt;
+	return static_cast<float>(sinc * window);
+}
+
+// Weights for one output position: the source texels the filter reaches from its centre. The
+// sharp filter has negative lobes; the weights still sum to one, so a flat picture stays flat.
+void Taps(int x, int srcSize, float scale, Filter filter, std::vector<std::pair<int, float>>& taps)
 {
 	taps.clear();
 	const float centre = (x + 0.5f) * scale;
-	const int first = static_cast<int>(std::floor(centre - scale));
-	const int last = static_cast<int>(std::ceil(centre + scale));
+	const float reach = filter == Filter::Sharp ? kSharpRadius * scale : scale;
+	const int first = static_cast<int>(std::floor(centre - reach));
+	const int last = static_cast<int>(std::ceil(centre + reach));
 	float sum = 0;
 	for (int i = first; i <= last; i++)
 	{
-		const float w = scale - std::fabs(i + 0.5f - centre);
-		if (w <= 0)
+		const float d = i + 0.5f - centre;
+		const float w = filter == Filter::Sharp ? SharpWeight(d / scale) : scale - std::fabs(d);
+		if (w == 0 || (filter == Filter::Tent && w < 0))
 			continue;
 		taps.push_back({ ((i % srcSize) + srcSize) % srcSize, w });
 		sum += w;
@@ -502,7 +537,7 @@ bool Encode(D3DFORMAT f, const std::vector<Rgba>& in, int w, int h, void* bits, 
 	return true;
 }
 
-void Downsample(const std::vector<Rgba>& src, int w, int h, std::vector<Rgba>& dst, int dw, int dh)
+void Downsample(const std::vector<Rgba>& src, int w, int h, std::vector<Rgba>& dst, int dw, int dh, Filter filter)
 {
 	Tables();
 	// Light, not numbers: rgb decoded from sRGB, alpha kept as it is.
@@ -518,7 +553,7 @@ void Downsample(const std::vector<Rgba>& src, int w, int h, std::vector<Rgba>& d
 	std::vector<float> across(static_cast<size_t>(dw) * h * 4, 0.0f);
 	for (int x = 0; x < dw; x++)
 	{
-		Taps(x, w, static_cast<float>(w) / dw, taps);
+		Taps(x, w, static_cast<float>(w) / dw, filter, taps);
 		for (int y = 0; y < h; y++)
 			for (const auto& [sx, wt] : taps)
 				for (int c = 0; c < 4; c++)
@@ -527,7 +562,7 @@ void Downsample(const std::vector<Rgba>& src, int w, int h, std::vector<Rgba>& d
 	dst.assign(static_cast<size_t>(dw) * dh, Rgba{});
 	for (int y = 0; y < dh; y++)
 	{
-		Taps(y, h, static_cast<float>(h) / dh, taps);
+		Taps(y, h, static_cast<float>(h) / dh, filter, taps);
 		for (int x = 0; x < dw; x++)
 		{
 			float acc[4] = {};
@@ -539,7 +574,58 @@ void Downsample(const std::vector<Rgba>& src, int w, int h, std::vector<Rgba>& d
 	}
 }
 
-bool FillChain(IDirect3DTexture9* tex)
+bool IsCutout(const std::vector<Rgba>& p)
+{
+	if (p.empty())
+		return false;
+	size_t in = 0, out = 0;
+	for (const Rgba& t : p)
+	{
+		in += t.a >= 240;
+		out += t.a <= 15;
+	}
+	// Nine texels in ten fully in or out, and a real share of each: a texture merely edged with
+	// transparency, or one blended by its alpha (glass, smoke), is not touched.
+	const size_t n = p.size();
+	return (in + out) * 10 >= n * 9 && out * 100 >= n && in * 100 >= n;
+}
+
+float Coverage(const std::vector<Rgba>& p, uint8_t ref)
+{
+	if (p.empty())
+		return 0.0f;
+	size_t in = 0;
+	for (const Rgba& t : p)
+		in += t.a >= ref;
+	return static_cast<float>(in) / p.size();
+}
+
+void KeepCoverage(std::vector<Rgba>& p, float target, uint8_t ref)
+{
+	// The alpha a texel gets at scale `s`, rounded as it will be written.
+	auto alphaAt = [](uint8_t a, float s) { return std::clamp(static_cast<int>(a * s + 0.5f), 0, 255); };
+	auto scaled = [&](float s) {
+		size_t in = 0;
+		for (const Rgba& t : p)
+			in += alphaAt(t.a, s) >= ref;
+		return static_cast<float>(in) / p.size();
+	};
+	if (p.empty() || std::fabs(scaled(1.0f) - target) * p.size() < 1.0f)
+		return;
+	// The share grows with the scale: halve the interval towards the one that matches.
+	float lo = 0.0f, hi = 8.0f;
+	for (int i = 0; i < 16; i++)
+	{
+		const float mid = (lo + hi) / 2;
+		(scaled(mid) < target ? lo : hi) = mid;
+	}
+	// A level can be too even for an exact match (its texels all near one alpha): the closer side.
+	const float s = std::fabs(scaled(lo) - target) <= std::fabs(scaled(hi) - target) ? lo : hi;
+	for (Rgba& t : p)
+		t.a = static_cast<uint8_t>(alphaAt(t.a, s));
+}
+
+bool FillChain(IDirect3DTexture9* tex, Filter filter, bool keepCoverage)
 {
 	const DWORD levels = tex->GetLevelCount();
 	if (levels < 2)
@@ -555,6 +641,11 @@ bool FillChain(IDirect3DTexture9* tex)
 	tex->UnlockRect(0);
 	if (!read)
 		return false;
+	// Half alpha is where the games' alpha tests split in and out, and the edge of DXT1's one bit.
+	constexpr uint8_t kRef = 128;
+	const bool cutout = keepCoverage && IsCutout(cur);
+	const float coverage = cutout ? Coverage(cur, kRef) : 0.0f;
+	std::vector<Rgba> kept;
 	int w = static_cast<int>(d.Width), h = static_cast<int>(d.Height);
 	for (DWORD level = 1; level < levels; level++)
 	{
@@ -562,10 +653,17 @@ bool FillChain(IDirect3DTexture9* tex)
 		if (FAILED(tex->GetLevelDesc(level, &ld)))
 			return false;
 		const int dw = static_cast<int>(ld.Width), dh = static_cast<int>(ld.Height);
-		Downsample(cur, w, h, next, dw, dh);
+		Downsample(cur, w, h, next, dw, dh, filter);
+		// The next level is filtered from this one as it came out of the filter; only what is
+		// written gets its coverage back, so the scaling never compounds from level to level.
+		if (cutout)
+		{
+			kept = next;
+			KeepCoverage(kept, coverage, kRef);
+		}
 		if (FAILED(tex->LockRect(level, &r, nullptr, 0)))
 			return false;
-		const bool written = Encode(ld.Format, next, dw, dh, r.pBits, r.Pitch);
+		const bool written = Encode(ld.Format, cutout ? kept : next, dw, dh, r.pBits, r.Pitch);
 		tex->UnlockRect(level);
 		if (!written)
 			return false;

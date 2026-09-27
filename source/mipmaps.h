@@ -33,10 +33,24 @@ int Rows(D3DFORMAT format, int h);
 bool Decode(D3DFORMAT format, const void* bits, int pitch, int w, int h, std::vector<Rgba>& out);
 bool Encode(D3DFORMAT format, const std::vector<Rgba>& in, int w, int h, void* bits, int pitch);
 
-// The next level: a triangle (tent) filter, colours averaged as light (sRGB decoded), alpha
-// averaged as is; texture edges wrap, as games tile most of their textures.
-void Downsample(const std::vector<Rgba>& src, int w, int h, std::vector<Rgba>& dst, int dw, int dh);
+// Tent: a triangle filter, soft (what the fix has always used). Sharp: a windowed sinc (Kaiser
+// window, three levels wide), which keeps the detail a tent blurs away in the distance.
+enum class Filter { Tent, Sharp };
 
-// Fills levels 1..n of `tex` from level 0. False (and the lower levels untouched) on failure.
-bool FillChain(IDirect3DTexture9* tex);
+// The next level: colours averaged as light (sRGB decoded), alpha averaged as is; texture edges
+// wrap, as games tile most of their textures.
+void Downsample(const std::vector<Rgba>& src, int w, int h, std::vector<Rgba>& dst, int dw, int dh,
+	Filter filter = Filter::Tent);
+
+// Cut-outs (leaves, hair, fences): alpha almost only fully in or fully out. Averaged, their edges
+// turn to half alpha, which the alpha test drops: trees thin out and vanish with distance.
+// `Coverage` is the share of texels at or above `ref`; `KeepCoverage` scales a level's alpha until
+// that share matches the full-size texture's again.
+bool IsCutout(const std::vector<Rgba>& p);
+float Coverage(const std::vector<Rgba>& p, uint8_t ref);
+void KeepCoverage(std::vector<Rgba>& p, float target, uint8_t ref);
+
+// Fills levels 1..n of `tex` from level 0 with `filter`, and cut-outs keep their coverage when
+// `keepCoverage`. False (and the lower levels untouched) on failure.
+bool FillChain(IDirect3DTexture9* tex, Filter filter = Filter::Tent, bool keepCoverage = false);
 }

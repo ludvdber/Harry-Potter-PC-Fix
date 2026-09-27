@@ -2,6 +2,7 @@
 // format round trip, the DXT encoders against their decoders, and the filter's light averaging
 // (a black and white checker must fade to the grey of half the light, 188, not to 128).
 #include "../source/mipmaps.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -164,6 +165,108 @@ int main()
 		std::vector<Rgba> out;
 		mips::Downsample(in, 8, 1, out, 4, 1);
 		Expect(out[0].r > 0 && out[3].r > out[0].r, "wrap at the edges");
+	}
+
+	// The sharp filter: flat stays flat (its weights sum to one despite the negative lobes), and
+	// the light average holds.
+	{
+		int w = 37, h = 12;
+		std::vector<Rgba> cur(static_cast<size_t>(w) * h, Rgba{ 77, 140, 201, 99 }), next;
+		bool flat = true;
+		while (w > 1 || h > 1)
+		{
+			const int dw = w > 1 ? w / 2 : 1, dh = h > 1 ? h / 2 : 1;
+			mips::Downsample(cur, w, h, next, dw, dh, mips::Filter::Sharp);
+			for (const Rgba& p : next)
+				flat &= p.r == 77 && p.g == 140 && p.b == 201 && p.a == 99;
+			cur.swap(next);
+			w = dw;
+			h = dh;
+		}
+		Expect(flat, "sharp: flat stays flat down to 1x1");
+
+		std::vector<Rgba> checker(64 * 64), half;
+		for (int i = 0; i < 64 * 64; i++)
+		{
+			const uint8_t v = ((i & 1) ^ ((i >> 6) & 1)) ? 255 : 0;
+			checker[i] = { v, v, v, 255 };
+		}
+		mips::Downsample(checker, 64, 64, half, 32, 32, mips::Filter::Sharp);
+		sprintf_s(detail, "got %d", half[33].r);
+		Expect(std::abs(half[33].r - 188) <= 2, "sharp: light-averaged grey", detail);
+	}
+
+	// ... and keeps more of a detail the tent smooths away: stripes four texels wide, halved
+	// twice, keep more of their contrast.
+	{
+		const int w = 64, h = 4;
+		std::vector<Rgba> in(static_cast<size_t>(w) * h);
+		for (int y = 0; y < h; y++)
+			for (int x = 0; x < w; x++)
+			{
+				const uint8_t v = (x / 4) % 2 ? 200 : 40;
+				in[static_cast<size_t>(y) * w + x] = { v, v, v, 255 };
+			}
+		auto contrast = [&](mips::Filter f) {
+			std::vector<Rgba> a, b;
+			mips::Downsample(in, w, h, a, w / 2, h / 2, f);
+			mips::Downsample(a, w / 2, h / 2, b, w / 4, h / 4, f);
+			int mn = 255, mx = 0;
+			for (const Rgba& p : b)
+			{
+				mn = std::min<int>(mn, p.r);
+				mx = std::max<int>(mx, p.r);
+			}
+			return mx - mn;
+		};
+		const int tent = contrast(mips::Filter::Tent), sharp = contrast(mips::Filter::Sharp);
+		sprintf_s(detail, "tent %d, sharp %d", tent, sharp);
+		Expect(sharp > tent + 20, "sharp keeps detail", detail);
+		printf("stripes after two levels: contrast %s\n", detail);
+	}
+
+	// Cut-outs: a branch of thin leaves loses its leaves as it shrinks; with the coverage kept, the
+	// share of texels the alpha test lets through stays that of the full-size texture.
+	{
+		const int w = 128, h = 128;
+		// Small leaves of every size scattered over the texture, as a branch is drawn.
+		std::vector<Rgba> leaves(static_cast<size_t>(w) * h, Rgba{ 40, 120, 30, 0 });
+		unsigned seed = 12345;
+		auto rnd = [&] { seed = seed * 1103515245u + 12345u; return (seed >> 16) & 0x7FFF; };
+		for (int n = 0; n < 260; n++)
+		{
+			const int cx = rnd() % w, cy = rnd() % h, r = 1 + rnd() % 3;
+			for (int y = -r; y <= r; y++)
+				for (int x = -r; x <= r; x++)
+					if (x * x + y * y <= r * r)
+						leaves[static_cast<size_t>((cy + y + h) % h) * w + (cx + x + w) % w].a = 255;
+		}
+		Expect(mips::IsCutout(leaves), "leaves recognised as a cut-out");
+		const float full = mips::Coverage(leaves, 128);
+		std::vector<Rgba> cur = leaves, next;
+		int cw = w, ch = h;
+		float plain = 0, kept = 0;
+		for (int level = 1; level <= 3; level++)
+		{
+			mips::Downsample(cur, cw, ch, next, cw / 2, ch / 2);
+			cw /= 2;
+			ch /= 2;
+			std::vector<Rgba> k = next;
+			mips::KeepCoverage(k, full, 128);
+			plain = mips::Coverage(next, 128);
+			kept = mips::Coverage(k, 128);
+			cur.swap(next);
+		}
+		sprintf_s(detail, "full %.3f, 16x16 plain %.3f, kept %.3f", full, plain, kept);
+		Expect(std::fabs(kept - full) < 0.03f && std::fabs(plain - full) > 0.05f, "coverage kept", detail);
+		printf("leaf coverage: %s\n", detail);
+
+		// Glass or smoke (alpha that blends, not cut) and an opaque texture are left alone.
+		std::vector<Rgba> glass(64);
+		for (int i = 0; i < 64; i++)
+			glass[i] = { 200, 200, 255, uint8_t(60 + i) };
+		std::vector<Rgba> opaque(64, Rgba{ 1, 2, 3, 255 });
+		Expect(!mips::IsCutout(glass) && !mips::IsCutout(opaque), "only cut-outs");
 	}
 
 	Expect(!mips::Supported(D3DFMT_P8) && !mips::Supported(D3DFMT_A2R10G10B10), "unsupported formats refused");

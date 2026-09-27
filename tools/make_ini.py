@@ -20,7 +20,7 @@ JEUX = {
                           "; at 119 FPS on average, 1 % low 111, game speed unchanged.")),
     "HP5": dict(titre="Harry Potter and the Order of the Phoenix", resolution="640x480",
                 fps_limit=120, center=1, dpi=1, fov_note="0 = as shipped",
-                animations=False, cap=120, unlock=True, haze=False, xinput=True,
+                animations=False, cap=120, unlock=True, haze=False, fog=True, xinput=True,
                 # Measured in game (2026-09-26, common room, F11): the same bursts as HP6,
                 # 1 % low 38 FPS alone; with FPSLimit=120, 1 % low 84.
                 fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
@@ -67,7 +67,7 @@ GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntial
                     Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
                     BloomStrength="0.35", BloomThreshold="0.75", GodRays=0, GodRaysStrength="0.45",
-                    GodRaysDecay="0.96")
+                    GodRaysDecay="0.96", MipmapFilter=0, MipmapCoverage=0)
 
 
 def ini(jeu, graphismes=None):
@@ -334,7 +334,8 @@ def ini(jeu, graphismes=None):
     a("; Negative = sharper distant textures (-1.0 is a good value), 0 = as shipped.")
     a(f"TextureLODBias={g['TextureLODBias']}")
     a("")
-    a("; Render at 2x, 3x or 4x the resolution, then scale down. Very demanding.")
+    a("; Render larger, then scale down (supersampling): 1 = off, 1.5, 2 (up to 4). Very demanding:")
+    a("; 2 draws four times the pixels, 1.5 a little over twice.")
     a(f"SSAAFactor={g['SSAAFactor']}")
     a("")
     a("; Sharper shadows (1, 2 or 4). Experimental: also enlarges reflections.")
@@ -361,6 +362,11 @@ def ini(jeu, graphismes=None):
     a("; Most textures ship without mipmaps (smaller copies for the distance), which")
     a("; makes them shimmer and blur far away. 1 builds them when the game loads.")
     a("GenerateMipmaps=1")
+    a("; How those copies are made: 0 = soft, 1 = sharp (keeps more detail far away).")
+    a(f"MipmapFilter={g['MipmapFilter']}")
+    a("; 1 = leaves, hair and fences keep their density in the distance instead of")
+    a("; thinning out and vanishing.")
+    a(f"MipmapCoverage={g['MipmapCoverage']}")
     a("; Blends between those copies on every texture (trilinear filtering).")
     a("ForceTrilinear=1")
     a("")

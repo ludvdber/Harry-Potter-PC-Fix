@@ -55,7 +55,7 @@ struct Settings
 	bool  transparencyAa = false;   // alpha-tested edges (hair, leaves) smoothed too, with msaa
 	int   anisotropy = 0;
 	float lodBias = 0.0f;
-	int   ssaa = 1;
+	float ssaa = 1.0f;              // supersampling factor, 1 = off; 1.5, 2...
 	int   shadowScale = 1;
 	bool  vsync = false;
 	bool  grading = false;
@@ -71,6 +71,8 @@ struct Settings
 	int   renderWidth = 0, renderHeight = 0;
 	bool  generateMipmaps = true;   // full mipmap chains for textures shipped without
 	bool  forceTrilinear = true;    // mipmaps used on every texture
+	int   mipmapFilter = 0;         // 0 soft (tent), 1 sharp (windowed sinc), see mipmaps.h
+	bool  mipmapCoverage = false;   // cut-outs (leaves, hair) keep their density in the distance
 	int   maxFrameLatency = 1;      // frames the driver may queue; 0 = its own choice
 
 	// [Accio.Overlay] - overlay.cpp

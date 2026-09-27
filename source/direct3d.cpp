@@ -74,8 +74,23 @@ bool NativeSize(HWND hwnd, int& w, int& h)
 	return true;
 }
 
+// The size the game asked for last, and the one it was given. Direct3D writes the parameters
+// back into the game's own structure, and a game may hand that same structure to Reset: the size
+// given then comes back as if asked, and supersampling multiplied it again at every Reset (HP5,
+// 2026-09-27: 2560x1440, then 5120x2880, then 10240x5760 after a few Alt+Tab, 43 FPS, and a game
+// that stopped answering with the mouse held in its window).
+UINT g_askedW = 0, g_askedH = 0, g_givenW = 0, g_givenH = 0;
+
 void AdjustPresentation(D3DPRESENT_PARAMETERS* pp)
 {
+	if (g_givenW && pp->BackBufferWidth == g_givenW && pp->BackBufferHeight == g_givenH
+		&& (g_givenW != g_askedW || g_givenH != g_askedH))
+	{
+		pp->BackBufferWidth = g_askedW;
+		pp->BackBufferHeight = g_askedH;
+	}
+	g_askedW = pp->BackBufferWidth;
+	g_askedH = pp->BackBufferHeight;
 	Log("Direct3D: the game asks for %ux%u, windowed=%d\n", pp->BackBufferWidth, pp->BackBufferHeight, pp->Windowed);
 
 	if (g_cfg.ssao && g_depth.supported && pp->EnableAutoDepthStencil)
@@ -91,12 +106,13 @@ void AdjustPresentation(D3DPRESENT_PARAMETERS* pp)
 	}
 
 	int msaa = g_cfg.msaa;
-	if (g_cfg.ssaa > 1)
+	if (g_cfg.ssaa > 1.0f)
 	{
 		// Rendered larger, scaled down by Present. Multisampling on top would be both redundant
-		// and far too heavy.
-		pp->BackBufferWidth *= g_cfg.ssaa;
-		pp->BackBufferHeight *= g_cfg.ssaa;
+		// and far too heavy. Any factor: 1.5 costs about half of 2 (2.25 times the pixels, not 4).
+		auto scaled = [](UINT v) { return (static_cast<UINT>(v * g_cfg.ssaa + 0.5f) + 1) & ~1u; };
+		pp->BackBufferWidth = scaled(pp->BackBufferWidth);
+		pp->BackBufferHeight = scaled(pp->BackBufferHeight);
 		pp->SwapEffect = D3DSWAPEFFECT_DISCARD;
 		msaa = 0;
 	}
@@ -111,6 +127,8 @@ void AdjustPresentation(D3DPRESENT_PARAMETERS* pp)
 
 	g_backBufferWidth = static_cast<int>(pp->BackBufferWidth);
 	g_backBufferHeight = static_cast<int>(pp->BackBufferHeight);
+	g_givenW = pp->BackBufferWidth;
+	g_givenH = pp->BackBufferHeight;
 	Log("Direct3D: image %ux%u, MSAA %d, depth format 0x%X\n", pp->BackBufferWidth, pp->BackBufferHeight,
 		static_cast<int>(pp->MultiSampleType), static_cast<unsigned>(pp->AutoDepthStencilFormat));
 }
@@ -849,8 +867,8 @@ HRESULT STDMETHODCALLTYPE UnlockRect(IDirect3DTexture9* self, UINT level)
 		return hr;
 	self->FreePrivateData(kFillMips); // once: later unlocks are the game updating a live texture
 	InternalCalls inside;
-	// Triangle filter with dithering, averaged as light (mipmaps.cpp): crisper than box or bilinear.
-	if (mips::FillChain(self))
+	// Averaged as light, 16-bit formats dithered (mipmaps.cpp); a tent, or the sharp filter.
+	if (mips::FillChain(self, g_cfg.mipmapFilter == 1 ? mips::Filter::Sharp : mips::Filter::Tent, g_cfg.mipmapCoverage))
 		InterlockedIncrement(&g_mipsFilled);
 	else
 	{
@@ -940,9 +958,27 @@ HRESULT STDMETHODCALLTYPE GetRenderTargetData(IDirect3DDevice9* self, IDirect3DS
 	return g_GetRenderTargetData.Original<TargetDataFn>(self)(self, SceneSource(self, src), dst);
 }
 
+// Watched for the first three minutes or so at 120 fps: menus, loading and the first level.
+constexpr LONG kWatchFrames = 20000;
+
+// Once per sizes: how the game moves pictures between targets. The way its scene reaches the image
+// (this copy, or drawn as a texture, see SetTexture) decides how a larger scene could be shrunk.
+void NoteCopy(IDirect3DSurface9* src, const RECT* srcRect, IDirect3DSurface9* dst, D3DTEXTUREFILTERTYPE filter)
+{
+	D3DSURFACE_DESC s, d;
+	if (!src || !dst || FAILED(src->GetDesc(&s)) || FAILED(dst->GetDesc(&d)))
+		return;
+	static std::set<std::tuple<UINT, UINT, UINT, UINT>> seen;
+	if (seen.size() < 32 && seen.insert({ s.Width, s.Height, d.Width, d.Height }).second)
+		Log("Direct3D: game copies %ux%u%s to %ux%u (filter %d, frame %ld)\n", s.Width, s.Height,
+			srcRect ? " (part)" : "", d.Width, d.Height, static_cast<int>(filter), g_frames);
+}
+
 HRESULT STDMETHODCALLTYPE StretchRect(IDirect3DDevice9* self, IDirect3DSurface9* src, const RECT* srcRect,
 	IDirect3DSurface9* dst, const RECT* dstRect, D3DTEXTUREFILTERTYPE filter)
 {
+	if (!g_internal && g_frames < kWatchFrames)
+		NoteCopy(src, srcRect, dst, filter);
 	return g_StretchRect.Original<StretchRectFn>(self)(self, SceneSource(self, src), srcRect, dst, dstRect, filter);
 }
 
@@ -1128,6 +1164,22 @@ HRESULT STDMETHODCALLTYPE SetTexture(IDirect3DDevice9* self, DWORD stage, IDirec
 	const HRESULT hr = g_SetTexture.Original<SetTextureFn>(self)(self, stage, tex);
 	if (g_internal || FAILED(hr) || !tex)
 		return hr;
+	if (g_frames < kWatchFrames && tex->GetType() == D3DRTYPE_TEXTURE)
+	{
+		// A target of the game read as a texture: once per size and target size (see NoteCopy).
+		D3DSURFACE_DESC d;
+		IDirect3DSurface9* rt = nullptr;
+		if (SUCCEEDED(static_cast<IDirect3DTexture9*>(tex)->GetLevelDesc(0, &d)) && (d.Usage & D3DUSAGE_RENDERTARGET)
+			&& SUCCEEDED(self->GetRenderTarget(0, &rt)) && rt)
+		{
+			D3DSURFACE_DESC t;
+			static std::set<std::tuple<UINT, UINT, UINT, UINT>> seen;
+			if (SUCCEEDED(rt->GetDesc(&t)) && seen.size() < 32 && seen.insert({ d.Width, d.Height, t.Width, t.Height }).second)
+				Log("Direct3D: game draws its %ux%u target as a texture into %ux%u (stage %lu, frame %ld)\n",
+					d.Width, d.Height, t.Width, t.Height, stage, g_frames);
+			rt->Release();
+		}
+	}
 	// Textures bound without the game touching the sampler still get the filtering above.
 	const auto sampler = g_SetSamplerState.Original<SetSamplerFn>(self);
 	if (g_cfg.forceTrilinear)

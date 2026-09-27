@@ -399,8 +399,9 @@ void HoldFrameRate(const Profile& p)
 // when a level loads (0x005EE852; the engine sets it itself on cards too old for the fog). Written
 // during play it changes nothing; written before the level loads, the hills come out sharp (seen
 // 2026-09-26, grounds: contrast of the far third of the image 21-27 -> 25-30). Held by a thread,
-// since the settings are read after this DLL loads. HP5 has the same switch (0x00BF1964), not
-// seen yet: left alone.
+// since the settings are read after this DLL loads. HP5 has the same switch (0x00BF1964, found in
+// its settings reader like HP6's); wired the same way, not seen in game yet (its test save is
+// indoors): DistanceFog=1, the default, leaves it alone.
 DWORD WINAPI HoldFogOff(LPVOID param)
 {
 	auto* at = static_cast<volatile LONG*>(param);
@@ -414,9 +415,15 @@ DWORD WINAPI HoldFogOff(LPVOID param)
 
 void RemoveDistanceFog(const char* exeName)
 {
-	if (g_cfg.distanceFog != 0 || _stricmp(exeName, "hp6.exe") != 0)
+	if (g_cfg.distanceFog != 0)
 		return;
-	auto* at = reinterpret_cast<LONG*>(0x00CF198C);
+	LONG* at = nullptr;
+	if (_stricmp(exeName, "hp6.exe") == 0)
+		at = reinterpret_cast<LONG*>(0x00CF198C);
+	else if (_stricmp(exeName, "hp.exe") == 0)
+		at = reinterpret_cast<LONG*>(0x00BF1964);
+	else
+		return;
 	MEMORY_BASIC_INFORMATION mbi = {};
 	if (!VirtualQuery(at, &mbi, sizeof(mbi)) || !(mbi.Protect & (PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE)))
 	{

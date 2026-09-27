@@ -30,7 +30,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 |---|---|---|
 | Borderless window | `Windowed`, `WindowStyle` | Instead of exclusive full screen, where Alt+Tab freezes the game. Style 1 covers the monitor; 2 to 4 are windows. |
 | Keeps running in the background | `KeepRunningInBackground` | The engine stops its clock at any sign that another program is in front. Those signs are kept from it, so it goes on running while you are elsewhere. |
-| Keyboard and mouse back at once | `RetakeInputOnReturn` | The games read their devices in DirectInput exclusive mode and are never told they are back in front: the keyboard used to stay dead for up to 30 seconds. The return is detected and every device taken back at its next read. |
+| Keyboard and mouse back at once | `RetakeInputOnReturn` | The games read their devices in DirectInput exclusive mode and are never told they are back in front: the keyboard used to stay dead for up to 30 seconds. The return is detected and every device taken back at its next read. The other way round, an exclusive mouse keeps the cursor inside the game window: as soon as another window comes in front it is let go, otherwise the mouse could not leave the game. |
 | No key stuck after Alt+Tab | `ReleaseKeysOnReturn` | A key released in another window never reached the game, which believed it still held (Harry walking on his own). It is released for the game too. |
 | Your own keys | `[Accio.Keys]` | Any key or mouse button for any game key, named as printed on **your** keyboard. *Goblet of Fire* also has named actions (`Charm`, `Jinx`, `Accio`…) and a ready-made preset in its ini. |
 
@@ -56,6 +56,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 | 30 fps limit lifted | `UnlockFrameRate` | The game starts with a presentation interval of 2 (30 frames per second); it becomes 1. |
 | Frame-rate ceiling | `FrameRateCap` | The ceiling the engine keeps in memory and sometimes resets, held at 120. |
 | Even frames | `FPSLimit` | 120 by default, for the same reason as in *Half-Blood Prince*: the game's own ceiling alone works in bursts (1% low measured at 38 fps in the common room, against 84 with the limit). |
+| Distance fog | `DistanceFog` | The same switch as in *Half-Blood Prince*. `1`, the default, keeps the fog as shipped; `0` removes it (not yet seen outdoors in this game). |
 
 ### Inside *Harry Potter and the Half-Blood Prince* (`hp6.exe`)
 
@@ -81,6 +82,8 @@ Each change is made in the executable once it is loaded, never on disk, and only
 | | Setting | |
 |---|---|---|
 | Mipmaps built for every texture | `GenerateMipmaps`, `ForceTrilinear` | Most textures ship without smaller copies for the distance, which makes them shimmer and blur far away. The copies are built as each texture loads. |
+| Sharp textures far away | `MipmapFilter` | How those copies are shrunk: `0` a soft filter (the default), `1` a sharp one that keeps detail in the distance (Kaiser-windowed sinc). About 17 % more time when a texture loads, nothing while playing. |
+| Dense foliage far away | `MipmapCoverage` | Branches, leaves, hair and fences are cut out: a point is in or out. Shrunk, their edges turn half transparent and the game drops them, so trees thin out and vanish with distance. `1` keeps in every copy the same share of cut-out points as in the full texture. Off by default. |
 | MSAA | `Antialiasing` | Applied to the 3D scene itself: the games draw it into an image of their own before copying it to the screen, and MSAA on the screen alone never reached it. Stepped down (16, 8, 4, 2, off) until the graphics card accepts it, instead of switching off. No effect on the scene with `SSAO=1` (Direct3D 9 cannot multisample the depth that ambient occlusion reads). |
 | Smooth hair and leaves | `TransparencyAntialiasing` | With `Antialiasing`: the cut-out edges of hair, leaves and grass stay stepped under MSAA alone; they are supersampled (NVIDIA cards only, no effect elsewhere). Seen in Goblet of Fire (hair on the character screen) and Half-Blood Prince (pine trees, hair). Cost measured on an RTX 2060 SUPER: 1% low from 101 to 76 fps in Half-Blood Prince at 2560×1440, from 94 to 84 in Goblet of Fire. Off by default. |
 | Anisotropic filtering, texture sharpness | `AnisotropicFiltering`, `TextureLODBias` | Forced on every texture. |
@@ -88,7 +91,7 @@ Each change is made in the executable once it is loaded, never on disk, and only
 | Colour grading | `ColorGrading` and the values under it | Lift, gain, gamma, white balance, contrast, vibrance, split toning, vignette; `SkinProtect` (0 to 1) spares faces part of the contrast and vibrance. |
 | Ambient occlusion | `SSAO` and its values | Drawn the moment the 3D scene is done, before menus and subtitles. |
 | Bloom and light shafts | `Bloom`, `GodRays` | Half resolution, faded out on menus and white screens. |
-| Supersampling | `SSAAFactor` | Renders 2 to 4 times larger. Very demanding. |
+| Supersampling | `SSAAFactor` | The image is drawn larger, then scaled down: every edge smoothed, without blur. `1` = off, `1.5`, `2`… up to `4`. Very demanding: `2` draws four times the pixels, `1.5` a little over twice. |
 | Render size | `RenderWidth`, `RenderHeight` | 0 = the size chosen in the game; -1 = the monitor's own. |
 
 ### Performance, like a benchmark tool (`[Accio.Overlay]`)

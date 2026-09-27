@@ -30,7 +30,7 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 |---|---|---|
 | Fenêtre sans bordure | `Windowed`, `WindowStyle` | À la place du plein écran exclusif, où Alt+Tab fige le jeu. Le style 1 couvre l'écran ; 2 à 4 sont des fenêtres. |
 | Le jeu continue en arrière-plan | `KeepRunningInBackground` | Le moteur arrête son horloge au moindre signe qu'un autre programme passe devant. Ces signes lui sont cachés : il continue pendant que vous êtes ailleurs. |
-| Clavier et souris dès le retour | `RetakeInputOnReturn` | Les jeux lisent leurs périphériques en DirectInput exclusif et ne sont jamais prévenus de leur retour au premier plan : le clavier restait mort jusqu'à 30 secondes. Le retour est détecté et chaque périphérique repris à sa lecture suivante. |
+| Clavier et souris dès le retour | `RetakeInputOnReturn` | Les jeux lisent leurs périphériques en DirectInput exclusif et ne sont jamais prévenus de leur retour au premier plan : le clavier restait mort jusqu'à 30 secondes. Le retour est détecté et chaque périphérique repris à sa lecture suivante. Dans l'autre sens, une souris exclusive garde le curseur dans la fenêtre du jeu : dès qu'une autre fenêtre passe devant, elle est relâchée, sinon la souris ne pouvait plus sortir du jeu. |
 | Plus de touche bloquée après Alt+Tab | `ReleaseKeysOnReturn` | Une touche relâchée dans une autre fenêtre n'arrivait jamais au jeu, qui la croyait encore enfoncée (Harry qui marche tout seul). Elle est relâchée pour le jeu aussi. |
 | Vos propres touches | `[Accio.Keys]` | N'importe quelle touche ou bouton de souris pour n'importe quelle touche du jeu, nommée comme elle est imprimée sur **votre** clavier : ZQSD en AZERTY s'écrit tel quel. *La Coupe de feu* a aussi des actions nommées (`Charm`, `Jinx`, `Accio`…) et un préréglage prêt dans son ini. |
 
@@ -56,6 +56,7 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 | Limite de 30 images/s levée | `UnlockFrameRate` | Le jeu démarre avec un intervalle de présentation de 2 (30 images/s) ; il passe à 1. |
 | Plafond d'images/s | `FrameRateCap` | Le plafond que le moteur garde en mémoire et remet parfois à zéro, tenu à 120. |
 | Images régulières | `FPSLimit` | 120 par défaut, pour la même raison que dans *le Prince de sang-mêlé* : le plafond du jeu seul procède par à-coups (1 % low mesuré à 38 images/s dans la salle commune, contre 84 avec la limite). |
+| Brouillard lointain | `DistanceFog` | Le même interrupteur que dans *le Prince de sang-mêlé*. `1`, le défaut, garde le brouillard tel que livré ; `0` le retire (pas encore vu en extérieur dans ce jeu). |
 
 ### Dans *Harry Potter et le Prince de sang-mêlé* (`hp6.exe`)
 
@@ -81,6 +82,8 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 | | Réglage | |
 |---|---|---|
 | Mipmaps pour toutes les textures | `GenerateMipmaps`, `ForceTrilinear` | La plupart des textures sont livrées sans copies réduites pour le lointain, d'où le scintillement et le flou à distance. Elles sont construites au chargement de chaque texture. |
+| Textures nettes au loin | `MipmapFilter` | Comment ces copies sont réduites : `0` un filtre doux (le défaut), `1` un filtre net qui garde le détail au loin (sinc fenêtré de Kaiser). Environ 17 % de temps en plus au chargement d'une texture, rien pendant le jeu. |
+| Feuillages denses au loin | `MipmapCoverage` | Branches, feuilles, cheveux et grilles sont découpés : un point est dedans ou dehors. Réduits, leurs bords deviennent à moitié transparents et le jeu les écarte, si bien que les arbres s'éclaircissent puis disparaissent avec la distance. `1` garde dans chaque copie la même part de points découpés que dans la texture entière. Désactivé par défaut. |
 | MSAA | `Antialiasing` | Appliqué à la scène 3D elle-même : les jeux la dessinent dans une image à eux avant de la recopier à l'écran, et un MSAA posé sur l'écran seul ne l'atteignait pas. Abaissé pas à pas (16, 8, 4, 2, rien) jusqu'à ce que la carte graphique l'accepte, au lieu de se couper. Sans effet sur la scène avec `SSAO=1` (Direct3D 9 ne sait pas multi-échantillonner la profondeur que lit l'occlusion). |
 | Cheveux et feuillage lissés | `TransparencyAntialiasing` | Avec `Antialiasing` : les bords découpés des cheveux, des feuilles et de l'herbe restent en escalier sous le seul MSAA ; ils sont suréchantillonnés (cartes NVIDIA seulement, sans effet ailleurs). Vu dans la Coupe de feu (mèches au choix du personnage) et le Prince de sang-mêlé (pins, cheveux). Coût mesuré sur une RTX 2060 SUPER : 1 % low de 101 à 76 images/s dans le Prince de sang-mêlé en 2560×1440, de 94 à 84 dans la Coupe de feu. Désactivé par défaut. |
 | Filtrage anisotrope, netteté des textures | `AnisotropicFiltering`, `TextureLODBias` | Forcés sur toutes les textures. |
@@ -88,7 +91,7 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 | Étalonnage des couleurs | `ColorGrading` et les valeurs dessous | Noirs, gain, gamma, balance des blancs, contraste, vibrance, virage partiel, vignettage ; `SkinProtect` (0 à 1) épargne aux visages une part du contraste et de la vibrance. |
 | Occlusion ambiante | `SSAO` et ses valeurs | Dessinée dès que la scène 3D est finie, avant les menus et sous-titres. |
 | Halo et rayons de lumière | `Bloom`, `GodRays` | En demi-résolution, estompés sur les menus et les écrans blancs. |
-| Suréchantillonnage | `SSAAFactor` | Rendu 2 à 4 fois plus grand. Très gourmand. |
+| Suréchantillonnage | `SSAAFactor` | L'image est calculée plus grande puis réduite : tous les contours lissés, sans flou. `1` = éteint, `1.5`, `2`… jusqu'à `4`. Très gourmand : `2` calcule quatre fois plus de points, `1.5` un peu plus de deux fois. |
 | Taille de rendu | `RenderWidth`, `RenderHeight` | 0 = la taille choisie dans le jeu ; -1 = celle de l'écran. |
 
 ### Performances, comme un outil de benchmark (`[Accio.Overlay]`)

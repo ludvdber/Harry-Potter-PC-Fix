@@ -84,6 +84,8 @@ struct Device
 	bool keyboard;
 	LONG seenReturns;
 	BYTE held[256]; // keys down when the game came back, hidden until really released
+	DWORD cooperation; // DISCL_* flags the game asked for
+	bool letGo;        // released by us while another window is in front
 };
 
 constexpr int kMaxDevices = 16;
@@ -105,7 +107,7 @@ void Remember(void* object, bool keyboard)
 	if (!d)
 		d = FindDevice(nullptr);
 	if (d)
-		*d = Device{ object, keyboard, g_returns, {} };
+		*d = Device{ object, keyboard, g_returns, {}, 0, false };
 	LeaveCriticalSection(&g_lock);
 	Log("Input: %s %p %s\n", keyboard ? "keyboard" : "device", object, d ? "followed" : "NOT followed (table full)");
 }
@@ -125,14 +127,31 @@ Device* RetakeIfReturned(IDirectInputDevice8A* dev, bool& returned)
 	returned = false;
 	StartWatching();
 	SampleForeground();
+	bool letGo = false;
 	EnterCriticalSection(&g_lock);
 	Device* d = FindDevice(dev);
 	if (d && d->seenReturns != g_returns)
 	{
 		d->seenReturns = g_returns;
+		d->letGo = false;
 		returned = true;
 	}
+	// An exclusive mouse keeps the cursor inside the game window for as long as it is acquired.
+	// DirectInput lets go when the window loses the front, but the game is kept running and
+	// never hears of it (window.cpp), so the device stayed acquired and the cursor could not
+	// leave (HP5, 2026-09-27: Alt+Tab worked, the mouse stayed in the game). Let go here, on the
+	// game's own thread, at its first read once another window is in front.
+	if (d && g_cfg.retakeInput && !g_inFront && !d->letGo && (d->cooperation & DISCL_EXCLUSIVE))
+	{
+		d->letGo = true;
+		letGo = true;
+	}
 	LeaveCriticalSection(&g_lock);
+	if (letGo)
+	{
+		dev->Unacquire();
+		Log("Input: %p let go while another window is in front\n", dev);
+	}
 	if (returned && g_cfg.retakeInput)
 	{
 		dev->Unacquire();
@@ -140,6 +159,19 @@ Device* RetakeIfReturned(IDirectInputDevice8A* dev, bool& returned)
 		Log("Input: %p taken back, hr=0x%lX\n", dev, static_cast<unsigned long>(hr));
 	}
 	return d;
+}
+
+// While another window is in front, an exclusive device stays let go: the game (or our own
+// retry after a lost read) asking for it again would take the cursor back at once.
+bool HeldAway(IDirectInputDevice8A* dev)
+{
+	if (!g_cfg.retakeInput || g_inFront)
+		return false;
+	EnterCriticalSection(&g_lock);
+	const Device* d = FindDevice(dev);
+	const bool held = d && d->letGo;
+	LeaveCriticalSection(&g_lock);
+	return held;
 }
 
 // A key released while another window was in front never reaches DirectInput, which reports it
@@ -193,6 +225,11 @@ using ReleaseFn = ULONG(STDMETHODCALLTYPE*)(IUnknown*);
 using CreateDeviceFn = HRESULT(STDMETHODCALLTYPE*)(IDirectInput8A*, REFGUID, LPDIRECTINPUTDEVICE8A*, LPUNKNOWN);
 using CreateFn = HRESULT(WINAPI*)(HINSTANCE, DWORD, REFIID, LPVOID*, LPUNKNOWN);
 
+using AcquireFn = HRESULT(STDMETHODCALLTYPE*)(IDirectInputDevice8A*);
+using CooperationFn = HRESULT(STDMETHODCALLTYPE*)(IDirectInputDevice8A*, HWND, DWORD);
+
+HRESULT STDMETHODCALLTYPE Acquire(IDirectInputDevice8A* self);
+HRESULT STDMETHODCALLTYPE SetCooperativeLevel(IDirectInputDevice8A* self, HWND wnd, DWORD flags);
 HRESULT STDMETHODCALLTYPE GetDeviceState(IDirectInputDevice8A* self, DWORD size, LPVOID data);
 HRESULT STDMETHODCALLTYPE GetDeviceData(IDirectInputDevice8A* self, DWORD size, LPDIDEVICEOBJECTDATA data, LPDWORD count, DWORD flags);
 HRESULT STDMETHODCALLTYPE Poll(IDirectInputDevice8A* self);
@@ -200,12 +237,36 @@ ULONG STDMETHODCALLTYPE ReleaseDevice(IUnknown* self);
 HRESULT STDMETHODCALLTYPE CreateDevice(IDirectInput8A* self, REFGUID guid, LPDIRECTINPUTDEVICE8A* out, LPUNKNOWN outer);
 
 // Method slots, counted from the declarations in dinput.h.
+MethodRedirect g_acquire(7, reinterpret_cast<void*>(Acquire));
+MethodRedirect g_cooperation(13, reinterpret_cast<void*>(SetCooperativeLevel));
 MethodRedirect g_getState(9, reinterpret_cast<void*>(GetDeviceState));
 MethodRedirect g_getData(10, reinterpret_cast<void*>(GetDeviceData));
 MethodRedirect g_poll(25, reinterpret_cast<void*>(Poll));
 MethodRedirect g_release(2, reinterpret_cast<void*>(ReleaseDevice));
 MethodRedirect g_createDevice(3, reinterpret_cast<void*>(CreateDevice));
 CreateFn g_create = nullptr;
+
+HRESULT STDMETHODCALLTYPE Acquire(IDirectInputDevice8A* self)
+{
+	if (HeldAway(self))
+		return DIERR_OTHERAPPHASPRIO; // what DirectInput itself answers an application in the back
+	return g_acquire.Original<AcquireFn>(self)(self);
+}
+
+HRESULT STDMETHODCALLTYPE SetCooperativeLevel(IDirectInputDevice8A* self, HWND wnd, DWORD flags)
+{
+	const HRESULT hr = g_cooperation.Original<CooperationFn>(self)(self, wnd, flags);
+	if (SUCCEEDED(hr))
+	{
+		EnterCriticalSection(&g_lock);
+		if (Device* d = FindDevice(self))
+			d->cooperation = flags;
+		LeaveCriticalSection(&g_lock);
+		Log("Input: %p %s, %s%s\n", self, flags & DISCL_EXCLUSIVE ? "exclusive" : "shared",
+			flags & DISCL_FOREGROUND ? "foreground" : "background", flags & DISCL_NOWINKEY ? ", no Windows key" : "");
+	}
+	return hr;
+}
 
 HRESULT STDMETHODCALLTYPE GetDeviceState(IDirectInputDevice8A* self, DWORD size, LPVOID data)
 {
@@ -284,6 +345,8 @@ HRESULT STDMETHODCALLTYPE CreateDevice(IDirectInput8A* self, REFGUID guid, LPDIR
 	if (SUCCEEDED(hr) && out && *out)
 	{
 		void* dev = *out;
+		g_acquire.Install(dev);
+		g_cooperation.Install(dev);
 		g_getState.Install(dev);
 		g_getData.Install(dev);
 		g_poll.Install(dev);
