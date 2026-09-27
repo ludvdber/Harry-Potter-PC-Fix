@@ -67,9 +67,10 @@ int main(int argc, char** argv)
 		EXPECT(c.distanceFog == 1); // the switch is wired, the fog stays as shipped
 		EXPECT(c.fxaa && Near(c.sharpness, 0.40f) && c.msaa == 16 && c.anisotropy == 16);
 		EXPECT(Near(c.lodBias, -1.5f) && c.vsync && c.ssaa == 1 && c.shadowScale == 1);
-		EXPECT(c.grading && Near(c.vibrance, 0.45f) && Near(c.vignette, 0.08f) && Near(c.lift, 0.0f));
-		EXPECT(Near(c.gamma, 1.0f) && Near(c.gain, 1.08f) && Near(c.temperature, 0.04f) && Near(c.tint, 0.04f));
-		EXPECT(Near(c.contrast, 0.30f) && Near(c.splitTone, 0.18f));
+		EXPECT(c.grading && Near(c.vibrance, 0.60f) && Near(c.vignette, 0.08f) && Near(c.lift, 0.0f));
+		EXPECT(Near(c.gamma, 1.0f) && Near(c.gain, 1.05f) && Near(c.temperature, 0.0f) && Near(c.tint, 0.0f));
+		EXPECT(Near(c.contrast, 0.30f) && Near(c.splitTone, 0.10f));
+		EXPECT(Near(c.skinProtect, 0.70f) && Near(c.yellowRestraint, 1.0f));
 		EXPECT(c.bloom && Near(c.bloomStrength, 0.35f) && Near(c.bloomThreshold, 0.75f));
 		EXPECT(c.godRays && Near(c.godRaysStrength, 0.45f) && Near(c.godRaysDecay, 0.96f));
 		EXPECT(c.ssao && Near(c.ssaoStrength, 0.55f) && Near(c.ssaoRadius, 6.0f));

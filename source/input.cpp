@@ -58,9 +58,32 @@ void SampleForeground()
 // sampling runs on its own thread; device reads only compare counters.
 DWORD WINAPI WatchForeground(LPVOID)
 {
+	// Diagnosis (HP5, 2026-09-27): after a few minutes, Ludo's mouse stayed in the game although every
+	// exclusive device had been let go, and a scripted mouse never reproduced it. One second into each
+	// departure, the log says what could hold the cursor: its clip, whether it is shown, a capture.
+	LONG awayFor = 0;
 	for (;;)
 	{
 		SampleForeground();
+		awayFor = g_inFront ? 0 : awayFor + 1;
+		if (awayFor == 10) // once per departure
+		{
+			RECT clip = {};
+			GetClipCursor(&clip);
+			CURSORINFO ci = { sizeof(ci) };
+			GetCursorInfo(&ci);
+			GUITHREADINFO gui = { sizeof(gui) };
+			GetGUIThreadInfo(0, &gui);
+			DWORD capturePid = 0;
+			if (gui.hwndCapture)
+				GetWindowThreadProcessId(gui.hwndCapture, &capturePid);
+			Log("Input: away 1 s: cursor clip %ld,%ld-%ld,%ld (screen %d,%d %dx%d), cursor %s at %ld,%ld, capture %s\n",
+				clip.left, clip.top, clip.right, clip.bottom, GetSystemMetrics(SM_XVIRTUALSCREEN),
+				GetSystemMetrics(SM_YVIRTUALSCREEN), GetSystemMetrics(SM_CXVIRTUALSCREEN),
+				GetSystemMetrics(SM_CYVIRTUALSCREEN), ci.flags & CURSOR_SHOWING ? "shown" : "hidden",
+				ci.ptScreenPos.x, ci.ptScreenPos.y,
+				!gui.hwndCapture ? "none" : capturePid == GetCurrentProcessId() ? "THE GAME" : "another program");
+		}
 		Sleep(100);
 	}
 }
@@ -127,7 +150,6 @@ Device* RetakeIfReturned(IDirectInputDevice8A* dev, bool& returned)
 	returned = false;
 	StartWatching();
 	SampleForeground();
-	bool letGo = false;
 	EnterCriticalSection(&g_lock);
 	Device* d = FindDevice(dev);
 	if (d && d->seenReturns != g_returns)
@@ -140,18 +162,28 @@ Device* RetakeIfReturned(IDirectInputDevice8A* dev, bool& returned)
 	// DirectInput lets go when the window loses the front, but the game is kept running and
 	// never hears of it (window.cpp), so the device stayed acquired and the cursor could not
 	// leave (HP5, 2026-09-27: Alt+Tab worked, the mouse stayed in the game). Let go here, on the
-	// game's own thread, at its first read once another window is in front.
-	if (d && g_cfg.retakeInput && !g_inFront && !d->letGo && (d->cooperation & DISCL_EXCLUSIVE))
+	// game's own thread, at its first read once another window is in front — and let go of EVERY
+	// exclusive device at once: HP5 keeps one it never reads, which held the cursor after a few
+	// minutes of play (same evening, 5th device in the log, never let go). Under the lock, so a
+	// device the game releases meanwhile is not touched. Once per departure (g_returns counts the
+	// returns): a device never read keeps its letGo flag, and must be let go again next time.
+	static LONG s_letGoFor = -1;
+	void* released[kMaxDevices];
+	int count = 0;
+	if (d && g_cfg.retakeInput && !g_inFront && s_letGoFor != g_returns)
 	{
-		d->letGo = true;
-		letGo = true;
+		s_letGoFor = g_returns;
+		for (Device& other : g_devices)
+			if (other.object && (other.cooperation & DISCL_EXCLUSIVE))
+			{
+				other.letGo = true;
+				static_cast<IDirectInputDevice8A*>(other.object)->Unacquire();
+				released[count++] = other.object;
+			}
 	}
 	LeaveCriticalSection(&g_lock);
-	if (letGo)
-	{
-		dev->Unacquire();
-		Log("Input: %p let go while another window is in front\n", dev);
-	}
+	for (int i = 0; i < count; i++)
+		Log("Input: %p let go while another window is in front\n", released[i]);
 	if (returned && g_cfg.retakeInput)
 	{
 		dev->Unacquire();

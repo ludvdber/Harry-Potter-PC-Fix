@@ -25,10 +25,13 @@ JEUX = {
                 # 1 % low 38 FPS alone; with FPSLimit=120, 1 % low 84.
                 fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
                           "; of fast frames and waits of 25 ms (1 % low 38 FPS, against 84)."),
-                # The image HP5 has shipped with since the fix existed (validated in game).
+                # The image HP5 has shipped with since the fix existed (validated in game), with the grade
+                # of board 53 (2026-09-27): the old one turned stone and grass bright yellow (20 % of the
+                # courtyard). No added warmth, yellows held back, every other hue more vivid.
                 graphics=dict(FXAA=1, Antialiasing=16, AnisotropicFiltering=16, TextureLODBias=-1.5,
-                              VSync=1, ColorGrading=1, Vibrance="0.45", Vignette="0.08", Gain="1.08",
-                              Temperature="0.04", Tint="0.04", Contrast="0.30", SplitTone="0.18",
+                              VSync=1, ColorGrading=1, Vibrance="0.60", Vignette="0.08", Gain="1.05",
+                              Temperature="0.00", Tint="0.00", Contrast="0.30", SplitTone="0.10",
+                              SkinProtect="0.70", YellowRestraint="1.00",
                               Bloom=1, GodRays=1, SSAO=1, SSAOStrength="0.55",
                               SSAOMinDelta="0.02", SSAOMaxDelta="0.15")),
     "HP6": dict(titre="Harry Potter and the Half-Blood Prince", resolution="640x480",
@@ -64,7 +67,7 @@ JEUX = {
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
                     SSAAFactor=1, ShadowMapScale=1, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
-                    Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", SSAO=0, SSAOStrength="0.50",
+                    Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
                     BloomStrength="0.35", BloomThreshold="0.75", GodRays=0, GodRaysStrength="0.45",
                     GodRaysDecay="0.96", MipmapFilter=0, MipmapCoverage=0)
@@ -343,9 +346,10 @@ def ini(jeu, graphismes=None):
     a("")
     a(f"VSync={g['VSync']}")
     a("")
-    a("; Colour adjustments. SkinProtect (0 to 1) spares faces part of the contrast and vibrance.")
+    a("; Colour adjustments. SkinProtect (0 to 1) spares faces part of the contrast and vibrance;")
+    a("; YellowRestraint (0 to 1) keeps yellows out of the vibrance and tones them down a little.")
     for k in ("ColorGrading", "Vibrance", "Vignette", "Lift", "Gamma", "Gain", "Temperature", "Tint",
-              "Contrast", "SplitTone", "SkinProtect"):
+              "Contrast", "SplitTone", "SkinProtect", "YellowRestraint"):
         a(f"{k}={g[k]}")
     a("")
     a("; Ambient occlusion (contact shadows), bloom and light shafts.")

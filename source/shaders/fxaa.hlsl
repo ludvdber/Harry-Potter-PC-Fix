@@ -12,8 +12,8 @@
 //            c4 = (depthUVScaleX, depthUVScaleY, _, _) — maps screen UVs onto the depth
 //                 texture when it is larger than the back buffer (post-Reset window-sized depth)
 //            c5 = (bloomStrength, godRayStrength, _, _) — 0 disables that effect's composite
-//            c6 = (contrast, splitToneStrength, skinProtect, _) — S-curve contrast; teal/orange split
-//                 toning; how much of both contrast and vibrance skin tones are spared
+//            c6 = (contrast, splitToneStrength, skinProtect, yellowRestraint) — S-curve contrast; teal/orange split
+//                 toning; how much of both contrast and vibrance skin tones are spared; yellows held back
 // Samplers: s0 = scene color, s1 = depth (INTZ when available), s2 = bloom, s3 = god rays
 sampler2D scene    : register(s0);
 sampler2D depthTex : register(s1);
@@ -99,7 +99,13 @@ float3 grade(float3 col,float2 uv){
     float mx = max(col.r, max(col.g, col.b));
     float mn = min(col.r, min(col.g, col.b));
     float sat = mx - mn;
-    col = lerp(lum.xxx, col, 1.0 + grade1.w * spare * (1.0 - sat));
+    // Yellow restraint (gradeC.w): vibrance swelled HP5's already yellow stone and grass into bright
+    // yellow (Ludo, 2026-09-27). Weight 1 on pure yellow (red and green close, blue lowest), 0.25 on
+    // orange: those hues lose the vibrance and a fifth of their saturation, every other hue keeps it.
+    float yel = saturate(1.0 - abs(col.r - col.g) / max(sat, 1e-4) * 1.5) * step(col.b, min(col.r, col.g))
+              * saturate(sat * 8.0);
+    float vib = grade1.w * spare * (1.0 - sat);
+    col = lerp(lum.xxx, col, 1.0 + vib - gradeC.w * yel * (vib + 0.2));
     // Split toning (gradeC.y = strength): push shadows toward cool teal and highlights toward warm
     // orange — the classic cinematic "teal & orange". Tints are roughly luma-neutral (a positive
     // channel paired with a negative one) so they re-colour rather than brighten. Midtones (0.45..

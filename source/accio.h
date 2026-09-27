@@ -62,6 +62,7 @@ struct Settings
 	float vibrance = 0.15f, vignette = 0.0f, lift = 0.0f, gamma = 1.0f, gain = 1.0f;
 	float temperature = 0.0f, tint = 0.0f, contrast = 0.0f, splitTone = 0.0f;
 	float skinProtect = 0.0f;       // 0..1: share of contrast and vibrance that skin tones are spared
+	float yellowRestraint = 0.0f;   // 0..1: share of vibrance yellows lose (plus a fifth of their saturation)
 	bool  ssao = false;
 	float ssaoStrength = 0.5f, ssaoRadius = 6.0f, ssaoMinDelta = 0.0005f, ssaoMaxDelta = 0.05f;
 	bool  bloom = false;
