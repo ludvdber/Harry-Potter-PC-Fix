@@ -6,14 +6,13 @@
 
 #include "hooks.h"
 #include "render_state.h"
-#include "d3dx9.h"
+#include "mipmaps.h"
 #include <algorithm>
 #include <set>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
 
-#pragma comment(lib, "d3dx9.lib")
 #pragma comment(lib, "dxguid.lib")
 
 SceneDepth g_depth;
@@ -772,8 +771,16 @@ HRESULT STDMETHODCALLTYPE CreateTexture(IDirect3DDevice9* self, UINT w, UINT h, 
 		big = true;
 	}
 
-	const bool fillMips = g_cfg.generateMipmaps && levels == 1 && pool != D3DPOOL_SYSTEMMEM
+	bool fillMips = g_cfg.generateMipmaps && levels == 1 && pool != D3DPOOL_SYSTEMMEM
 		&& !(usage & (D3DUSAGE_DYNAMIC | D3DUSAGE_RENDERTARGET | D3DUSAGE_DEPTHSTENCIL));
+	if (fillMips && !mips::Supported(format))
+	{
+		// A chain we could not fill would leave its lower levels empty (black in the distance).
+		fillMips = false;
+		static std::set<int> said;
+		if (said.insert(static_cast<int>(format)).second)
+			Log("Direct3D: no mipmaps for texture format %d (not supported by the filter)\n", static_cast<int>(format));
+	}
 	HRESULT hr = fillMips ? original(self, w, h, 0, usage, format, pool, out, shared) : E_FAIL;
 	const bool withChain = SUCCEEDED(hr);
 	if (!withChain)
@@ -842,16 +849,14 @@ HRESULT STDMETHODCALLTYPE UnlockRect(IDirect3DTexture9* self, UINT level)
 		return hr;
 	self->FreePrivateData(kFillMips); // once: later unlocks are the game updating a live texture
 	InternalCalls inside;
-	// Triangle filter with dithering, averaged in sRGB: visibly crisper than box or bilinear.
-	const HRESULT filled = D3DXFilterTexture(self, nullptr, 0, D3DX_FILTER_TRIANGLE | D3DX_FILTER_DITHER | D3DX_FILTER_SRGB);
-	if (SUCCEEDED(filled))
+	// Triangle filter with dithering, averaged as light (mipmaps.cpp): crisper than box or bilinear.
+	if (mips::FillChain(self))
 		InterlockedIncrement(&g_mipsFilled);
 	else
 	{
 		D3DSURFACE_DESC d = {};
 		self->GetLevelDesc(0, &d);
-		Log("Direct3D: mipmaps of a %ux%u texture (format %d) not filled, hr=0x%lX\n", d.Width, d.Height,
-			static_cast<int>(d.Format), static_cast<unsigned long>(filled));
+		Log("Direct3D: mipmaps of a %ux%u texture (format %d) not filled\n", d.Width, d.Height, static_cast<int>(d.Format));
 	}
 	return hr;
 }
@@ -1080,7 +1085,7 @@ HRESULT STDMETHODCALLTYPE SetRenderState(IDirect3DDevice9* self, D3DRENDERSTATET
 // sharpness bias of their own; these are overridden per the ini.
 DWORD SamplerValue(D3DSAMPLERSTATETYPE type, DWORD value)
 {
-	if (g_cfg.anisotropy > 0)
+	if (g_cfg.anisotropy > 0 && !g_compareOff)
 	{
 		if (type == D3DSAMP_MINFILTER)
 			value = D3DTEXF_ANISOTROPIC;
@@ -1093,7 +1098,7 @@ DWORD SamplerValue(D3DSAMPLERSTATETYPE type, DWORD value)
 	}
 	else if (type == D3DSAMP_MIPFILTER && value == D3DTEXF_NONE && g_cfg.forceTrilinear)
 		value = D3DTEXF_LINEAR; // the mipmaps generated above are used
-	if (type == D3DSAMP_MIPMAPLODBIAS && g_cfg.lodBias != 0.0f)
+	if (type == D3DSAMP_MIPMAPLODBIAS && g_cfg.lodBias != 0.0f && !g_compareOff)
 		memcpy(&value, &g_cfg.lodBias, sizeof(value));
 	if (type == D3DSAMP_MAXMIPLEVEL)
 		value = 0;
@@ -1127,13 +1132,13 @@ HRESULT STDMETHODCALLTYPE SetTexture(IDirect3DDevice9* self, DWORD stage, IDirec
 	const auto sampler = g_SetSamplerState.Original<SetSamplerFn>(self);
 	if (g_cfg.forceTrilinear)
 		sampler(self, stage, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
-	if (g_cfg.lodBias != 0.0f)
+	if (g_cfg.lodBias != 0.0f && !g_compareOff)
 	{
 		DWORD bias;
 		memcpy(&bias, &g_cfg.lodBias, sizeof(bias));
 		sampler(self, stage, D3DSAMP_MIPMAPLODBIAS, bias);
 	}
-	if (g_cfg.anisotropy > 0)
+	if (g_cfg.anisotropy > 0 && !g_compareOff)
 	{
 		sampler(self, stage, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
 		sampler(self, stage, D3DSAMP_MAXANISOTROPY, static_cast<DWORD>(g_cfg.anisotropy));

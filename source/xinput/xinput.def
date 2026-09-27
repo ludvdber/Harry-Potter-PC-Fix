@@ -1,0 +1,13 @@
+LIBRARY xinput1_3
+EXPORTS
+	XInputGetState = AccioGetState @2
+	XInputSetState = AccioSetState @3
+	XInputGetCapabilities = AccioGetCapabilities @4
+	XInputEnable = AccioEnable @5
+	XInputGetDSoundAudioDeviceGuids = AccioGetDSoundAudioDeviceGuids @6
+	XInputGetBatteryInformation = AccioGetBatteryInformation @7
+	XInputGetKeystroke = AccioGetKeystroke @8
+	AccioGetStateEx @100 NONAME
+	AccioWaitForGuideButton @101 NONAME
+	AccioCancelGuideButtonWait @102 NONAME
+	AccioPowerOffController @103 NONAME

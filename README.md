@@ -95,7 +95,20 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 
 Chaque ligne s'active séparément, tout est coupé par défaut : images/s (`ShowFPS`), temps par image et « 1 % low » (`ShowFrameTime`), graphe des 240 dernières images (`ShowGraph`), processeur du jeu et de son fil principal (`ShowCPU`), charge de la carte graphique (`ShowGPU`), mémoire vidéo (`ShowVRAM`) et vive (`ShowRAM`), latence entre la lecture d'une touche et l'envoi de l'image (`ShowLatency`). F10 affiche ou cache le panneau (`OverlayKey`) ; F11 démarre puis arrête un benchmark (`BenchmarkKey`) : moyenne, 1 % et 0,1 % low et pire image à l'écran, et chaque image dans le dossier `benchmarks`.
 
-Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG dans `screenshots`), une limite d'images/s (`FPSLimit`), une seule image d'avance chez le pilote au lieu de trois (`MaxFrameLatency`), et `DPIAware` pour les écrans à haute densité.
+Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG dans `screenshots`, ou dans `ScreenshotFolder` : Accio Launcher y met `Images\Accio Launcher\<jeu>`, qu'une désinstallation n'efface pas), une limite d'images/s (`FPSLimit`), une seule image d'avance chez le pilote au lieu de trois (`MaxFrameLatency`), et `DPIAware` pour les écrans à haute densité.
+
+### Manettes (`xinput1_3.dll`, `[Accio.Controller]`)
+
+*L'Ordre du Phénix*, *le Prince de sang-mêlé* et les deux *Reliques de la Mort* lisent la manette par XInput, dans un `xinput1_3.dll` que Windows ne livre pas (il vient du runtime DirectX de juin 2010). Le correctif apporte le sien :
+
+| | Réglage | |
+|---|---|---|
+| Manette Xbox | | Transmise telle quelle au XInput de Windows (`xinput1_4.dll`) : le runtime DirectX de 2010 n'est plus nécessaire pour elle. |
+| Manette PlayStation 4 ou 5 | `PlayStation` | Lue directement et présentée au jeu comme une manette Xbox, à la première place qu'aucune manette Xbox n'occupe. `0` si un outil (Steam Input, DS4Windows) la transforme déjà en manette Xbox : le jeu la verrait deux fois. |
+| Vibrations | `Rumble` | Renvoyées à la manette PlayStation (USB). |
+| Barre lumineuse | `LightBar` | Une couleur `rouge,vert,bleu` posée sur la manette PlayStation (USB), à chaque fois qu'elle est branchée ; vide, elle n'est pas touchée. Accio Launcher y met la couleur de votre maison. |
+
+La *Coupe de feu* lit ses manettes par DirectInput et n'est pas concernée.
 
 ---
 
@@ -103,9 +116,9 @@ Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG
 
 **Avec [Accio Launcher](https://acciolauncher.be/)** : rien à faire, chaque jeu arrive avec son correctif.
 
-**À la main** : prenez le zip de votre jeu dans une [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) et copiez `d3d9.dll` et `d3d9.ini` à côté de l'exécutable du jeu. Les fichiers laissés par d'anciens correctifs (`d3d9_original.dll`, `fps.dll`) peuvent être supprimés : plus rien ne les charge.
+**À la main** : prenez le zip de votre jeu dans une [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) et copiez ses fichiers (`d3d9.dll`, `d3d9.ini`, et `xinput1_3.dll` pour les jeux qui l'utilisent) à côté de l'exécutable du jeu. Les fichiers laissés par d'anciens correctifs (`d3d9_original.dll`, `fps.dll`) peuvent être supprimés : plus rien ne les charge.
 
-**Sous Linux** (Wine ou Proton), Wine utilise son propre `d3d9` sauf indication contraire : `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher le fait pour vous.
+**Sous Linux** (Wine ou Proton), Wine utilise son propre `d3d9` sauf indication contraire : `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher le fait pour vous. Pas `xinput1_3` : le XInput de Wine reconnaît déjà les manettes PlayStation.
 
 Les réglages sont lus au lancement : modifiez `d3d9.ini`, puis relancez le jeu. Chaque ligne du fichier est commentée. Un `d3d9.ini` écrit pour un ancien correctif fonctionne encore : les clés absentes des sections `[Accio.*]` sont lues là où les anciennes versions les rangeaient.
 
@@ -126,7 +139,7 @@ Visual Studio 2022 (charge de travail C++ Desktop), Win32 uniquement : les jeux 
     build\accio-fix.sln /p:Configuration=Release /p:Platform=Win32 /v:minimal
 ```
 
-Sortie : `data\d3d9.dll`. Sans aucun jeu, `tests\run_keys_test.bat` vérifie la réassignation des touches et `tests\run_settings_test.bat` relit les trois `d3d9.ini` (et un fichier à l'ancien format) avec le lecteur de la DLL. Les trois ini sont générés par `python tools\make_ini.py` ; le build échoue s'ils ne correspondent plus.
+Sortie : `data\d3d9.dll` et `data\xinput1_3.dll`. Sans aucun jeu, `tests\run_keys_test.bat` vérifie la réassignation des touches, `tests\run_settings_test.bat` relit chaque `d3d9.ini` (et un fichier à l'ancien format) avec le lecteur de la DLL, `tests\run_mipmaps_test.bat` le filtre des mipmaps et les formats de texture, `tests\run_xinput_test.bat` la lecture des manettes PlayStation. Les ini sont générés par `python tools\make_ini.py` ; le build échoue s'ils ne correspondent plus.
 
 | Chemin | Rôle |
 |---|---|
@@ -140,7 +153,9 @@ Sortie : `data\d3d9.dll`. Sans aucun jeu, `tests\run_keys_test.bat` vérifie la 
 | `source/direct3d.cpp` | Création et réinitialisation du périphérique, textures, profondeur, échantillonneurs |
 | `source/present.cpp` | À chaque image : effets, captures, affichage des performances, limite d'images/s |
 | `source/overlay.cpp` | `[Accio.Overlay]` : mesures, graphe, benchmark |
-| `source/effects.cpp`, `shaders.h` | Effets d'image |
+| `source/effects.cpp`, `source/shaders/*.hlsl` | Effets d'image (shaders compilés au build) |
+| `source/mipmaps.cpp` | Mipmaps et formats de texture, sans D3DX |
+| `source/xinput/` | `xinput1_3.dll` : manettes Xbox et PlayStation |
 | `source/version.h` | Version inscrite dans la DLL (doit correspondre à `VERSION`) |
 | `data/HP4`, `data/HP5`, `data/HP6` | Le `d3d9.ini` de chaque jeu |
 | `tools/make_ini.py` | Génère ces trois fichiers |
@@ -171,6 +186,6 @@ Chaque fichier de release porte une attestation de provenance signée : `gh atte
 
 Les seules sources officielles sont [Accio Launcher](https://acciolauncher.be/) et les releases de ce dépôt. Une copie trouvée ailleurs n'est pas la nôtre : elle peut être modifiée, et elle sera signalée pour suppression.
 
-Les en-têtes du SDK DirectX de Microsoft, dans `source/dxsdk`, gardent leur propre licence ([avis](THIRD_PARTY_NOTICES.md)). Les jeux et leurs fichiers appartiennent à leurs propriétaires (Electronic Arts, Warner Bros.) ; ce projet ne revendique aucun droit sur eux et n'en distribue aucun.
+Le correctif ne contient le code de personne d'autre ([avis](THIRD_PARTY_NOTICES.md)). Les jeux et leurs fichiers appartiennent à leurs propriétaires (Electronic Arts, Warner Bros.) ; ce projet ne revendique aucun droit sur eux et n'en distribue aucun.
 
 Ce projet vous est utile ? [Un café sur Ko-fi](https://ko-fi.com/ludovic01) le fait avancer.

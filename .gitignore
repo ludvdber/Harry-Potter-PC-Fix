@@ -13,6 +13,8 @@ __pycache__/
 # Compiled output (distributed via GitHub Releases, not committed)
 data/d3d9.dll
 data/d3d9.dll.sha256
+data/xinput1_3.dll
+data/xinput1_3.dll.sha256
 data/*.pdb
 data/*.lib
 data/*.exp

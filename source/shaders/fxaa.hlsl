@@ -1,10 +1,8 @@
 // Accio Launcher - PC fix for the EA Harry Potter games.
 // Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 //
-// Pixel shaders of the image effects, compiled at run time (ps_3_0).
-
-#pragma once
-
+// Pixel shader (ps_3_0), compiled with the DLL by the FxCompile step of build/accio-fix.vcxproj.
+//
 // FXAA + adaptive sharpening + color grading + screen-space AO pixel shader.
 // Runs on the final frame, single combined pass for performance.
 // Constants: c0 = (rcpFrameX, rcpFrameY, frameW, frameH)
@@ -16,7 +14,6 @@
 //            c5 = (bloomStrength, godRayStrength, _, _) — 0 disables that effect's composite
 //            c6 = (contrast, splitToneStrength, _, _) — S-curve contrast; teal/orange split toning
 // Samplers: s0 = scene color, s1 = depth (INTZ when available), s2 = bloom, s3 = god rays
-static const char* const kPs_fxaaPS = R"(
 sampler2D scene    : register(s0);
 sampler2D depthTex : register(s1);
 sampler2D bloomTex : register(s2);
@@ -63,7 +60,8 @@ float ssaoFactor(float2 uv, float lumaRange){
     float sn, cs;
     sincos(ang, sn, cs);
     float occ = 0.0;
-    for (int i=0; i<12; i++) {
+    // Unrolled, as the run-time D3DX compiler already did: the depth reads need gradients.
+    [unroll] for (int i=0; i<12; i++) {
         float2 r = float2(off[i].x*cs - off[i].y*sn, off[i].x*sn + off[i].y*cs);
         float2 sUV = (uv + r * rcpFrame.xy * ssaoP.y) * dScale.xy;
         float zS = tex2D(depthTex, sUV).r;
@@ -151,96 +149,3 @@ float4 main(float2 uv:TEXCOORD0):COLOR0{
     }
     return float4(grade(result, uv), 1);
 }
-)";
-
-// Standalone SSAO shader for the "AO at depth-unbind" pass (option B). Identical occlusion math
-// to the combined shader's ssaoFactor, but it runs on the pure 3D scene the instant the game
-// unbinds scene depth (before any UI is drawn), so it needs NO luma-variance UI-bleed guard —
-// there is no UI in the buffer yet. Output is sceneColor * ao; FXAA + grading still run at Present.
-// Constants/samplers match the combined shader: s0 scene, s1 depth, c0 rcp+dims, c3 ssao, c4 uvscale.
-static const char* const kPs_aoPS = R"(
-sampler2D scene    : register(s0);
-sampler2D depthTex : register(s1);
-float4 rcpFrame    : register(c0);
-float4 ssaoP       : register(c3);
-float4 dScale      : register(c4);
-float4 main(float2 uv:TEXCOORD0):COLOR0{
-    float3 col = tex2D(scene, uv).rgb;
-    if (ssaoP.x < 0.001) return float4(col, 1);
-    float zC = tex2D(depthTex, uv * dScale.xy).r;
-    if (zC > 0.9995) return float4(col, 1);
-    float depthScale = max(1.0 - zC, 0.001);
-    float minD = ssaoP.z * depthScale;
-    float maxD = ssaoP.w * depthScale;
-    float2 off[12] = {
-        float2( 0.2887,  0.0000), float2(-0.3010,  0.2758), float2( 0.0437, -0.4981),
-        float2( 0.3514,  0.4582), float2(-0.6356, -0.1124), float2( 0.5967, -0.3795),
-        float2(-0.1986,  0.7375), float2(-0.3750, -0.7253), float2( 0.8134,  0.2974),
-        float2(-0.8438,  0.3485), float2( 0.4045, -0.8677), float2( 0.2997,  0.9540)
-    };
-    float2 px = uv * rcpFrame.zw;
-    float ang = 6.2831853 * frac(52.9829189 * frac(dot(px, float2(0.06711056, 0.00583715))));
-    float sn, cs;
-    sincos(ang, sn, cs);
-    float occ = 0.0;
-    for (int i=0; i<12; i++) {
-        float2 r = float2(off[i].x*cs - off[i].y*sn, off[i].x*sn + off[i].y*cs);
-        float2 sUV = (uv + r * rcpFrame.xy * ssaoP.y) * dScale.xy;
-        float zS = tex2D(depthTex, sUV).r;
-        float d = zC - zS;
-        if (d > minD && d < maxD) occ += 1.0;
-    }
-    float ao = saturate(1.0 - (occ / 12.0) * ssaoP.x);
-    return float4(col * ao, 1);
-}
-)";
-
-// ---- Light pass shaders (bloom + god rays), all run at half resolution ----------------------
-// Bright-pass: isolate pixels brighter than the threshold, keeping their colour. Rendered into a
-// half-res target (bilinear downsample from the full-res scene happens for free). c0.x = threshold.
-static const char* const kPs_brightPS = R"(
-sampler2D scene : register(s0);
-float4 p : register(c0);
-float4 main(float2 uv:TEXCOORD0):COLOR0{
-    float3 c = tex2D(scene, uv).rgb;
-    float l = dot(c, float3(0.299,0.587,0.114));
-    float k = max(l - p.x, 0.0) / max(l, 1e-4);
-    return float4(c * k, 1);
-}
-)";
-
-// Separable 9-tap Gaussian. c0.xy = texel step along the blur axis (one axis non-zero per pass).
-static const char* const kPs_blurPS = R"(
-sampler2D src : register(s0);
-float4 dir : register(c0);
-float4 main(float2 uv:TEXCOORD0):COLOR0{
-    float w0=0.227027, w1=0.1945946, w2=0.1216216, w3=0.054054, w4=0.016216;
-    float3 c = tex2D(src, uv).rgb * w0;
-    c += (tex2D(src, uv + dir.xy*1.0).rgb + tex2D(src, uv - dir.xy*1.0).rgb) * w1;
-    c += (tex2D(src, uv + dir.xy*2.0).rgb + tex2D(src, uv - dir.xy*2.0).rgb) * w2;
-    c += (tex2D(src, uv + dir.xy*3.0).rgb + tex2D(src, uv - dir.xy*3.0).rgb) * w3;
-    c += (tex2D(src, uv + dir.xy*4.0).rgb + tex2D(src, uv - dir.xy*4.0).rgb) * w4;
-    return float4(c, 1);
-}
-)";
-
-// God rays / crepuscular light shafts (GPU Gems 3 radial light scattering). Marches 32 samples
-// from the pixel toward the detected light screen position, accumulating the bright-pass with a
-// per-step decay. c0 = (lightU, lightV, decay, weight), c1 = (exposure, density, _, _).
-static const char* const kPs_rayPS = R"(
-sampler2D src : register(s0);
-float4 lp : register(c0);
-float4 ex : register(c1);
-float4 main(float2 uv:TEXCOORD0):COLOR0{
-    float2 delta = (uv - lp.xy) * (ex.y / 32.0);
-    float2 c = uv;
-    float3 col = 0.0;
-    float illum = 1.0;
-    for (int i=0;i<32;i++){
-        c -= delta;
-        col += tex2D(src, c).rgb * illum * lp.w;
-        illum *= lp.z;
-    }
-    return float4(col * (ex.x / 32.0), 1);
-}
-)";

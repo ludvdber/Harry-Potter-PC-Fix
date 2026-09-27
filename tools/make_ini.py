@@ -20,7 +20,7 @@ JEUX = {
                           "; at 119 FPS on average, 1 % low 111, game speed unchanged.")),
     "HP5": dict(titre="Harry Potter and the Order of the Phoenix", resolution="640x480",
                 fps_limit=120, center=1, dpi=1, fov_note="0 = as shipped",
-                animations=False, cap=120, unlock=True, haze=False,
+                animations=False, cap=120, unlock=True, haze=False, xinput=True,
                 # Measured in game (2026-09-26, common room, F11): the same bursts as HP6,
                 # 1 % low 38 FPS alone; with FPSLimit=120, 1 % low 84.
                 fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
@@ -33,7 +33,7 @@ JEUX = {
                               SSAOMinDelta="0.02", SSAOMaxDelta="0.15")),
     "HP6": dict(titre="Harry Potter and the Half-Blood Prince", resolution="640x480",
                 fps_limit=120, center=0, dpi=0, fov_note="0 = as shipped",
-                animations=False, cap=120, unlock=True, haze=False, language=True, fog=True,
+                animations=False, cap=120, unlock=True, haze=False, language=True, fog=True, xinput=True,
                 # Measured in game (2026-09-26, same walk, F11): the game's own ceiling alone
                 # averages 120 in bursts, 1 % low 31 FPS; with FPSLimit=120, 1 % low 102.
                 fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
@@ -44,11 +44,11 @@ JEUX = {
     "HP7a": dict(titre="Harry Potter and the Deathly Hallows Part 1", resolution=None,
                  fps_limit=60, center=1, dpi=0, fov="1.7189",
                  fov_note="1.7189 = as with the earlier fix",
-                 animations=False, cap=None, unlock="wait", haze=False, aspect=0),
+                 animations=False, cap=None, unlock="wait", haze=False, aspect=0, xinput=True),
     "HP7b": dict(titre="Harry Potter and the Deathly Hallows Part 2", resolution=None,
                  fps_limit=60, center=1, dpi=0, fov="1.4324",
                  fov_note="1.4324 = as with the earlier fix",
-                 animations=False, cap=None, unlock="wait", haze=False, aspect=None,
+                 animations=False, cap=None, unlock="wait", haze=False, aspect=None, xinput=True,
                  # Off until seen in game: the earlier fix's frame-rate unlock (fps.dll) crashed the
                  # cut-scene at the Thief's Downfall (Ludo, 2026-09-25); that scene not yet played at 60.
                  unlock_off=True),
@@ -116,8 +116,10 @@ def ini(jeu, graphismes=None):
     a("")
     a("; Screenshot key, as a Windows virtual-key code (123 = F12, 44 = Print")
     a("; Screen, 0 = none). Pictures go to the \"screenshots\" folder next to the")
-    a("; game.")
+    a("; game, or to ScreenshotFolder when it is set: Accio Launcher sets it to")
+    a("; Pictures\\Accio Launcher\\<game>, so that uninstalling a game keeps them.")
     a("ScreenshotKey=123")
+    a(";ScreenshotFolder=")
     a("")
     a("; Back in front after Alt+Tab: keyboard and mouse taken back at once")
     a("; (without it, the keyboard stayed dead up to 30 seconds).")
@@ -163,6 +165,9 @@ def ini(jeu, graphismes=None):
     a("; average FPS, 1% and 0.1% low, worst frame, on screen for 15 seconds, and every")
     a("; frame time in the \"benchmarks\" folder next to the game.")
     a("BenchmarkKey=122")
+    a("; Key that switches the image effects of this fix off and on, to compare the same")
+    a("; picture with and without them (0 = none; 119 = F8). Anti-aliasing stays as it is.")
+    a("CompareKey=0")
     a("; Corner: 1 top left, 2 top right, 3 bottom left, 4 bottom right.")
     a("Position=1")
     a("; Size in percent (50 to 300).")
@@ -275,6 +280,25 @@ def ini(jeu, graphismes=None):
         a("; Name the game's key as Key.<its US-keyboard name>, e.g. Key.E=F.")
     a("")
     a("")
+    if j.get("xinput"):
+        a("; ----------------------------------------------------------------------------")
+        a(";  Controller (read by xinput1_3.dll, next to the game)")
+        a("; ----------------------------------------------------------------------------")
+        a("[Accio.Controller]")
+        a("")
+        a("; A PlayStation 4 or 5 controller plays like an Xbox controller, on the first")
+        a("; place no Xbox controller holds. 0 = Xbox controllers only: use it if a tool")
+        a("; such as Steam Input or DS4Windows already turns yours into an Xbox")
+        a("; controller, or the game would see it twice.")
+        a("PlayStation=1")
+        a("; Vibration of a PlayStation controller (USB only).")
+        a("Rumble=1")
+        a("; Light bar of a PlayStation controller (USB only), as red,green,blue from 0")
+        a("; to 255, e.g. 255,110,0. Empty = left as it is. Accio Launcher sets it to")
+        a("; your house colours.")
+        a("LightBar=")
+        a("")
+        a("")
     a("; ----------------------------------------------------------------------------")
     a(";  Image")
     if "graphics" not in j:

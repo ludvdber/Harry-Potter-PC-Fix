@@ -114,9 +114,22 @@ void LoadSettings(const char* iniPath)
 	c.showLatency = Bool(overlay, "ShowLatency", false);
 	c.overlayKey = Clamp(Int(overlay, "OverlayKey", VK_F10), 0, 255);
 	c.benchmarkKey = Clamp(Int(overlay, "BenchmarkKey", VK_F11), 0, 255);
+	c.compareKey = Clamp(Int(overlay, "CompareKey", 0), 0, 255);
 	c.overlayPosition = Clamp(Int(overlay, "Position", 1), 1, 4);
 	c.overlaySize = Clamp(Int(overlay, "Size", 100), 50, 300);
 	c.screenshotKey = Clamp(Int(windowOld, "ScreenshotKey", VK_F12), 0, 255);
+	{
+		// Written by Accio Launcher in UTF-8 (a user name can hold any letter); a path typed in
+		// by hand in the system code page reads as that code page instead.
+		char folder[MAX_PATH * 3] = "";
+		if (Text(window, "ScreenshotFolder", folder, sizeof(folder)))
+		{
+			for (char* p = folder + strlen(folder); p > folder && (p[-1] == ' ' || p[-1] == '\t'); )
+				*--p = '\0';
+			if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, folder, -1, c.screenshotFolder, MAX_PATH))
+				MultiByteToWideChar(CP_ACP, 0, folder, -1, c.screenshotFolder, MAX_PATH);
+		}
+	}
 	c.retakeInput = Bool(window, "RetakeInputOnReturn", true);
 	c.releaseStaleKeys = Bool(window, "ReleaseKeysOnReturn", true);
 
@@ -196,4 +209,5 @@ void LoadSettings(const char* iniPath)
 		c.ssao, c.bloom, c.godRays, c.renderWidth, c.renderHeight);
 	Log("  mipmaps=%d trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,
 		c.forceTrilinear, c.maxFrameLatency, c.retakeInput, c.releaseStaleKeys);
+	Log("  screenshots: key=%d folder=%s\n", c.screenshotKey, c.screenshotFolder[0] ? "set" : "next to the game");
 }

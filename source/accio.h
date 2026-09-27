@@ -28,7 +28,8 @@ struct Settings
 	bool  dpiAware = false;
 	int   fpsLimit = 0;
 	int   screenshotKey = VK_F12;
-	bool  retakeInput = true;       // keyboard and mouse taken back when the game returns to the front
+	wchar_t screenshotFolder[MAX_PATH] = L"";   // empty = "screenshots" next to the game; set by Accio Launcher
+	bool  retakeInput = true;      // keyboard and mouse taken back when the game returns to the front
 	bool  releaseStaleKeys = true;  // keys released while away are released for the game too
 
 	// [Accio.Game] - patches in the game executable, see game.cpp
@@ -76,6 +77,7 @@ struct Settings
 	bool  showVram = false, showRam = false, showLatency = false;
 	int   overlayKey = VK_F10;      // shows or hides the whole panel
 	int   benchmarkKey = VK_F11;    // starts and stops a recording
+	int   compareKey = 0;           // 0 = none; else switches our image effects off and on, for before/after
 	int   overlayPosition = 1;      // 1 top left, 2 top right, 3 bottom left, 4 bottom right
 	int   overlaySize = 100;        // percent
 };
@@ -138,6 +140,10 @@ void OverlayFrameSent();
 void OverlayDeviceLost();
 void OverlayDeviceRestored();
 void NoteKeyPressed();          // input.cpp: the game has just read a newly pressed key
+
+// present.cpp: true while CompareKey has switched our image effects off (post pass, SSAO,
+// anisotropic filtering, LOD bias). MSAA and mipmaps are chosen with the device and stay.
+extern bool g_compareOff;
 
 // effects.cpp
 void RunPostEffects(IDirect3DDevice9* dev);

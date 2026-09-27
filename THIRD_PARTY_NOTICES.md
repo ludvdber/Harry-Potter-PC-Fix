@@ -1,14 +1,8 @@
 # Third-party notices
 
 This fix is © Accio Launcher, licensed under the PolyForm Strict License 1.0.0 with an additional
-permission for personal changes (see `license`). The components below are **not** covered by that
-license and keep their own.
-
-## Microsoft DirectX SDK headers and library (`source/dxsdk/`)
-
-`d3dx9*.h` and `lib/x86/d3dx9.lib`, from the DirectX SDK (June 2010). Copyright (c) Microsoft
-Corporation. Distributed under the terms of the DirectX SDK license. At run time the fix uses
-`d3dx9_43.dll`, part of the DirectX End-User Runtime.
+permission for personal changes (see `license`). It contains no code from anyone else: it is built
+against the Windows SDK only, and at run time it uses nothing but parts of Windows (and of Wine).
 
 ## The games
 

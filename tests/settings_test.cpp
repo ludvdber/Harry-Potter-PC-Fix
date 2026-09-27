@@ -133,6 +133,28 @@ int main(int argc, char** argv)
 		EXPECT(c.renderWidth == 0);
 	}
 
+	{
+		// The screenshot folder as Accio Launcher writes it: UTF-8, a user name with an accent.
+		const char* game = "screenshot folder";
+		const std::string path = scratch + "\\folder.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Window]\r\nScreenshotFolder=C:\\Users\\Fr\xC3\xA9" "d\xC3\xA9ric\\Pictures\\Accio Launcher\\HP4  \r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(wcscmp(c.screenshotFolder, L"C:\\Users\\Fr\u00e9d\u00e9ric\\Pictures\\Accio Launcher\\HP4") == 0);
+		// Not set: the pictures stay next to the game, as before.
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Window]\r\n;ScreenshotFolder=\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.screenshotFolder[0] == L'\0');
+	}
+
 	printf("%d failure(s)\n", failures);
 	return failures ? 1 : 0;
 }

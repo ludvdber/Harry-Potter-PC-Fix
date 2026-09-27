@@ -11,10 +11,10 @@
 
 #include "hooks.h"
 #include "render_state.h"
-#include "d3dx9.h"
 #include <dxgi1_4.h>
 #include <psapi.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -267,11 +267,173 @@ bool Pressed(int key, bool& wasDown)
 
 // ---- Drawing -----------------------------------------------------------------------------------
 
-ID3DXFont* g_font = nullptr;
-int g_fontHeight = 0;
 bool g_visible = true;
 
 struct Vertex { float x, y, z, w; D3DCOLOR c; };
+struct GlyphVertex { float x, y, z, w; D3DCOLOR c; float u, v; };
+
+// The panel's text, drawn from a texture of glyphs that Windows' own text renderer (GDI) paints
+// once: printable ASCII is all the panel ever writes. It replaces the D3DX font, the last reason
+// the DLL needed d3dx9_43.dll. A managed texture: it survives a device Reset untouched.
+class GlyphFont
+{
+public:
+	bool Ready(IDirect3DDevice9* dev, int height) const { return m_tex && m_dev == dev && m_height == height; }
+
+	bool Create(IDirect3DDevice9* dev, int height)
+	{
+		Release();
+		HDC dc = CreateCompatibleDC(nullptr);
+		HFONT font = CreateFontA(height, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+			CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
+		if (!dc || !font)
+		{
+			if (font) DeleteObject(font);
+			if (dc) DeleteDC(dc);
+			return false;
+		}
+		HGDIOBJ oldFont = SelectObject(dc, font);
+		TEXTMETRICA tm = {};
+		GetTextMetricsA(dc, &tm);
+		m_lineHeight = tm.tmHeight;
+		// Place each glyph on a row of a 512-wide sheet, with a pixel of air around it.
+		const int sheetW = 512;
+		int x = 1, y = 1;
+		for (int ch = kFirst; ch <= kLast; ch++)
+		{
+			SIZE s = {};
+			const char c = static_cast<char>(ch);
+			GetTextExtentPoint32A(dc, &c, 1, &s);
+			if (x + s.cx + 2 > sheetW)
+			{
+				x = 1;
+				y += tm.tmHeight + 2;
+			}
+			m_glyphs[ch - kFirst] = { x, y, static_cast<int>(s.cx) };
+			x += s.cx + 2;
+		}
+		int sheetH = 1;
+		while (sheetH < y + tm.tmHeight + 1)
+			sheetH <<= 1;
+
+		BITMAPINFO bi = {};
+		bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
+		bi.bmiHeader.biWidth = sheetW;
+		bi.bmiHeader.biHeight = -sheetH;   // top-down
+		bi.bmiHeader.biPlanes = 1;
+		bi.bmiHeader.biBitCount = 32;
+		bi.bmiHeader.biCompression = BI_RGB;
+		void* pixels = nullptr;
+		HBITMAP bmp = CreateDIBSection(dc, &bi, DIB_RGB_COLORS, &pixels, nullptr, 0);
+		bool ok = false;
+		if (bmp && pixels)
+		{
+			HGDIOBJ oldBmp = SelectObject(dc, bmp);
+			memset(pixels, 0, static_cast<size_t>(sheetW) * sheetH * 4);
+			SetTextColor(dc, RGB(255, 255, 255));
+			SetBkMode(dc, TRANSPARENT);
+			for (int ch = kFirst; ch <= kLast; ch++)
+			{
+				const char c = static_cast<char>(ch);
+				TextOutA(dc, m_glyphs[ch - kFirst].x, m_glyphs[ch - kFirst].y, &c, 1);
+			}
+			GdiFlush();
+			// White everywhere, the painted grey as coverage.
+			if (SUCCEEDED(dev->CreateTexture(sheetW, sheetH, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &m_tex, nullptr)))
+			{
+				D3DLOCKED_RECT r = {};
+				if (SUCCEEDED(m_tex->LockRect(0, &r, nullptr, 0)))
+				{
+					for (int row = 0; row < sheetH; row++)
+					{
+						const DWORD* src = static_cast<const DWORD*>(pixels) + static_cast<size_t>(row) * sheetW;
+						DWORD* dst = reinterpret_cast<DWORD*>(static_cast<BYTE*>(r.pBits) + static_cast<size_t>(row) * r.Pitch);
+						for (int col = 0; col < sheetW; col++)
+						{
+							const DWORD p = src[col];
+							const DWORD cover = std::max({ p & 0xFF, (p >> 8) & 0xFF, (p >> 16) & 0xFF });
+							dst[col] = cover << 24 | 0x00FFFFFF;
+						}
+					}
+					m_tex->UnlockRect(0);
+					ok = true;
+				}
+			}
+			SelectObject(dc, oldBmp);
+		}
+		if (bmp) DeleteObject(bmp);
+		SelectObject(dc, oldFont);
+		DeleteObject(font);
+		DeleteDC(dc);
+		if (!ok)
+		{
+			Release();
+			return false;
+		}
+		m_dev = dev;
+		m_height = height;
+		m_sheetW = static_cast<float>(sheetW);
+		m_sheetH = static_cast<float>(sheetH);
+		return true;
+	}
+
+	void Release()
+	{
+		if (m_tex)
+			m_tex->Release();
+		m_tex = nullptr;
+		m_dev = nullptr;
+		m_height = 0;
+	}
+
+	int Width(const char* text) const
+	{
+		int w = 0;
+		for (const char* p = text; *p; p++)
+			w += Glyph(*p).width;
+		return w;
+	}
+
+	// Quads for `text` at (x, y), top-left of the line.
+	void Add(std::vector<GlyphVertex>& v, float x, float y, const char* text, D3DCOLOR colour) const
+	{
+		for (const char* p = text; *p; p++)
+		{
+			const Cell& g = Glyph(*p);
+			if (*p != ' ')
+			{
+				// Pixel centres: a quad edge on x - 0.5 samples each texel exactly once.
+				const float l = x - 0.5f, t = y - 0.5f, r = l + g.width, b = t + m_lineHeight;
+				const float u0 = g.x / m_sheetW, v0 = g.y / m_sheetH;
+				const float u1 = (g.x + g.width) / m_sheetW, v1 = (g.y + m_lineHeight) / m_sheetH;
+				const GlyphVertex a = { l, t, 0, 1, colour, u0, v0 }, bq = { r, t, 0, 1, colour, u1, v0 };
+				const GlyphVertex c = { l, b, 0, 1, colour, u0, v1 }, d = { r, b, 0, 1, colour, u1, v1 };
+				v.push_back(a); v.push_back(bq); v.push_back(c);
+				v.push_back(bq); v.push_back(d); v.push_back(c);
+			}
+			x += g.width;
+		}
+	}
+
+	IDirect3DTexture9* Texture() const { return m_tex; }
+
+private:
+	static constexpr int kFirst = 32, kLast = 126;
+	struct Cell { int x, y, width; };
+	const Cell& Glyph(char c) const
+	{
+		const int i = static_cast<unsigned char>(c);
+		return m_glyphs[(i >= kFirst && i <= kLast ? i : '?') - kFirst];
+	}
+
+	IDirect3DTexture9* m_tex = nullptr;
+	IDirect3DDevice9* m_dev = nullptr;
+	int m_height = 0, m_lineHeight = 0;
+	float m_sheetW = 1, m_sheetH = 1;
+	Cell m_glyphs[kLast - kFirst + 1] = {};
+};
+
+GlyphFont g_font;
 
 void Once(const char* why)
 {
@@ -354,38 +516,22 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 		bb->Release();
 		return;
 	}
-	// The font only once there is text: the shipped ini shows nothing, and the first D3DX font is
-	// what makes the system's d3d9.dll write over our method slots (see KeepDeviceRedirects).
-	if (n && g_font && g_fontHeight != fontHeight)
+	// The glyphs only once there is text: the shipped ini shows nothing.
+	if (n && !g_font.Ready(dev, fontHeight) && !g_font.Create(dev, fontHeight))
 	{
-		g_font->Release();
-		g_font = nullptr;
-	}
-	if (n && !g_font)
-	{
-		if (FAILED(D3DXCreateFontA(dev, fontHeight, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-			ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI", &g_font)))
-		{
-			static bool logged = false;
-			if (!logged)
-				Log("Overlay: font NOT created\n");
-			logged = true;
-			g_font = nullptr;
-			bb->Release();
-			return;
-		}
-		g_fontHeight = fontHeight;
+		static bool logged = false;
+		if (!logged)
+			Log("Overlay: font NOT created\n");
+		logged = true;
+		bb->Release();
+		return;
 	}
 
 	// Panel size and corner.
 	const float pad = 8 * scale, lineH = fontHeight * 1.2f, graphH = 70 * scale;
 	float width = 300 * scale;
 	for (int i = 0; i < n; ++i)
-	{
-		RECT r = { 0, 0, 0, 0 };
-		g_font->DrawTextA(nullptr, lines[i], -1, &r, DT_CALCRECT, 0);
-		width = std::max(width, static_cast<float>(r.right) + 2 * pad);
-	}
+		width = std::max(width, static_cast<float>(g_font.Width(lines[i])) + 2 * pad);
 	const float height = pad * 2 + n * lineH + (graph ? graphH + (n ? pad : 0) : 0);
 	const float margin = 12 * scale;
 	const bool right = g_cfg.overlayPosition == 2 || g_cfg.overlayPosition == 4;
@@ -459,15 +605,43 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 	dev->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
 	dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, static_cast<UINT>(v.size() / 3), v.data(), sizeof(Vertex));
 
-	for (int i = 0; i < n; ++i)
+	if (n)
 	{
-		const LONG x = static_cast<LONG>(x0 + pad), y = static_cast<LONG>(y0 + pad + i * lineH);
-		RECT shadow = { x + 1, y + 1, x + 2000, y + 200 }, face = { x, y, x + 2000, y + 200 };
-		const bool rec = g_recording && i == n - 1;
-		g_font->DrawTextA(nullptr, lines[i], -1, &shadow, DT_NOCLIP, D3DCOLOR_ARGB(200, 0, 0, 0));
-		g_font->DrawTextA(nullptr, lines[i], -1, &face, DT_NOCLIP,
-			rec ? D3DCOLOR_ARGB(255, 230, 70, 60) : i == 0 && g_cfg.showFps && g_visible ? D3DCOLOR_ARGB(255, 214, 167, 44)
-			: D3DCOLOR_ARGB(255, 240, 240, 244));
+		// Every shadow first, then every face: two quads per glyph, one draw.
+		std::vector<GlyphVertex> text;
+		for (int pass = 0; pass < 2; pass++)
+			for (int i = 0; i < n; ++i)
+			{
+				const float x = std::floor(x0 + pad), y = std::floor(y0 + pad + i * lineH);
+				const bool rec = g_recording && i == n - 1;
+				const D3DCOLOR face = rec ? D3DCOLOR_ARGB(255, 230, 70, 60)
+					: i == 0 && g_cfg.showFps && g_visible ? D3DCOLOR_ARGB(255, 214, 167, 44) : D3DCOLOR_ARGB(255, 240, 240, 244);
+				if (pass == 0)
+					g_font.Add(text, x + 1, y + 1, lines[i], D3DCOLOR_ARGB(200, 0, 0, 0));
+				else
+					g_font.Add(text, x, y, lines[i], face);
+			}
+		if (!text.empty())
+		{
+			dev->SetTexture(0, g_font.Texture());
+			dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+			dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+			dev->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+			dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+			dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+			dev->SetTextureStageState(0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+			dev->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, 0);
+			dev->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+			dev->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+			dev->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+			dev->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+			dev->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+			dev->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+			dev->SetSamplerState(0, D3DSAMP_SRGBTEXTURE, FALSE);
+			dev->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+			dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, static_cast<UINT>(text.size() / 3), text.data(), sizeof(GlyphVertex));
+			dev->SetTexture(0, nullptr);
+		}
 	}
 
 	if (ownScene)
@@ -551,14 +725,11 @@ void OverlayFrameSent()
 	InterlockedExchange64(&g_inputAt, 0);
 }
 
+// The glyph texture is managed: Direct3D keeps it across a Reset, nothing to do either way.
 void OverlayDeviceLost()
 {
-	if (g_font)
-		g_font->OnLostDevice();
 }
 
 void OverlayDeviceRestored()
 {
-	if (g_font)
-		g_font->OnResetDevice();
 }

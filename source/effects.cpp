@@ -10,9 +10,13 @@
 
 #include "hooks.h"
 #include "render_state.h"
-#include "shaders.h"
-#include "d3dx9.h"
-#include <cstring>
+// Shader bytecode, compiled with the DLL from source/shaders/*.hlsl (FxCompile, ps_3_0): no
+// shader compiler is needed on the player's PC, and none runs while the game loads.
+#include "fxaa.h"
+#include "ao.h"
+#include "bright.h"
+#include "blur.h"
+#include "ray.h"
 
 static IDirect3DTexture9*    s_fxaaTex  = nullptr;
 static IDirect3DSurface9*    s_fxaaSurf = nullptr;
@@ -100,23 +104,15 @@ void ReleaseEffects()
     s_fxaaInitFailed = false;
 }
 
-static IDirect3DPixelShader9* CompilePS(IDirect3DDevice9* dev, const char* src, const char* name)
+static IDirect3DPixelShader9* CreatePS(IDirect3DDevice9* dev, const BYTE* code, const char* name)
 {
-    ID3DXBuffer* pCode = nullptr;
-    ID3DXBuffer* pErr  = nullptr;
     IDirect3DPixelShader9* ps = nullptr;
-    if (SUCCEEDED(D3DXCompileShader(src, (UINT)strlen(src), nullptr, nullptr,
-                                     "main", "ps_3_0", 0, &pCode, &pErr, nullptr)))
+    const HRESULT hr = dev->CreatePixelShader(reinterpret_cast<const DWORD*>(code), &ps);
+    if (FAILED(hr))
     {
-        dev->CreatePixelShader((DWORD*)pCode->GetBufferPointer(), &ps);
-        pCode->Release();
+        Log("%s shader: CreatePixelShader failed (0x%08lX)\n", name, static_cast<unsigned long>(hr));
+        ps = nullptr;
     }
-    else
-    {
-        Log("Lighting init: %s shader compile failed: %s\n", name,
-            pErr ? (char*)pErr->GetBufferPointer() : "?");
-    }
-    if (pErr) pErr->Release();
     return ps;
 }
 
@@ -154,9 +150,9 @@ static void InitLighting(IDirect3DDevice9* dev, UINT W, UINT H, D3DFORMAT fmt)
     if (s_blur1Surf)  dev->ColorFill(s_blur1Surf,  nullptr, 0);
     if (s_raySurf)    dev->ColorFill(s_raySurf,    nullptr, 0);
 
-    s_brightPS = CompilePS(dev, kPs_brightPS, "bright");
-    s_blurPS   = CompilePS(dev, kPs_blurPS,   "blur");
-    s_rayPS    = CompilePS(dev, kPs_rayPS,    "ray");
+    s_brightPS = CreatePS(dev, g_brightPS, "bright");
+    s_blurPS   = CreatePS(dev, g_blurPS,   "blur");
+    s_rayPS    = CreatePS(dev, g_rayPS,    "ray");
 
     bool ok = s_brightTex && s_blur1Tex && s_brightPS && s_blurPS;
     if (g_cfg.godRays) ok = ok && s_rayTex && s_rayPS && s_probeSurf && s_probeSysSurf;
@@ -182,36 +178,16 @@ static bool InitFXAA(IDirect3DDevice9* dev, UINT W, UINT H, D3DFORMAT fmt)
     }
     s_fxaaTex->GetSurfaceLevel(0, &s_fxaaSurf);
 
-    ID3DXBuffer* pCode = nullptr;
-    ID3DXBuffer* pErr  = nullptr;
-    if (FAILED(D3DXCompileShader(kPs_fxaaPS, (UINT)strlen(kPs_fxaaPS), nullptr, nullptr,
-                                  "main", "ps_3_0", 0, &pCode, &pErr, nullptr)))
+    s_fxaaPS = CreatePS(dev, g_fxaaPS, "FXAA");
+    if (!s_fxaaPS)
     {
-        Log("FXAA init: shader compile failed: %s\n", pErr ? (char*)pErr->GetBufferPointer() : "?");
-        if (pErr) pErr->Release();
         ReleaseEffects();
         return false;
     }
-    if (pErr) pErr->Release();
-    dev->CreatePixelShader((DWORD*)pCode->GetBufferPointer(), &s_fxaaPS);
-    pCode->Release();
 
     // AO-only shader for the depth-unbind pass (option B). Non-fatal if it fails: the Present
     // pass keeps its own SSAO as a fallback (gated on g_depth.aoDoneThisFrame staying false).
-    ID3DXBuffer* pAOCode = nullptr;
-    ID3DXBuffer* pAOErr  = nullptr;
-    if (SUCCEEDED(D3DXCompileShader(kPs_aoPS, (UINT)strlen(kPs_aoPS), nullptr, nullptr,
-                                     "main", "ps_3_0", 0, &pAOCode, &pAOErr, nullptr)))
-    {
-        dev->CreatePixelShader((DWORD*)pAOCode->GetBufferPointer(), &s_aoPS);
-        pAOCode->Release();
-    }
-    else
-    {
-        Log("AO-unbind: shader compile failed: %s (falling back to SSAO-at-Present)\n",
-            pAOErr ? (char*)pAOErr->GetBufferPointer() : "?");
-    }
-    if (pAOErr) pAOErr->Release();
+    s_aoPS = CreatePS(dev, g_aoPS, "AO-unbind");
 
     s_fxaaW = W; s_fxaaH = H;
     Log("FXAA init: %dx%d fmt=%d (SSAO kernel: 12-tap spiral, per-pixel rotation)\n", W, H, (int)fmt);
@@ -227,7 +203,7 @@ static bool InitFXAA(IDirect3DDevice9* dev, UINT W, UINT H, D3DFORMAT fmt)
 void RunAmbientOcclusionPass(IDirect3DDevice9* dev)
 {
     InternalCalls inside;
-    if (!g_cfg.fxaa || !g_cfg.ssao || !g_depth.supported || !g_depth.texture) return;
+    if (!g_cfg.fxaa || !g_cfg.ssao || g_compareOff || !g_depth.supported || !g_depth.texture) return;
     if (!s_aoPS || !s_fxaaTex || !s_fxaaSurf) return; // resources not ready yet (first frame)
 
     IDirect3DSurface9* pBB = nullptr;
@@ -587,7 +563,7 @@ static void ApplyFXAA(IDirect3DDevice9* dev, IDirect3DSurface9* pBB)
 
 void RunPostEffects(IDirect3DDevice9* dev)
 {
-    if (!g_cfg.fxaa) return;
+    if (!g_cfg.fxaa || g_compareOff) return;
     if (s_fxaaInitFailed) return;
     IDirect3DSurface9* pBB = nullptr;
     if (SUCCEEDED(dev->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &pBB)))

@@ -41,7 +41,7 @@
       <WarningLevel>Level4</WarningLevel>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\source\dxsdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <Optimization>Disabled</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -50,12 +50,20 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
+    <FxCompile>
+      <ShaderType>Pixel</ShaderType>
+      <ShaderModel>3.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <HeaderFileOutput>$(IntDir)shaders\%(Filename).h</HeaderFileOutput>
+      <VariableName>g_%(Filename)PS</VariableName>
+      <ObjectFileOutput />
+      <TreatWarningAsError>true</TreatWarningAsError>
+    </FxCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <OptimizeReferences>false</OptimizeReferences>
-      <AdditionalLibraryDirectories>..\source\dxsdk\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>..\source\exports.def</ModuleDefinitionFile>
       <ImportLibrary>$(IntDir)d3d9.lib</ImportLibrary>
       <SafeSEH>false</SafeSEH>
@@ -66,7 +74,7 @@
       <WarningLevel>Level4</WarningLevel>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\source\dxsdk;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -75,12 +83,20 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
+    <FxCompile>
+      <ShaderType>Pixel</ShaderType>
+      <ShaderModel>3.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <HeaderFileOutput>$(IntDir)shaders\%(Filename).h</HeaderFileOutput>
+      <VariableName>g_%(Filename)PS</VariableName>
+      <ObjectFileOutput />
+      <TreatWarningAsError>true</TreatWarningAsError>
+    </FxCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>..\source\dxsdk\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>..\source\exports.def</ModuleDefinitionFile>
       <ImportLibrary>$(IntDir)d3d9.lib</ImportLibrary>
       <SafeSEH>false</SafeSEH>
@@ -99,13 +115,21 @@
     <ClCompile Include="..\source\present.cpp" />
     <ClCompile Include="..\source\overlay.cpp" />
     <ClCompile Include="..\source\effects.cpp" />
+    <ClCompile Include="..\source\mipmaps.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\source\accio.h" />
     <ClInclude Include="..\source\hooks.h" />
+    <ClInclude Include="..\source\mipmaps.h" />
     <ClInclude Include="..\source\render_state.h" />
-    <ClInclude Include="..\source\shaders.h" />
     <ClInclude Include="..\source\version.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\source\shaders\fxaa.hlsl" />
+    <FxCompile Include="..\source\shaders\ao.hlsl" />
+    <FxCompile Include="..\source\shaders\bright.hlsl" />
+    <FxCompile Include="..\source\shaders\blur.hlsl" />
+    <FxCompile Include="..\source\shaders\ray.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\source\exports.def" />

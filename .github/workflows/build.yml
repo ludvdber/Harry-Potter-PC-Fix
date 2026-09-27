@@ -1,5 +1,5 @@
-# Compiles the fix (Release | Win32), runs its tests, and uploads data/d3d9.dll as an
-# artifact together with its SHA-256.
+# Compiles the fix (Release | Win32), runs its tests, and uploads data/d3d9.dll and
+# data/xinput1_3.dll (the controller DLL) as an artifact together with their SHA-256.
 #
 # Also called by release.yml (workflow_call), so the build is described in one place only.
 name: Build
@@ -12,8 +12,11 @@ on:
       sha256:
         description: SHA-256 of data/d3d9.dll
         value: ${{ jobs.build.outputs.sha256 }}
+      xinput-sha256:
+        description: SHA-256 of data/xinput1_3.dll
+        value: ${{ jobs.build.outputs.xinput-sha256 }}
       artifact-name:
-        description: Name of the artifact holding d3d9.dll and d3d9.dll.sha256
+        description: Name of the artifact holding d3d9.dll, xinput1_3.dll and their .sha256
         value: ${{ jobs.build.outputs.artifact-name }}
 
 permissions:
@@ -26,6 +29,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       sha256: ${{ steps.verify.outputs.sha256 }}
+      xinput-sha256: ${{ steps.verify.outputs.xinput-sha256 }}
       artifact-name: d3d9-win32
     steps:
       - name: Checkout
@@ -101,24 +105,34 @@ jobs:
       # stops before its first frame ("xxx.dll was not found"). A switch to the DLL
       # runtime (/MD: VCRUNTIME140.dll, MSVCP140.dll), a Debug build (…D.dll) or
       # a new library would pass every other step and fail only at the player's.
-      # d3dx9_43.dll is NOT part of Windows: it comes with the DirectX End-User
-      # Runtime (June 2010), which the games need anyway (xinput1_3.dll for HP5
-      # to HP7b, d3dx9_37.dll for HP7a/HP7b). Adding a name here is a decision.
+      # Only parts of Windows are allowed, all of which Wine has too. d3dx9_43.dll
+      # is not one of them (the DirectX End-User Runtime, never shipped with
+      # Windows): the fix stopped needing it on 2026-09-27, and must not again.
+      # Adding a name here is a decision. xinput1_3.dll (the controller DLL) reads
+      # PlayStation pads through setupapi.dll and hid.dll, both part of Windows.
       - name: Check the imported DLLs
-        shell: cmd
+        shell: pwsh
         env:
           VS: ${{ steps.vs.outputs.path }}
         run: |
-          call "%VS%\VC\Auxiliary\Build\vcvars32.bat" >nul || exit /b 1
-          dumpbin /nologo /dependents data\d3d9.dll > dependents.txt || exit /b 1
-          type dependents.txt
-          powershell -NoProfile -Command ^
-            "$allowed = 'kernel32.dll','user32.dll','winmm.dll','d3dx9_43.dll';" ^
-            "$names = Select-String -Path dependents.txt -Pattern '^\s+(\S+\.dll)\s*$' | ForEach-Object { $_.Matches[0].Groups[1].Value.ToLowerInvariant() };" ^
-            "if (-not $names) { Write-Output '::error::No imported DLL found in the dumpbin output.'; exit 1 }" ^
-            "$extra = $names | Where-Object { $_ -notin $allowed };" ^
-            "if ($extra) { Write-Output ('::error file=build/accio-fix.vcxproj::d3d9.dll imports ' + ($extra -join ', ') + ', not in the allowed list. A player without it cannot start the game.'); exit 1 }" ^
-            "Write-Output ('Imports: ' + ($names -join ', '))"
+          $dumpbin = Get-ChildItem "$env:VS\VC\Tools\MSVC\*\bin\Hostx64\x86\dumpbin.exe" | Select-Object -Last 1
+          if (-not $dumpbin) { Write-Output '::error::dumpbin not found.'; exit 1 }
+          $checks = @(
+            @{ dll = 'd3d9.dll'; project = 'accio-fix'; allowed = 'kernel32.dll','user32.dll','gdi32.dll','winmm.dll','ole32.dll' }
+            @{ dll = 'xinput1_3.dll'; project = 'accio-xinput'; allowed = 'kernel32.dll','setupapi.dll','hid.dll' }
+          )
+          foreach ($c in $checks) {
+            $out = & $dumpbin.FullName /nologo /dependents "data\$($c.dll)"
+            if ($LASTEXITCODE -ne 0) { Write-Output "::error::dumpbin failed on $($c.dll)."; exit 1 }
+            $names = $out | Select-String -Pattern '^\s+(\S+\.dll)\s*$' | ForEach-Object { $_.Matches[0].Groups[1].Value.ToLowerInvariant() }
+            if (-not $names) { Write-Output "::error::No imported DLL found for $($c.dll)."; exit 1 }
+            $extra = $names | Where-Object { $_ -notin $c.allowed }
+            if ($extra) {
+              Write-Output ("::error file=build/$($c.project).vcxproj::$($c.dll) imports " + ($extra -join ', ') + ', not in the allowed list. A player without it cannot start the game.')
+              exit 1
+            }
+            Write-Output ("$($c.dll) imports: " + ($names -join ', '))
+          }
 
       # Key remapping ([Accio.Keys]) checked without a game (the test program is
       # named like HP4's executable because the action names are HP4's), then each
@@ -134,52 +148,77 @@ jobs:
           cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source keys_test.cpp ..\source\keys.cpp /Feout\gof_f.exe /Foout\ user32.lib dxguid.lib || exit /b 1
           out\gof_f.exe "%CD%\out\keys_test.ini"
           cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source settings_test.cpp ..\source\settings.cpp /Feout\settings_test.exe /Foout\ || exit /b 1
-          out\settings_test.exe "%CD%\..\data" "%CD%\out"
+          out\settings_test.exe "%CD%\..\data" "%CD%\out" || exit /b 1
+          cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source mipmaps_test.cpp ..\source\mipmaps.cpp /Feout\mipmaps_test.exe /Foout\ || exit /b 1
+          out\mipmaps_test.exe || exit /b 1
+          cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source xinput_test.cpp ..\source\xinput\pad.cpp /Feout\xinput_test.exe /Foout\ || exit /b 1
+          out\xinput_test.exe
 
-      # Fails unless data/d3d9.dll is a PE32 DLL for x86 (the games are 32-bit).
-      - name: Verify d3d9.dll
+      # Fails unless data/d3d9.dll and data/xinput1_3.dll are PE32 DLLs for x86 (the games are
+      # 32-bit), and xinput1_3.dll keeps the ordinals the games import it by.
+      - name: Verify the DLLs
         id: verify
         shell: pwsh
+        env:
+          VS: ${{ steps.vs.outputs.path }}
         run: |
           function Fail([string] $message) {
-            Write-Output "::error::data/d3d9.dll: $message"
+            Write-Output "::error::$message"
             exit 1
           }
-          $dll = 'data\d3d9.dll'
-          if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) { Fail 'not produced by the build.' }
+          foreach ($name in 'd3d9.dll', 'xinput1_3.dll') {
+            $dll = "data\$name"
+            if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) { Fail "data/$($name): not produced by the build." }
 
-          $bytes = [IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $dll))
-          if ($bytes.Length -lt 0x40 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { Fail 'no MZ header.' }
-          $pe = [BitConverter]::ToInt32($bytes, 0x3C)
-          if ($pe -lt 0x40 -or $pe + 28 -gt $bytes.Length) { Fail 'truncated PE header.' }
-          if ([BitConverter]::ToUInt32($bytes, $pe) -ne 0x00004550) { Fail 'no PE signature.' }
-          $machine = [BitConverter]::ToUInt16($bytes, $pe + 4)
-          $characteristics = [BitConverter]::ToUInt16($bytes, $pe + 22)
-          $magic = [BitConverter]::ToUInt16($bytes, $pe + 24)
-          $linker = '{0}.{1:D2}' -f $bytes[$pe + 26], $bytes[$pe + 27]
-          if ($machine -ne 0x014C) { Fail ('machine is 0x{0:X4}, expected 0x014C (x86).' -f $machine) }
-          if ($magic -ne 0x010B) { Fail ('optional header magic is 0x{0:X3}, expected 0x10B (PE32).' -f $magic) }
-          if (($characteristics -band 0x2000) -eq 0) { Fail 'IMAGE_FILE_DLL flag not set, this is not a DLL.' }
+            $bytes = [IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $dll))
+            if ($bytes.Length -lt 0x40 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { Fail "$($name): no MZ header." }
+            $pe = [BitConverter]::ToInt32($bytes, 0x3C)
+            if ($pe -lt 0x40 -or $pe + 28 -gt $bytes.Length) { Fail "$($name): truncated PE header." }
+            if ([BitConverter]::ToUInt32($bytes, $pe) -ne 0x00004550) { Fail "$($name): no PE signature." }
+            $machine = [BitConverter]::ToUInt16($bytes, $pe + 4)
+            $characteristics = [BitConverter]::ToUInt16($bytes, $pe + 22)
+            $magic = [BitConverter]::ToUInt16($bytes, $pe + 24)
+            $linker = '{0}.{1:D2}' -f $bytes[$pe + 26], $bytes[$pe + 27]
+            if ($machine -ne 0x014C) { Fail ("$($name): machine is 0x{0:X4}, expected 0x014C (x86)." -f $machine) }
+            if ($magic -ne 0x010B) { Fail ("$($name): optional header magic is 0x{0:X3}, expected 0x10B (PE32)." -f $magic) }
+            if (($characteristics -band 0x2000) -eq 0) { Fail "$($name): IMAGE_FILE_DLL flag not set, this is not a DLL." }
 
-          $sha256 = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
-          [IO.File]::WriteAllText((Join-Path $PWD 'data' 'd3d9.dll.sha256'), "$sha256  d3d9.dll`n")
-          "sha256=$sha256" >> $env:GITHUB_OUTPUT
+            $sha256 = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+            [IO.File]::WriteAllText((Join-Path $PWD 'data' "$name.sha256"), "$sha256  $name`n")
+            $key = if ($name -eq 'd3d9.dll') { 'sha256' } else { 'xinput-sha256' }
+            "$key=$sha256" >> $env:GITHUB_OUTPUT
 
-          $size = $bytes.Length
-          $info = (Get-Item -LiteralPath $dll).VersionInfo
-          Write-Output "d3d9.dll: PE32 DLL, x86, linker $linker, $size bytes, $($info.ProductName) $($info.FileVersion), SHA-256 $sha256"
-          @(
-            '### d3d9.dll (Release | Win32)'
-            ''
-            '| | |'
-            '|---|---|'
-            "| Product | $($info.ProductName) $($info.FileVersion) |"
-            '| Format | PE32 DLL, x86 (32-bit) |'
-            "| Linker | $linker |"
-            ('| Size | {0:N0} bytes ({1:N0} KiB) |' -f $size, [math]::Round($size / 1KB))
-            "| SHA-256 | ``$sha256`` |"
-            "| Commit | ``$env:GITHUB_SHA`` |"
-          ) -join "`n" >> $env:GITHUB_STEP_SUMMARY
+            $size = $bytes.Length
+            $info = (Get-Item -LiteralPath $dll).VersionInfo
+            Write-Output "$($name): PE32 DLL, x86, linker $linker, $size bytes, $($info.ProductName) $($info.FileVersion), SHA-256 $sha256"
+            @(
+              "### $name (Release | Win32)"
+              ''
+              '| | |'
+              '|---|---|'
+              "| Product | $($info.ProductName) $($info.FileVersion) |"
+              '| Format | PE32 DLL, x86 (32-bit) |'
+              "| Linker | $linker |"
+              ('| Size | {0:N0} bytes ({1:N0} KiB) |' -f $size, [math]::Round($size / 1KB))
+              "| SHA-256 | ``$sha256`` |"
+              "| Commit | ``$env:GITHUB_SHA`` |"
+              ''
+            ) -join "`n" >> $env:GITHUB_STEP_SUMMARY
+          }
+
+          # HP5, HP6 and both Deathly Hallows import xinput1_3.dll BY ORDINAL: a function at
+          # another number would be a different function.
+          $dumpbin = Get-ChildItem "$env:VS\VC\Tools\MSVC\*\bin\Hostx64\x86\dumpbin.exe" | Select-Object -Last 1
+          $exports = & $dumpbin.FullName /nologo /exports data\xinput1_3.dll
+          $want = @{ 2 = 'XInputGetState'; 3 = 'XInputSetState'; 4 = 'XInputGetCapabilities'; 5 = 'XInputEnable'
+                     6 = 'XInputGetDSoundAudioDeviceGuids'; 7 = 'XInputGetBatteryInformation'; 8 = 'XInputGetKeystroke' }
+          foreach ($ordinal in $want.Keys) {
+            if (-not ($exports | Select-String -Pattern "^\s+$ordinal\s+\S+\s+\S+\s+$($want[$ordinal]) ")) {
+              Fail "xinput1_3.dll: $($want[$ordinal]) is not at ordinal $ordinal."
+            }
+          }
+          if (-not ($exports | Select-String -Pattern '^\s+100\s+\S+\s+\[NONAME\]')) { Fail 'xinput1_3.dll: no ordinal 100 (XInputGetStateEx).' }
+          Write-Output 'xinput1_3.dll: ordinals 2 to 8 and 100 as in the original.'
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -188,4 +227,6 @@ jobs:
           path: |
             data/d3d9.dll
             data/d3d9.dll.sha256
+            data/xinput1_3.dll
+            data/xinput1_3.dll.sha256
           if-no-files-found: error

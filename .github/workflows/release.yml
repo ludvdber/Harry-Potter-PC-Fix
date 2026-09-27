@@ -3,8 +3,9 @@
 # - Box unchecked (default): trial build. Compiles, verifies and packages
 #   the release files as an artifact; nothing is published.
 # - Box checked: same, then creates a DRAFT release (tag v<VERSION>) with
-#   d3d9.dll, one zip per game (d3d9.dll + that game's d3d9.ini + license +
-#   THIRD_PARTY_NOTICES.md), and a signed build provenance attestation for
+#   d3d9.dll, xinput1_3.dll, one zip per game (d3d9.dll + that game's d3d9.ini
+#   + license + THIRD_PARTY_NOTICES.md, + xinput1_3.dll for the games that
+#   import it), and a signed build provenance attestation for
 #   each of them. The draft stays private until
 #   it is published by hand; the tag is only created at that point.
 #
@@ -100,24 +101,35 @@ jobs:
         env:
           TAG: ${{ needs.version.outputs.tag }}
           DLL_SHA256: ${{ needs.build.outputs.sha256 }}
+          XINPUT_SHA256: ${{ needs.build.outputs.xinput-sha256 }}
         run: |
-          (cd build-output && sha256sum --check --strict d3d9.dll.sha256)
-          actual=$(sha256sum build-output/d3d9.dll | cut -d' ' -f1)
-          if [[ $actual != "$DLL_SHA256" ]]; then
-            echo "::error::d3d9.dll SHA-256 is $actual, the build reported $DLL_SHA256."
-            exit 1
-          fi
+          (cd build-output && sha256sum --check --strict d3d9.dll.sha256 && sha256sum --check --strict xinput1_3.dll.sha256)
+          for pair in "d3d9.dll:$DLL_SHA256" "xinput1_3.dll:$XINPUT_SHA256"; do
+            file=${pair%%:*}
+            want=${pair#*:}
+            actual=$(sha256sum "build-output/$file" | cut -d' ' -f1)
+            if [[ $actual != "$want" ]]; then
+              echo "::error::$file SHA-256 is $actual, the build reported $want."
+              exit 1
+            fi
+          done
 
           mkdir release
-          cp build-output/d3d9.dll release/
-          # One zip per game: data/<game>/d3d9.ini next to the same d3d9.dll.
+          cp build-output/d3d9.dll build-output/xinput1_3.dll release/
+          # One zip per game: data/<game>/d3d9.ini next to the same d3d9.dll, and xinput1_3.dll
+          # for the games whose ini has an [Accio.Controller] section (those that import it).
           declare -A names=([HP4]=Goblet-of-Fire [HP5]=Order-of-the-Phoenix [HP6]=Half-Blood-Prince [HP7a]=Deathly-Hallows-Part-1 [HP7b]=Deathly-Hallows-Part-2)
           for dir in data/*/; do
             game=$(basename "$dir")
             name=${names[$game]:?"no release name for data/$game"}
+            files=(d3d9.dll d3d9.ini license THIRD_PARTY_NOTICES.md)
             staging=$(mktemp -d)
             cp build-output/d3d9.dll "$dir/d3d9.ini" license THIRD_PARTY_NOTICES.md "$staging/"
-            (cd "$staging" && zip -q -X "$GITHUB_WORKSPACE/release/$game-$name.zip" d3d9.dll d3d9.ini license THIRD_PARTY_NOTICES.md)
+            if grep -q '^\[Accio\.Controller\]' "$dir/d3d9.ini"; then
+              cp build-output/xinput1_3.dll "$staging/"
+              files+=(xinput1_3.dll)
+            fi
+            (cd "$staging" && zip -q -X "$GITHUB_WORKSPACE/release/$game-$name.zip" "${files[@]}")
           done
 
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
@@ -139,7 +151,9 @@ jobs:
             echo "gh attestation verify d3d9.dll --repo $GITHUB_REPOSITORY"
             echo '```'
             echo
-            echo "Each zip holds the whole fix for one game: copy its files next to the game's executable. The same \`d3d9.dll\` serves the three games; it recognises the one it is loaded into. Files left by earlier fixes (\`d3d9_original.dll\`, \`fps.dll\`) can be deleted: nothing loads them any more."
+            echo "Each zip holds the whole fix for one game: copy its files next to the game's executable. The same \`d3d9.dll\` serves every game; it recognises the one it is loaded into. Files left by earlier fixes (\`d3d9_original.dll\`, \`fps.dll\`) can be deleted: nothing loads them any more."
+            echo
+            echo "\`xinput1_3.dll\` (Order of the Phoenix, Half-Blood Prince, both Deathly Hallows): Xbox controllers through Windows' own XInput, so the June 2010 DirectX runtime is no longer needed for them, and PlayStation 4 and 5 controllers played as Xbox controllers, with vibration and light bar over USB. Settings in \`[Accio.Controller]\` of \`d3d9.ini\`."
           } > release-notes.md
 
           cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
