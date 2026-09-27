@@ -41,7 +41,7 @@ int main(int argc, char** argv)
 		Load(data + "\\" + game + "\\d3d9.ini");
 		EXPECT(c.windowed && c.windowStyle == 1 && c.keepRunning);
 		EXPECT(c.retakeInput && c.releaseStaleKeys);
-		EXPECT(c.screenshotKey == VK_F12 && !c.showFps);
+		EXPECT(c.screenshotKey == VK_F12 && !c.showFps && c.compareKey == 0);
 		EXPECT(c.width == 1920 && c.height == 1080);
 		EXPECT(Near(c.fovScale, 0.0f));
 		EXPECT(c.renderWidth == 0 && c.renderHeight == 0);
@@ -79,7 +79,9 @@ int main(int argc, char** argv)
 		EXPECT(c.fpsLimit == 120 && !c.centerWindow && !c.dpiAware);
 		EXPECT(c.unlockFrameRate == 1 && c.frameRateCap == 120);
 		EXPECT(strcmp(c.language, "auto") == 0 && c.distanceFog == 1);
-		EXPECT(!c.fxaa && c.msaa == 0 && !c.transparencyAa && !c.grading && !c.ssao);
+		// Judged on before/after pictures (2026-09-27): FXAA and anisotropic x16 on, the rest off.
+		EXPECT(c.fxaa && c.anisotropy == 16 && c.msaa == 0 && !c.transparencyAa && !c.grading && !c.ssao);
+		EXPECT(!c.bloom && !c.godRays && Near(c.skinProtect, 0.0f));
 	}
 	// HP7 parts 1 and 2: the window and focus of the others, 60 fps without the game's own
 	// 30 fps wait, and the field of view the earlier fix gave every player.
@@ -88,7 +90,7 @@ int main(int argc, char** argv)
 		Load(data + "\\" + game + "\\d3d9.ini");
 		EXPECT(c.windowed && c.windowStyle == 1 && c.keepRunning);
 		EXPECT(c.retakeInput && c.releaseStaleKeys);
-		EXPECT(c.screenshotKey == VK_F12 && !c.showFps);
+		EXPECT(c.screenshotKey == VK_F12 && !c.showFps && c.compareKey == 0);
 		EXPECT(c.fpsLimit == 60 && c.centerWindow && !c.dpiAware);
 		EXPECT(c.renderWidth == 0 && c.renderHeight == 0);
 		EXPECT(c.legacyAspectIndex == 0 && c.legacyFov == 0);
@@ -153,6 +155,27 @@ int main(int argc, char** argv)
 		fclose(f);
 		Load(path);
 		EXPECT(c.screenshotFolder[0] == L'\0');
+	}
+
+	{
+		// The before/after key: read where the other overlay keys are, a key code or nothing.
+		const char* game = "compare key";
+		const std::string path = scratch + "\\compare.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Overlay]\r\nCompareKey=119\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.compareKey == VK_F8);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Overlay]\r\nCompareKey=4000\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.compareKey == 255);
 	}
 
 	printf("%d failure(s)\n", failures);

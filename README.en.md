@@ -85,7 +85,7 @@ Each change is made in the executable once it is loaded, never on disk, and only
 | Smooth hair and leaves | `TransparencyAntialiasing` | With `Antialiasing`: the cut-out edges of hair, leaves and grass stay stepped under MSAA alone; they are supersampled (NVIDIA cards only, no effect elsewhere). Seen in Goblet of Fire (hair on the character screen) and Half-Blood Prince (pine trees, hair). Cost measured on an RTX 2060 SUPER: 1% low from 101 to 76 fps in Half-Blood Prince at 2560×1440, from 94 to 84 in Goblet of Fire. Off by default. |
 | Anisotropic filtering, texture sharpness | `AnisotropicFiltering`, `TextureLODBias` | Forced on every texture. |
 | FXAA with sharpening | `FXAA`, `Sharpness` | One pass over the finished frame; it also carries the effects below. |
-| Colour grading | `ColorGrading` and the values under it | Lift, gain, gamma, white balance, contrast, vibrance, split toning, vignette. |
+| Colour grading | `ColorGrading` and the values under it | Lift, gain, gamma, white balance, contrast, vibrance, split toning, vignette; `SkinProtect` (0 to 1) spares faces part of the contrast and vibrance. |
 | Ambient occlusion | `SSAO` and its values | Drawn the moment the 3D scene is done, before menus and subtitles. |
 | Bloom and light shafts | `Bloom`, `GodRays` | Half resolution, faded out on menus and white screens. |
 | Supersampling | `SSAAFactor` | Renders 2 to 4 times larger. Very demanding. |
@@ -94,6 +94,8 @@ Each change is made in the executable once it is loaded, never on disk, and only
 ### Performance, like a benchmark tool (`[Accio.Overlay]`)
 
 Each line has its own switch, all off by default: frames per second (`ShowFPS`), frame time and "1% low" (`ShowFrameTime`), a graph of the last 240 frames (`ShowGraph`), processor use of the game and of its main thread (`ShowCPU`), graphics card load (`ShowGPU`), video memory (`ShowVRAM`) and memory (`ShowRAM`), latency from reading a key to sending the frame (`ShowLatency`). F10 shows or hides the panel (`OverlayKey`); F11 starts and stops a benchmark (`BenchmarkKey`): average, 1% and 0.1% low and worst frame on screen, and every frame in the `benchmarks` folder.
+
+To judge the image effects, `CompareKey` (off by default, 119 = F8) switches them off and back on live: grading, sharpening, ambient occlusion, bloom, light rays, anisotropic filtering and texture detail bias. The same scene with and without, a tenth of a second apart. MSAA anti-aliasing stays as it is (it is chosen when the image is created, not afterwards).
 
 Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screenshots`, or in `ScreenshotFolder`: Accio Launcher sets it to `Pictures\Accio Launcher\<game>`, which uninstalling leaves alone), a frame-rate limit (`FPSLimit`), one frame of driver queue instead of three (`MaxFrameLatency`), and `DPIAware` for high-DPI screens.
 

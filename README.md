@@ -85,7 +85,7 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 | Cheveux et feuillage lissés | `TransparencyAntialiasing` | Avec `Antialiasing` : les bords découpés des cheveux, des feuilles et de l'herbe restent en escalier sous le seul MSAA ; ils sont suréchantillonnés (cartes NVIDIA seulement, sans effet ailleurs). Vu dans la Coupe de feu (mèches au choix du personnage) et le Prince de sang-mêlé (pins, cheveux). Coût mesuré sur une RTX 2060 SUPER : 1 % low de 101 à 76 images/s dans le Prince de sang-mêlé en 2560×1440, de 94 à 84 dans la Coupe de feu. Désactivé par défaut. |
 | Filtrage anisotrope, netteté des textures | `AnisotropicFiltering`, `TextureLODBias` | Forcés sur toutes les textures. |
 | FXAA et accentuation | `FXAA`, `Sharpness` | Une passe sur l'image finie ; elle porte aussi les effets ci-dessous. |
-| Étalonnage des couleurs | `ColorGrading` et les valeurs dessous | Noirs, gain, gamma, balance des blancs, contraste, vibrance, virage partiel, vignettage. |
+| Étalonnage des couleurs | `ColorGrading` et les valeurs dessous | Noirs, gain, gamma, balance des blancs, contraste, vibrance, virage partiel, vignettage ; `SkinProtect` (0 à 1) épargne aux visages une part du contraste et de la vibrance. |
 | Occlusion ambiante | `SSAO` et ses valeurs | Dessinée dès que la scène 3D est finie, avant les menus et sous-titres. |
 | Halo et rayons de lumière | `Bloom`, `GodRays` | En demi-résolution, estompés sur les menus et les écrans blancs. |
 | Suréchantillonnage | `SSAAFactor` | Rendu 2 à 4 fois plus grand. Très gourmand. |
@@ -94,6 +94,8 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 ### Performances, comme un outil de benchmark (`[Accio.Overlay]`)
 
 Chaque ligne s'active séparément, tout est coupé par défaut : images/s (`ShowFPS`), temps par image et « 1 % low » (`ShowFrameTime`), graphe des 240 dernières images (`ShowGraph`), processeur du jeu et de son fil principal (`ShowCPU`), charge de la carte graphique (`ShowGPU`), mémoire vidéo (`ShowVRAM`) et vive (`ShowRAM`), latence entre la lecture d'une touche et l'envoi de l'image (`ShowLatency`). F10 affiche ou cache le panneau (`OverlayKey`) ; F11 démarre puis arrête un benchmark (`BenchmarkKey`) : moyenne, 1 % et 0,1 % low et pire image à l'écran, et chaque image dans le dossier `benchmarks`.
+
+Pour juger les effets d'image, `CompareKey` (coupée par défaut, 119 = F8) les éteint puis les rallume en direct : étalonnage, netteté, occlusion ambiante, bloom, rayons, filtrage anisotrope et biais de détail des textures. La même scène avec et sans, à un dixième de seconde d'écart. L'anticrénelage MSAA reste tel quel (il se choisit à la création de l'image, pas après).
 
 Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG dans `screenshots`, ou dans `ScreenshotFolder` : Accio Launcher y met `Images\Accio Launcher\<jeu>`, qu'une désinstallation n'efface pas), une limite d'images/s (`FPSLimit`), une seule image d'avance chez le pilote au lieu de trois (`MaxFrameLatency`), et `DPIAware` pour les écrans à haute densité.
 

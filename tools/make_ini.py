@@ -37,7 +37,11 @@ JEUX = {
                 # Measured in game (2026-09-26, same walk, F11): the game's own ceiling alone
                 # averages 120 in bursts, 1 % low 31 FPS; with FPSLimit=120, 1 % low 102.
                 fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
-                          "; of fast frames and waits of 25 ms (1 % low 31 FPS, against 102).")),
+                          "; of fast frames and waits of 25 ms (1 % low 31 FPS, against 102)."),
+                # Judged by Ludo on before/after pictures (2026-09-27): anisotropic filtering x16
+                # "much better", FXAA better on distant things. Ambient occlusion and bloom: no
+                # visible difference on HP6, so they stay off.
+                graphics=dict(FXAA=1, AnisotropicFiltering=16)),
     # HP7 parts 1 and 2: no start-up resolution or frame-rate ceiling of their own to change; a 30 fps
     # wait of their own instead. FOV: what the earlier fix gave every player (part 1: its camera
     # set-up converted with 0.03 instead of pi/180; part 2: [FOV] fov=1, pi/180 made 0.025).
@@ -57,7 +61,7 @@ JEUX = {
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
                     SSAAFactor=1, ShadowMapScale=1, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
-                    Tint="0.00", Contrast="0.00", SplitTone="0.00", SSAO=0, SSAOStrength="0.50",
+                    Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
                     BloomStrength="0.35", BloomThreshold="0.75", GodRays=0, GodRaysStrength="0.45",
                     GodRaysDecay="0.96")
@@ -335,9 +339,9 @@ def ini(jeu, graphismes=None):
     a("")
     a(f"VSync={g['VSync']}")
     a("")
-    a("; Colour adjustments.")
+    a("; Colour adjustments. SkinProtect (0 to 1) spares faces part of the contrast and vibrance.")
     for k in ("ColorGrading", "Vibrance", "Vignette", "Lift", "Gamma", "Gain", "Temperature", "Tint",
-              "Contrast", "SplitTone"):
+              "Contrast", "SplitTone", "SkinProtect"):
         a(f"{k}={g[k]}")
     a("")
     a("; Ambient occlusion (contact shadows), bloom and light shafts.")

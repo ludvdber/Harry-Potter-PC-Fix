@@ -480,7 +480,8 @@ static void ApplyFXAA(IDirect3DDevice9* dev, IDirect3DSurface9* pBB)
     }
     dev->SetPixelShaderConstantF(1, grade1, 1);
     dev->SetPixelShaderConstantF(2, grade2, 1);
-    float gradeC[4] = { g_cfg.grading ? g_cfg.contrast : 0.0f, g_cfg.grading ? g_cfg.splitTone : 0.0f, 0.0f, 0.0f };
+    float gradeC[4] = { g_cfg.grading ? g_cfg.contrast : 0.0f, g_cfg.grading ? g_cfg.splitTone : 0.0f,
+                        g_cfg.grading ? g_cfg.skinProtect : 0.0f, 0.0f };
     dev->SetPixelShaderConstantF(6, gradeC, 1);
 
     // SSAO: use the cached scene-depth INTZ texture (populated at CreateDepthStencilSurface time).

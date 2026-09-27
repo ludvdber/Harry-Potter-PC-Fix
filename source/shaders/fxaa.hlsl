@@ -12,7 +12,8 @@
 //            c4 = (depthUVScaleX, depthUVScaleY, _, _) — maps screen UVs onto the depth
 //                 texture when it is larger than the back buffer (post-Reset window-sized depth)
 //            c5 = (bloomStrength, godRayStrength, _, _) — 0 disables that effect's composite
-//            c6 = (contrast, splitToneStrength, _, _) — S-curve contrast; teal/orange split toning
+//            c6 = (contrast, splitToneStrength, skinProtect, _) — S-curve contrast; teal/orange split
+//                 toning; how much of both contrast and vibrance skin tones are spared
 // Samplers: s0 = scene color, s1 = depth (INTZ when available), s2 = bloom, s3 = god rays
 sampler2D scene    : register(s0);
 sampler2D depthTex : register(s1);
@@ -81,14 +82,24 @@ float3 grade(float3 col,float2 uv){
     float lumPost = max(luma(col), 1e-4);
     col *= lumPre / lumPost;
     col = saturate(col);
+    // Skin tones (gradeC.z = SkinProtect): faces are warm and only moderately saturated, exactly
+    // what vibrance pushes hardest — Harry's face came out orange on HP6 (Ludo, 2026-09-27).
+    // Weight: red highest, hue about 10 to 45 degrees, mid brightness (dark warm wood stays out).
+    float mx0 = max(col.r, max(col.g, col.b));
+    float sat0 = mx0 - min(col.r, min(col.g, col.b));
+    float hue = (col.g - col.b) / max(sat0, 1e-4);   // 0..1 = 0..60 degrees when red is highest
+    float skin = step(max(col.g, col.b), col.r) * saturate(sat0 * 10.0)
+               * smoothstep(0.10, 0.25, hue) * (1.0 - smoothstep(0.70, 0.90, hue))
+               * smoothstep(0.15, 0.30, luma(col));
+    float spare = 1.0 - gradeC.z * skin;
     // Contrast S-curve (gradeC.x): blend toward smoothstep, which deepens shadows AND lifts
     // highlights around the 0.5 pivot — adds depth/pop to HP5's flat midtones without crushing.
-    col = lerp(col, col*col*(3.0 - 2.0*col), gradeC.x);
+    col = lerp(col, col*col*(3.0 - 2.0*col), gradeC.x * spare);
     float lum = luma(col);
     float mx = max(col.r, max(col.g, col.b));
     float mn = min(col.r, min(col.g, col.b));
     float sat = mx - mn;
-    col = lerp(lum.xxx, col, 1.0 + grade1.w * (1.0 - sat));
+    col = lerp(lum.xxx, col, 1.0 + grade1.w * spare * (1.0 - sat));
     // Split toning (gradeC.y = strength): push shadows toward cool teal and highlights toward warm
     // orange — the classic cinematic "teal & orange". Tints are roughly luma-neutral (a positive
     // channel paired with a negative one) so they re-colour rather than brighten. Midtones (0.45..

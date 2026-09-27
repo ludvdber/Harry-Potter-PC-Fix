@@ -179,6 +179,7 @@ void LoadSettings(const char* iniPath)
 	c.tint = Clamp(Float(graphics, "Tint", 0.0f), -1.0f, 1.0f);
 	c.contrast = Clamp(Float(graphics, "Contrast", 0.0f), 0.0f, 1.0f);
 	c.splitTone = Clamp(Float(graphics, "SplitTone", 0.0f), 0.0f, 1.0f);
+	c.skinProtect = Clamp(Float(graphics, "SkinProtect", 0.0f), 0.0f, 1.0f);
 	c.ssao = Bool(graphics, "SSAO", false);
 	c.ssaoStrength = Float(graphics, "SSAOStrength", 0.50f);
 	c.ssaoRadius = Float(graphics, "SSAORadius", 6.0f);
