@@ -79,9 +79,12 @@ int main(int argc, char** argv)
 		EXPECT(c.fpsLimit == 120 && !c.centerWindow && !c.dpiAware);
 		EXPECT(c.unlockFrameRate == 1 && c.frameRateCap == 120);
 		EXPECT(strcmp(c.language, "auto") == 0 && c.distanceFog == 1);
-		// Judged on before/after pictures (2026-09-27): FXAA and anisotropic x16 on, the rest off.
-		EXPECT(c.fxaa && c.anisotropy == 16 && c.msaa == 0 && !c.transparencyAa && !c.grading && !c.ssao);
-		EXPECT(!c.bloom && !c.godRays && Near(c.skinProtect, 0.0f));
+		// Judged on same-frame before/after pictures (2026-09-27): every effect on, a soft grading
+		// with faces spared; no MSAA, no light shafts.
+		EXPECT(c.fxaa && c.anisotropy == 16 && c.msaa == 0 && !c.transparencyAa && !c.godRays);
+		EXPECT(c.ssao && Near(c.ssaoStrength, 0.55f) && Near(c.ssaoMinDelta, 0.02f) && Near(c.ssaoMaxDelta, 0.15f));
+		EXPECT(c.bloom && c.grading && Near(c.vibrance, 0.30f) && Near(c.contrast, 0.20f) && Near(c.skinProtect, 0.70f));
+		EXPECT(Near(c.gain, 1.0f) && Near(c.splitTone, 0.0f) && Near(c.temperature, 0.0f));
 	}
 	// HP7 parts 1 and 2: the window and focus of the others, 60 fps without the game's own
 	// 30 fps wait, and the field of view the earlier fix gave every player.

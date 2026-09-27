@@ -76,7 +76,7 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 
 - *Harry Potter et la Coupe de feu* : tous les effets d'image sont désactivés par défaut : aucun n'a encore été réglé pour ce jeu.
 - *Harry Potter et l'Ordre du Phénix* : les effets d'image sont activés par défaut, avec les valeurs livrées depuis la première version du correctif.
-- *Harry Potter et le Prince de sang-mêlé* : tous les effets d'image sont désactivés par défaut : aucun n'a encore été réglé pour ce jeu.
+- *Harry Potter et le Prince de sang-mêlé* : filtrage anisotrope ×16, FXAA, occlusion ambiante, bloom et un étalonnage doux (vibrance 0.30, contraste 0.20, `SkinProtect=0.70`) activés par défaut, choisis effet par effet sur des paires avant/après de la même image ; pas de MSAA ni de rayons de lumière.
 
 | | Réglage | |
 |---|---|---|

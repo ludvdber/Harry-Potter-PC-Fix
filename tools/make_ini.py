@@ -38,10 +38,13 @@ JEUX = {
                 # averages 120 in bursts, 1 % low 31 FPS; with FPSLimit=120, 1 % low 102.
                 fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
                           "; of fast frames and waits of 25 ms (1 % low 31 FPS, against 102)."),
-                # Judged by Ludo on before/after pictures (2026-09-27): anisotropic filtering x16
-                # "much better", FXAA better on distant things. Ambient occlusion and bloom: no
-                # visible difference on HP6, so they stay off.
-                graphics=dict(FXAA=1, AnisotropicFiltering=16)),
+                # Judged by Ludo on same-frame before/after pictures (CompareKey, 2026-09-27): every
+                # effect better on, each one isolated and all together. A softer grading than HP5's
+                # (whose tuning made HP6 too teal), with faces spared: they came out orange without it.
+                # Distance fog kept: without it the blurry far textures show.
+                graphics=dict(FXAA=1, AnisotropicFiltering=16, SSAO=1, SSAOStrength="0.55",
+                              SSAOMinDelta="0.02", SSAOMaxDelta="0.15", Bloom=1, ColorGrading=1,
+                              Vibrance="0.30", Contrast="0.20", SkinProtect="0.70")),
     # HP7 parts 1 and 2: no start-up resolution or frame-rate ceiling of their own to change; a 30 fps
     # wait of their own instead. FOV: what the earlier fix gave every player (part 1: its camera
     # set-up converted with 0.03 instead of pi/180; part 2: [FOV] fov=1, pi/180 made 0.025).

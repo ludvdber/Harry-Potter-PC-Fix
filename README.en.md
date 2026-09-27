@@ -76,7 +76,7 @@ Each change is made in the executable once it is loaded, never on disk, and only
 
 - *Goblet of Fire*: every image effect is off by default: none has been tuned for this game yet.
 - *Order of the Phoenix*: the image effects are on by default, with the values this fix has shipped with since its first release.
-- *Half-Blood Prince*: every image effect is off by default: none has been tuned for this game yet.
+- *Half-Blood Prince*: 16× anisotropic filtering, FXAA, ambient occlusion, bloom and a soft colour grade (vibrance 0.30, contrast 0.20, `SkinProtect=0.70`) are on by default, each chosen from before/after pairs of the same frame; no MSAA and no light shafts.
 
 | | Setting | |
 |---|---|---|
