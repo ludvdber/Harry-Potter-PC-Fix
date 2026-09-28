@@ -44,7 +44,8 @@ It turns the game's exclusive full screen into a borderless window that survives
 | Animation rate | `AnimationRate` | Characters are animated at 20 frames per second; 25 or 30 makes them smoother. |
 | Frame-rate reference | `FrameRateCap` | 60 as shipped, which holds the game back; 120 by default, so that it can follow `FPSLimit`. |
 | Frame rate | `FPSLimit` | 120 by default (100 before): measured in game at 119 fps on average, 1% low 111 against 94, and the game does not run faster. |
-| Crash above 2048 pixels | `HazeOverlay` | The haze of the Forbidden Forest, the lake, the maze and the graveyard is built in a fixed array of 129 columns 16 pixels wide: a wider screen overruns it and the game crashes. `1` draws it with the column count capped (wider columns, same haze); `0`, the default for now, skips it as the earlier fix did. |
+| Crash above 2048 pixels | `HazeOverlay` | The haze of the Forbidden Forest, the lake, the maze and the graveyard is built in a fixed array of 129 columns 16 pixels wide: a wider screen overruns it and the game crashes. `1`, the default, draws it with the column count capped (wider columns, same haze: the Forbidden Forest played through at 2880 pixels wide, no crash); `0` skips it as the earlier fix did. |
+| PlayStation controllers | `PlayStationController` | The game only plays the controllers of its own list (45 models from 2005, no Sony and no Xbox): a DualShock 4 or DualSense was ignored. `1`, the default, adds them to the list the game reads, without writing anything to the registry; buttons as on a PlayStation 2 pad, right stick included. Seen with a DualShock 4. |
 
 ### Inside *Harry Potter and the Order of the Phoenix* (`hp.exe`)
 
@@ -75,7 +76,7 @@ Each change is made in the executable once it is loaded, never on disk, and only
 
 ### Image
 
-- *Goblet of Fire*: every image effect is off by default: none has been tuned for this game yet.
+- *Goblet of Fire*: anisotropic filtering ×16, FXAA, ambient occlusion, bloom kept to the brightest spots (`BloomThreshold=0.85`, `BloomStrength=0.25`: the Pensieve was too bright), light shafts, *Half-Blood Prince*'s soft grading and sharp mipmaps that keep their density, on by default; played that way up to the Forbidden Forest.
 - *Order of the Phoenix*: the image effects are on by default, with the values this fix has shipped with since its first release.
 - *Half-Blood Prince*: 16× anisotropic filtering, FXAA, ambient occlusion, bloom and a soft colour grade (vibrance 0.30, contrast 0.20, `SkinProtect=0.70`) are on by default, each chosen from before/after pairs of the same frame; no MSAA and no light shafts.
 
@@ -113,7 +114,7 @@ Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screensho
 | Vibration | `Rumble` | Sent back to the PlayStation controller (USB). |
 | Light bar | `LightBar` | A `red,green,blue` colour set on the PlayStation controller (USB) each time it is plugged in; empty leaves it alone. Accio Launcher puts your house colours there. |
 
-*Goblet of Fire* reads its controllers through DirectInput and is not concerned.
+*Goblet of Fire* reads its controllers through DirectInput and is not concerned: its PlayStation controllers go through `PlayStationController`, above.
 
 ---
 

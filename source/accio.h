@@ -42,6 +42,7 @@ struct Settings
 	int   hazeOverlay = -1;         // HP4: 0 = skipped (default), 1 = drawn with the column cap, 2 = as shipped
 	char  language[12] = "auto";    // HP6: the language the start menu opens on, see game.cpp
 	int   distanceFog = 1;          // HP6: 1 = as shipped, 0 = removed (sharp far hills)
+	int   playStationPads = 1;      // HP4: 1 = PlayStation pads added to the game's controller list, 0 = ignored as shipped
 
 	// The same choices in the file format used before 2026-09-26, kept so that a player's old
 	// d3d9.ini goes on working. Their meaning depends on the game; game.cpp translates them.

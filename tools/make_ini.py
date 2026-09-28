@@ -13,11 +13,17 @@ from pathlib import Path
 JEUX = {
     "HP4": dict(titre="Harry Potter and the Goblet of Fire", resolution="800x600",
                 fps_limit=120, center=1, dpi=0, fov_note="0 = as shipped (114.6 degrees)",
-                animations=True, cap=120, unlock=False, haze=True, aspect="16:9",
+                animations=True, cap=120, unlock=False, haze=True, aspect="16:9", pads=True,
                 # Measured in game (2026-09-26, camp at night, F11 while walking): 100 -> 1 % low 94;
                 # 120 -> average 119, 1 % low 111-115, same positions at the same instants (not faster).
                 fps_note=("; 120: the frame-rate reference below (FrameRateCap) is 120 too; measured",
-                          "; at 119 FPS on average, 1 % low 111, game speed unchanged.")),
+                          "; at 119 FPS on average, 1 % low 111, game speed unchanged."),
+                # Played by Ludo from the start to the Forbidden Forest with all of these on (2026-09-27 and 28,
+                # no crash): HP6's soft grade, sharp mipmaps that keep their density. Bloom made the Pensieve
+                # (level choice) "too bright": it only takes the brightest spots here, and less of them.
+                graphics=dict(FXAA=1, AnisotropicFiltering=16, SSAO=1, Bloom=1, BloomStrength="0.25",
+                              BloomThreshold="0.85", GodRays=1, ColorGrading=1, Vibrance="0.30",
+                              Contrast="0.20", SkinProtect="0.70", MipmapFilter=1, MipmapCoverage=1)),
     "HP5": dict(titre="Harry Potter and the Order of the Phoenix", resolution="640x480",
                 fps_limit=120, center=1, dpi=1, fov_note="0 = as shipped",
                 animations=False, cap=120, unlock=True, haze=False, fog=True, xinput=True,
@@ -238,9 +244,15 @@ def ini(jeu, graphismes=None):
         a("")
         a("; The haze of the Forbidden Forest, the lake, the maze and the graveyard. As")
         a("; shipped, it crashes the game on screens wider than 2048 pixels.")
-        a("; 0 = not drawn (the earlier fix's cure), 1 = drawn, with the crash fixed,")
-        a("; 2 = drawn as shipped.")
-        a("HazeOverlay=0")
+        a("; 0 = not drawn (the earlier fix's cure), 1 = drawn, with the crash fixed")
+        a("; (played through the Forbidden Forest at 2880 pixels wide), 2 = drawn as shipped.")
+        a("HazeOverlay=1")
+    if j.get("pads"):
+        a("")
+        a("; The game only plays the controllers of its own list, which has no")
+        a("; PlayStation controller: 1 adds the DualShock 4 and DualSense to that list")
+        a("; (nothing is written to the registry), 0 = ignored as shipped.")
+        a("PlayStationController=1")
     if j.get("language"):
         a("")
         a("; The language the start menu opens on (and takes by itself after 15 s). The")

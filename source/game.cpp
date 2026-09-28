@@ -570,6 +570,151 @@ void ChooseLanguage(const char* exeName)
 	Log("Game: language menu opens on 0x%04X instead of 0x%04X (Language=%s) %s\n", answer, windows, want,
 		ok ? "" : "(NOT redirected)");
 }
+
+// HP4 plays a DirectInput controller only if its product GUID is in its own table, which it copies to
+// HKCU\Software\EA Games\Harry Potter and the Goblet of Fire\Controllers at start-up and reads back
+// value by value: about 45 pads of 2005, no Sony and no Xbox (notes/HP4.md). PlayStation pads are
+// added to that enumeration here, the registry itself is never written. Buttons in DirectInput order
+// (square, cross, circle, triangle, L1, R1, L2, R2, Share, Options, L3, R3), right stick on Z/Rz as
+// the table's Logitech Dual Action ("Sq Cr Ci Tr Zz Zz Zz Zz Zz St !3 !4"). Seen with a DualShock 4
+// v2 over USB (Ludo, 2026-09-28, the same profile set by hand): "works very well". A value the key
+// already holds for one of these pads (the player's own) is left to win.
+const wchar_t* const kSonyPads[] = {
+	L"{09CC054C-0000-0000-0000-504944564944}", // DualShock 4 v2 (seen)
+	L"{05C4054C-0000-0000-0000-504944564944}", // DualShock 4 v1
+	L"{0BA0054C-0000-0000-0000-504944564944}", // DualShock 4 USB wireless adaptor
+	L"{0CE6054C-0000-0000-0000-504944564944}", // DualSense
+	L"{0DF2054C-0000-0000-0000-504944564944}", // DualSense Edge
+};
+const wchar_t kSonyButtons[] = L"Sq Cr Ci Tr L1 R1 L2 R2 Se St L3 R3 !3 !4";
+
+using OpenKeyWFn = LSTATUS(WINAPI*)(HKEY, LPCWSTR, PHKEY);
+using OpenKeyAFn = LSTATUS(WINAPI*)(HKEY, LPCSTR, PHKEY);
+using CloseKeyFn = LSTATUS(WINAPI*)(HKEY);
+using EnumValueWFn = LSTATUS(WINAPI*)(HKEY, DWORD, LPWSTR, LPDWORD, LPDWORD, LPDWORD, LPBYTE, LPDWORD);
+using QueryValueWFn = LSTATUS(WINAPI*)(HKEY, LPCWSTR, LPDWORD, LPDWORD, LPBYTE, LPDWORD);
+using QueryInfoKeyWFn = LSTATUS(WINAPI*)(HKEY, LPWSTR, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD,
+	LPDWORD, LPDWORD, LPDWORD, PFILETIME);
+OpenKeyAFn g_openKeyA = nullptr;
+OpenKeyWFn g_createKeyW = nullptr;
+CloseKeyFn g_closeKey = nullptr;
+EnumValueWFn g_enumValueW = nullptr;
+QueryValueWFn g_queryValueW = nullptr;
+QueryInfoKeyWFn g_queryInfoKeyW = nullptr;
+HKEY g_padKeys[4] = {}; // the game's open handles on its Controllers key (one thread: start-up)
+LONG g_padsGiven = 0;
+
+// The key the game reads is opened by RegOpenKeyA (0x535CE2, HKCU then HKLM); the one it fills first by
+// RegCreateKeyW (0x44FB60). Both are followed, under HKCU only: HKLM keeps the game's own list.
+void FollowPadKey(HKEY parent, const char* path, LSTATUS result, PHKEY key)
+{
+	static const char tail[] = "\\Controllers";
+	const size_t n = path ? strlen(path) : 0, t = strlen(tail);
+	if (result != ERROR_SUCCESS || !key || parent != HKEY_CURRENT_USER || n < t || _stricmp(path + n - t, tail) != 0)
+		return;
+	for (HKEY& slot : g_padKeys)
+		if (!slot)
+		{
+			slot = *key;
+			return;
+		}
+}
+
+bool IsPadKey(HKEY key)
+{
+	for (HKEY slot : g_padKeys)
+		if (slot && slot == key)
+			return true;
+	return false;
+}
+
+LSTATUS WINAPI RegOpenKeyAForGame(HKEY parent, LPCSTR path, PHKEY key)
+{
+	const LSTATUS r = g_openKeyA(parent, path, key);
+	FollowPadKey(parent, path, r, key);
+	return r;
+}
+
+LSTATUS WINAPI RegCreateKeyWForGame(HKEY parent, LPCWSTR path, PHKEY key)
+{
+	const LSTATUS r = g_createKeyW(parent, path, key);
+	char narrow[MAX_PATH] = {};
+	if (path)
+		WideCharToMultiByte(CP_ACP, 0, path, -1, narrow, MAX_PATH - 1, nullptr, nullptr);
+	FollowPadKey(parent, narrow, r, key);
+	return r;
+}
+
+LSTATUS WINAPI RegCloseKeyForGame(HKEY key)
+{
+	for (HKEY& slot : g_padKeys)
+		if (slot == key)
+			slot = nullptr;
+	return g_closeKey(key);
+}
+
+// Past the key's own values, index k answers the k-th of our pads the key does not already hold.
+LSTATUS WINAPI RegEnumValueWForGame(HKEY key, DWORD index, LPWSTR name, LPDWORD nameLength, LPDWORD reserved,
+	LPDWORD type, LPBYTE data, LPDWORD dataSize)
+{
+	const LSTATUS r = g_enumValueW(key, index, name, nameLength, reserved, type, data, dataSize);
+	DWORD values = 0;
+	if (r != ERROR_NO_MORE_ITEMS || !IsPadKey(key) || g_queryInfoKeyW(key, nullptr, nullptr, nullptr, nullptr,
+		nullptr, nullptr, &values, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS || index < values)
+		return r;
+	DWORD k = index - values;
+	for (const wchar_t* pad : kSonyPads)
+	{
+		if (g_queryValueW(key, pad, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS || k--)
+			continue;
+		const DWORD length = static_cast<DWORD>(wcslen(pad));
+		const DWORD bytes = static_cast<DWORD>(sizeof(kSonyButtons));
+		if (!name || !nameLength || *nameLength <= length)
+			return ERROR_MORE_DATA;
+		wcscpy_s(name, *nameLength, pad);
+		*nameLength = length;
+		if (type)
+			*type = REG_SZ;
+		if (data && dataSize && *dataSize < bytes)
+		{
+			*dataSize = bytes;
+			return ERROR_MORE_DATA;
+		}
+		if (data)
+			memcpy(data, kSonyButtons, bytes);
+		if (dataSize)
+			*dataSize = bytes;
+		if (!InterlockedExchange(&g_padsGiven, 1))
+			Log("Game: PlayStation controllers added to the game's controller list\n");
+		return ERROR_SUCCESS;
+	}
+	return r;
+}
+
+void DescribePlayStationPads(const char* exeName)
+{
+	if (_stricmp(exeName, "gof_f.exe") != 0 || !g_cfg.playStationPads)
+		return;
+	HMODULE advapi = GetModuleHandleA("advapi32.dll");
+	g_queryValueW = advapi ? reinterpret_cast<QueryValueWFn>(GetProcAddress(advapi, "RegQueryValueExW")) : nullptr;
+	g_queryInfoKeyW = advapi ? reinterpret_cast<QueryInfoKeyWFn>(GetProcAddress(advapi, "RegQueryInfoKeyW")) : nullptr;
+	if (!g_queryValueW || !g_queryInfoKeyW)
+	{
+		Log("Game: registry functions not found, PlayStation controllers not added\n");
+		return;
+	}
+	// The enumeration is answered only once all three redirections that follow the key handles are in place.
+	g_openKeyA = reinterpret_cast<OpenKeyAFn>(RedirectImport(g_exe, "advapi32.dll", "RegOpenKeyA",
+		reinterpret_cast<void*>(RegOpenKeyAForGame)));
+	g_createKeyW = reinterpret_cast<OpenKeyWFn>(RedirectImport(g_exe, "advapi32.dll", "RegCreateKeyW",
+		reinterpret_cast<void*>(RegCreateKeyWForGame)));
+	g_closeKey = reinterpret_cast<CloseKeyFn>(RedirectImport(g_exe, "advapi32.dll", "RegCloseKey",
+		reinterpret_cast<void*>(RegCloseKeyForGame)));
+	if (g_openKeyA && g_createKeyW && g_closeKey)
+		g_enumValueW = reinterpret_cast<EnumValueWFn>(RedirectImport(g_exe, "advapi32.dll", "RegEnumValueW",
+			reinterpret_cast<void*>(RegEnumValueWForGame)));
+	Log("Game: PlayStation controllers %s\n", g_enumValueW ? "offered to the game" : "NOT offered (imports not found)");
+}
 }
 
 void ApplyGamePatches()
@@ -595,6 +740,7 @@ void ApplyGamePatches()
 	PatchHaze(*p);
 	ChooseLanguage(p->exe);
 	RemoveDistanceFog(p->exe);
+	DescribePlayStationPads(p->exe);
 }
 
 // Once a frame: the first haze drawn, and the first one the cap had to shorten.

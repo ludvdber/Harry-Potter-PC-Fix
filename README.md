@@ -44,7 +44,8 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 | Animations | `AnimationRate` | Les personnages sont animés à 20 images/s ; 25 ou 30 les rendent plus fluides. |
 | Référence d'images/s | `FrameRateCap` | 60 à l'origine, ce qui bride le jeu ; 120 par défaut, pour qu'il suive `FPSLimit`. |
 | Images/s | `FPSLimit` | 120 par défaut (100 auparavant) : mesuré en jeu à 119 images/s de moyenne, 1 % low 111 contre 94, et le jeu ne va pas plus vite. |
-| Plantage au-delà de 2048 pixels | `HazeOverlay` | La brume de la Forêt interdite, du lac, du labyrinthe et du cimetière est rangée dans un tableau de 129 colonnes de 16 pixels : un écran plus large le fait déborder et le jeu plante. `1` la dessine avec un nombre de colonnes plafonné (colonnes plus larges, même brume) ; `0`, le défaut pour l'instant, la retire comme l'ancien correctif. |
+| Plantage au-delà de 2048 pixels | `HazeOverlay` | La brume de la Forêt interdite, du lac, du labyrinthe et du cimetière est rangée dans un tableau de 129 colonnes de 16 pixels : un écran plus large le fait déborder et le jeu plante. `1`, le défaut, la dessine avec un nombre de colonnes plafonné (colonnes plus larges, même brume : Forêt interdite jouée en entier en 2880 pixels de large, sans plantage) ; `0` la retire comme l'ancien correctif. |
+| Manettes PlayStation | `PlayStationController` | Le jeu ne joue qu'avec les manettes de sa propre liste (45 modèles de 2005, ni Sony ni Xbox) : une DualShock 4 ou une DualSense était ignorée. `1`, le défaut, les ajoute à la liste que le jeu lit, sans rien écrire dans le registre ; boutons comme sur une manette PlayStation 2, stick droit compris. Vu avec une DualShock 4. |
 
 ### Dans *Harry Potter et l'Ordre du Phénix* (`hp.exe`)
 
@@ -75,7 +76,7 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 
 ### Image
 
-- *Harry Potter et la Coupe de feu* : tous les effets d'image sont désactivés par défaut : aucun n'a encore été réglé pour ce jeu.
+- *Harry Potter et la Coupe de feu* : filtrage anisotrope ×16, FXAA, occlusion ambiante, bloom réservé aux points les plus lumineux (`BloomThreshold=0.85`, `BloomStrength=0.25` : la pensive était trop lumineuse), rayons de lumière, l'étalonnage doux du Prince de sang-mêlé et des mipmaps nettes qui gardent leur densité, activés par défaut ; joué ainsi jusqu'à la Forêt interdite.
 - *Harry Potter et l'Ordre du Phénix* : les effets d'image sont activés par défaut, avec les valeurs livrées depuis la première version du correctif.
 - *Harry Potter et le Prince de sang-mêlé* : filtrage anisotrope ×16, FXAA, occlusion ambiante, bloom et un étalonnage doux (vibrance 0.30, contraste 0.20, `SkinProtect=0.70`) activés par défaut, choisis effet par effet sur des paires avant/après de la même image ; pas de MSAA ni de rayons de lumière.
 
@@ -113,7 +114,7 @@ Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG
 | Vibrations | `Rumble` | Renvoyées à la manette PlayStation (USB). |
 | Barre lumineuse | `LightBar` | Une couleur `rouge,vert,bleu` posée sur la manette PlayStation (USB), à chaque fois qu'elle est branchée ; vide, elle n'est pas touchée. Accio Launcher y met la couleur de votre maison. |
 
-La *Coupe de feu* lit ses manettes par DirectInput et n'est pas concernée.
+La *Coupe de feu* lit ses manettes par DirectInput et n'est pas concernée : ses manettes PlayStation passent par `PlayStationController`, plus haut.
 
 ---
 
