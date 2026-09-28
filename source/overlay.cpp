@@ -462,6 +462,23 @@ void Line(char* out, size_t size, const char* fmt, LONG tenths, const char* unit
 	}
 }
 
+bool LineChosen()
+{
+	return g_cfg.showFps || g_cfg.showFrameTime || g_cfg.showGraph || g_cfg.showCpu || g_cfg.showGpu
+		|| g_cfg.showVram || g_cfg.showRam || g_cfg.showLatency;
+}
+
+// "F11" for the function keys, else the key's own name (the ini holds a virtual-key code).
+const char* KeyName(int vk)
+{
+	static char name[16];
+	if (vk >= VK_F1 && vk <= VK_F24)
+		sprintf_s(name, "F%d", vk - VK_F1 + 1);
+	else if (!GetKeyNameTextA(static_cast<LONG>(MapVirtualKeyA(vk, MAPVK_VK_TO_VSC)) << 16, name, sizeof(name)))
+		strcpy_s(name, "the key");
+	return name;
+}
+
 void Draw(IDirect3DDevice9* dev, LONGLONG now)
 {
 	IDirect3DSurface9* bb = nullptr;
@@ -478,11 +495,14 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 	// The lines, in the order they are shown.
 	char lines[9][160];
 	int n = 0;
+	// F10 with no line chosen in the ini showed an empty panel, which looked broken (Ludo, 2026-09-28):
+	// it then shows the frame rate and the 1 % low.
+	const bool chosen = LineChosen();
 	if (g_visible)
 	{
-		if (g_cfg.showFps)
+		if (g_cfg.showFps || !chosen)
 			sprintf_s(lines[n++], "%.0f FPS", g_fps);
-		if (g_cfg.showFrameTime)
+		if (g_cfg.showFrameTime || !chosen)
 			sprintf_s(lines[n++], "%.1f ms   1%% low %.0f FPS", g_frameMs, g_low1);
 		if (g_cfg.showCpu)
 		{
@@ -505,8 +525,10 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 				sprintf_s(lines[n++], "Latency %.1f ms", g_latencyMs);
 		}
 	}
+	// A benchmark runs until the same key is pressed again, which nothing said on screen: it looked
+	// stuck (Ludo, 2026-09-28).
 	if (g_recording)
-		sprintf_s(lines[n++], "REC  %.0f s", Seconds(now - g_benchStart));
+		sprintf_s(lines[n++], "REC  %.0f s   %s to stop", Seconds(now - g_benchStart), KeyName(g_cfg.benchmarkKey));
 	else if (g_summary[0] && now < g_summaryUntil)
 		sprintf_s(lines[n++], "%s", g_summary);
 	const bool graph = g_visible && g_cfg.showGraph;
@@ -615,7 +637,7 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 				const float x = std::floor(x0 + pad), y = std::floor(y0 + pad + i * lineH);
 				const bool rec = g_recording && i == n - 1;
 				const D3DCOLOR face = rec ? D3DCOLOR_ARGB(255, 230, 70, 60)
-					: i == 0 && g_cfg.showFps && g_visible ? D3DCOLOR_ARGB(255, 214, 167, 44) : D3DCOLOR_ARGB(255, 240, 240, 244);
+					: i == 0 && (g_cfg.showFps || !chosen) && g_visible ? D3DCOLOR_ARGB(255, 214, 167, 44) : D3DCOLOR_ARGB(255, 240, 240, 244);
 				if (pass == 0)
 					g_font.Add(text, x + 1, y + 1, lines[i], D3DCOLOR_ARGB(200, 0, 0, 0));
 				else
@@ -671,8 +693,7 @@ void NoteKeyPressed()
 
 bool OverlayWanted()
 {
-	return g_cfg.showFps || g_cfg.showFrameTime || g_cfg.showGraph || g_cfg.showCpu || g_cfg.showGpu
-		|| g_cfg.showVram || g_cfg.showRam || g_cfg.showLatency || g_cfg.benchmarkKey;
+	return LineChosen() || g_cfg.overlayKey || g_cfg.benchmarkKey;
 }
 
 void DrawOverlay(IDirect3DDevice9* dev)
@@ -694,6 +715,11 @@ void DrawOverlay(IDirect3DDevice9* dev)
 		if (HANDLE t = CreateThread(nullptr, 0, Sampler, nullptr, 0, nullptr))
 			CloseHandle(t);
 	}
+	// Shown from the start only when the ini switches a line on; otherwise the key brings it up.
+	static bool started = false;
+	if (!started)
+		g_visible = LineChosen();
+	started = true;
 	static bool overlayDown = false, benchDown = false;
 	if (Pressed(g_cfg.overlayKey, overlayDown))
 		g_visible = !g_visible;

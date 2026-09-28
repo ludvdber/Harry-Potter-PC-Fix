@@ -58,7 +58,7 @@ int main(int argc, char** argv)
 		EXPECT(Near(c.aspectRatio, 16.0f / 9));
 		EXPECT(c.animationRate == 0 && c.frameRateCap == 120 && c.hazeOverlay == 1 && c.playStationPads == 1);
 		// Played to the Forbidden Forest with all of it (2026-09-28); bloom kept to the brightest spots.
-		EXPECT(c.fxaa && c.msaa == 0 && !c.transparencyAa && c.anisotropy == 16 && Near(c.ssaa, 1.0f) && c.ssao && c.godRays);
+		EXPECT(c.fxaa && c.msaa == 0 && !c.transparencyAa && c.anisotropy == 16 && Near(c.ssaa, 1.5f) && c.ssao && c.godRays);
 		EXPECT(c.bloom && Near(c.bloomStrength, 0.25f) && Near(c.bloomThreshold, 0.85f));
 		EXPECT(c.grading && Near(c.vibrance, 0.30f) && Near(c.contrast, 0.20f) && Near(c.skinProtect, 0.70f));
 		EXPECT(c.mipmapFilter == 1 && c.mipmapCoverage);
@@ -90,6 +90,7 @@ int main(int argc, char** argv)
 		// Judged on same-frame before/after pictures (2026-09-27): every effect on, a soft grading
 		// with faces spared; no MSAA, no light shafts.
 		EXPECT(c.fxaa && c.anisotropy == 16 && c.msaa == 0 && !c.transparencyAa && !c.godRays);
+		EXPECT(Near(c.ssaa, 1.5f)); // played that way, menus click where they point (2026-09-28)
 		EXPECT(c.ssao && Near(c.ssaoStrength, 0.55f) && Near(c.ssaoMinDelta, 0.02f) && Near(c.ssaoMaxDelta, 0.15f));
 		EXPECT(c.bloom && c.grading && Near(c.vibrance, 0.30f) && Near(c.contrast, 0.20f) && Near(c.skinProtect, 0.70f));
 		EXPECT(Near(c.gain, 1.0f) && Near(c.splitTone, 0.0f) && Near(c.temperature, 0.0f));

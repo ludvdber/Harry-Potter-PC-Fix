@@ -21,7 +21,8 @@ JEUX = {
                 # Played by Ludo from the start to the Forbidden Forest with all of these on (2026-09-27 and 28,
                 # no crash): HP6's soft grade, sharp mipmaps that keep their density. Bloom made the Pensieve
                 # (level choice) "too bright": it only takes the brightest spots here, and less of them.
-                graphics=dict(FXAA=1, AnisotropicFiltering=16, SSAO=1, Bloom=1, BloomStrength="0.25",
+                # Supersampling 1.5 on both of those games: Ludo wants "as little pixelation as possible, first".
+                graphics=dict(FXAA=1, AnisotropicFiltering=16, SSAAFactor="1.5", SSAO=1, Bloom=1, BloomStrength="0.25",
                               BloomThreshold="0.85", GodRays=1, ColorGrading=1, Vibrance="0.30",
                               Contrast="0.20", SkinProtect="0.70", MipmapFilter=1, MipmapCoverage=1)),
     "HP5": dict(titre="Harry Potter and the Order of the Phoenix", resolution="640x480",
@@ -50,8 +51,9 @@ JEUX = {
                 # Judged by Ludo on same-frame before/after pictures (CompareKey, 2026-09-27): every
                 # effect better on, each one isolated and all together. A softer grading than HP5's
                 # (whose tuning made HP6 too teal), with faces spared: they came out orange without it.
-                # Distance fog kept: without it the blurry far textures show.
-                graphics=dict(FXAA=1, AnisotropicFiltering=16, SSAO=1, SSAOStrength="0.55",
+                # Distance fog kept: without it the blurry far textures show. Supersampling 1.5: played that
+                # way by Ludo, menus clicked where pointed (2026-09-28); "as little pixelation as possible".
+                graphics=dict(FXAA=1, AnisotropicFiltering=16, SSAAFactor="1.5", SSAO=1, SSAOStrength="0.55",
                               SSAOMinDelta="0.02", SSAOMaxDelta="0.15", Bloom=1, ColorGrading=1,
                               Vibrance="0.30", Contrast="0.20", SkinProtect="0.70")),
     # HP7 parts 1 and 2: no start-up resolution or frame-rate ceiling of their own to change; a 30 fps
@@ -175,9 +177,9 @@ def ini(jeu, graphismes=None):
     a("ShowLatency=0")
     a("")
     a("; Key that shows or hides the panel, as a Windows virtual-key code (121 = F10,")
-    a("; 0 = none).")
+    a("; 0 = none). With every line above at 0, it shows the frame rate and the 1% low.")
     a("OverlayKey=121")
-    a("; Key that starts and stops a benchmark (122 = F11, 0 = none). At the end:")
+    a("; Key that starts a benchmark, and stops it when pressed again (122 = F11, 0 = none). At the end:")
     a("; average FPS, 1% and 0.1% low, worst frame, on screen for 15 seconds, and every")
     a("; frame time in the \"benchmarks\" folder next to the game.")
     a("BenchmarkKey=122")

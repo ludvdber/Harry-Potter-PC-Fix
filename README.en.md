@@ -76,9 +76,9 @@ Each change is made in the executable once it is loaded, never on disk, and only
 
 ### Image
 
-- *Goblet of Fire*: anisotropic filtering ×16, FXAA, ambient occlusion, bloom kept to the brightest spots (`BloomThreshold=0.85`, `BloomStrength=0.25`: the Pensieve was too bright), light shafts, *Half-Blood Prince*'s soft grading and sharp mipmaps that keep their density, on by default; played that way up to the Forbidden Forest.
+- *Goblet of Fire*: supersampling 1.5 (the game takes it by itself: its scene is drawn at 1.5 times the image size), anisotropic filtering ×16, FXAA, ambient occlusion, bloom kept to the brightest spots (`BloomThreshold=0.85`, `BloomStrength=0.25`: the Pensieve was too bright), light shafts, *Half-Blood Prince*'s soft grading and sharp mipmaps that keep their density, on by default; played that way up to the Forbidden Forest.
 - *Order of the Phoenix*: the image effects are on by default, with the values this fix has shipped with since its first release.
-- *Half-Blood Prince*: 16× anisotropic filtering, FXAA, ambient occlusion, bloom and a soft colour grade (vibrance 0.30, contrast 0.20, `SkinProtect=0.70`) are on by default, each chosen from before/after pairs of the same frame; no MSAA and no light shafts.
+- *Half-Blood Prince*: supersampling 1.5, 16× anisotropic filtering, FXAA, ambient occlusion, bloom and a soft colour grade (vibrance 0.30, contrast 0.20, `SkinProtect=0.70`) are on by default, each chosen from before/after pairs of the same frame; no MSAA and no light shafts.
 
 | | Setting | |
 |---|---|---|

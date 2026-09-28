@@ -76,9 +76,9 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 
 ### Image
 
-- *Harry Potter et la Coupe de feu* : filtrage anisotrope ×16, FXAA, occlusion ambiante, bloom réservé aux points les plus lumineux (`BloomThreshold=0.85`, `BloomStrength=0.25` : la pensive était trop lumineuse), rayons de lumière, l'étalonnage doux du Prince de sang-mêlé et des mipmaps nettes qui gardent leur densité, activés par défaut ; joué ainsi jusqu'à la Forêt interdite.
+- *Harry Potter et la Coupe de feu* : suréchantillonnage 1,5 (le jeu le prend tout seul : sa scène est dessinée à 1,5 fois la taille de l'image), filtrage anisotrope ×16, FXAA, occlusion ambiante, bloom réservé aux points les plus lumineux (`BloomThreshold=0.85`, `BloomStrength=0.25` : la pensive était trop lumineuse), rayons de lumière, l'étalonnage doux du Prince de sang-mêlé et des mipmaps nettes qui gardent leur densité, activés par défaut ; joué ainsi jusqu'à la Forêt interdite.
 - *Harry Potter et l'Ordre du Phénix* : les effets d'image sont activés par défaut, avec les valeurs livrées depuis la première version du correctif.
-- *Harry Potter et le Prince de sang-mêlé* : filtrage anisotrope ×16, FXAA, occlusion ambiante, bloom et un étalonnage doux (vibrance 0.30, contraste 0.20, `SkinProtect=0.70`) activés par défaut, choisis effet par effet sur des paires avant/après de la même image ; pas de MSAA ni de rayons de lumière.
+- *Harry Potter et le Prince de sang-mêlé* : suréchantillonnage 1,5, filtrage anisotrope ×16, FXAA, occlusion ambiante, bloom et un étalonnage doux (vibrance 0.30, contraste 0.20, `SkinProtect=0.70`) activés par défaut, choisis effet par effet sur des paires avant/après de la même image ; pas de MSAA ni de rayons de lumière.
 
 | | Réglage | |
 |---|---|---|
