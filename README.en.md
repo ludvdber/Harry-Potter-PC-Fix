@@ -58,6 +58,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 | Frame-rate ceiling | `FrameRateCap` | The ceiling the engine keeps in memory and sometimes resets, held at 120. |
 | Even frames | `FPSLimit` | 120 by default, for the same reason as in *Half-Blood Prince*: the game's own ceiling alone works in bursts (1% low measured at 38 fps in the common room, against 84 with the limit). |
 | Distance fog | `DistanceFog` | The same switch as in *Half-Blood Prince*. `1`, the default, keeps the fog as shipped; `0` removes it (not yet seen outdoors in this game). |
+| Detail level on a first start | `TextureDetail` | As in *Half-Blood Prince*: `2`, the default, starts on "Quality" while no level is saved; a level chosen in the game's own options stays the player's. |
 
 ### Inside *Harry Potter and the Half-Blood Prince* (`hp6.exe`)
 
@@ -71,6 +72,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 | Even frames | `FPSLimit` | 120 by default. The game's own ceiling alone holds 120 frames per second on average, but in bursts: very fast frames, then a 25 ms wait (1% low measured at 31 fps, against 102 with the limit). |
 | Start-up language | `Language` | The menu of 16 languages opens on the Windows language and takes it by itself after 15 s, but the game knows only one variant of each language: Windows in French from Belgium, Switzerland or Canada, or in Spanish as Windows sets it in Spain today, made it start in English. `auto` (default) brings the Windows language to the one the game knows; `fr`, `en`, `es`, `de`, `it`… choose; `windows` leaves it to the game. |
 | Distance fog | `DistanceFog` | The game drowns distant scenery in a green haze: the hills around the castle melt into it. `0` removes it (sharp, contrasted hills, the scene a little darker); `1`, the default, keeps it as shipped. |
+| Detail level on a first start | `TextureDetail` | While no level is saved, the game starts on "Balanced" without saying so. `2`, the default, starts it on "Quality", the sharpest textures; `1` as shipped, `0` "Speed". A level chosen in the game's own options stays the player's, and nothing is written to the registry. |
 
 Each change is made in the executable once it is loaded, never on disk, and only where the expected bytes are found: another build of a game simply runs unchanged, and the log says so.
 

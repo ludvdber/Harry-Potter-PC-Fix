@@ -27,7 +27,7 @@ JEUX = {
                               Contrast="0.20", SkinProtect="0.70", MipmapFilter=1, MipmapCoverage=1)),
     "HP5": dict(titre="Harry Potter and the Order of the Phoenix", resolution="640x480",
                 fps_limit=120, center=1, dpi=1, fov_note="0 = as shipped",
-                animations=False, cap=120, unlock=True, haze=False, fog=True, xinput=True,
+                animations=False, cap=120, unlock=True, haze=False, fog=True, detail=True, xinput=True,
                 # Measured in game (2026-09-26, common room, F11): the same bursts as HP6,
                 # 1 % low 38 FPS alone; with FPSLimit=120, 1 % low 84.
                 fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
@@ -43,7 +43,7 @@ JEUX = {
                               SSAOMinDelta="0.02", SSAOMaxDelta="0.15")),
     "HP6": dict(titre="Harry Potter and the Half-Blood Prince", resolution="640x480",
                 fps_limit=120, center=0, dpi=0, fov_note="0 = as shipped",
-                animations=False, cap=120, unlock=True, haze=False, language=True, fog=True, xinput=True,
+                animations=False, cap=120, unlock=True, haze=False, language=True, fog=True, detail=True, xinput=True,
                 # Measured in game (2026-09-26, same walk, F11): the game's own ceiling alone
                 # averages 120 in bursts, 1 % low 31 FPS; with FPSLimit=120, 1 % low 102.
                 fps_note=("; 120: the game's own ceiling alone keeps 120 on average, but in bursts",
@@ -272,6 +272,13 @@ def ini(jeu, graphismes=None):
         a("; grounds melt into it). 1 = as shipped, 0 = removed: far hills sharp and")
         a("; contrasted, the scene a little darker.")
         a("DistanceFog=1")
+    if j.get("detail"):
+        a("")
+        a("; The detail level the game starts on while none is saved (a first start):")
+        a("; 0 = Speed, 1 = Balanced (as shipped), 2 = Quality, the sharpest textures.")
+        a("; A level chosen in the game's own options is kept. Nothing is written to")
+        a("; the registry.")
+        a("TextureDetail=2")
     a("")
     a("")
     a("; ----------------------------------------------------------------------------")

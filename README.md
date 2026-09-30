@@ -58,6 +58,7 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 | Plafond d'images/s | `FrameRateCap` | Le plafond que le moteur garde en mémoire et remet parfois à zéro, tenu à 120. |
 | Images régulières | `FPSLimit` | 120 par défaut, pour la même raison que dans *le Prince de sang-mêlé* : le plafond du jeu seul procède par à-coups (1 % low mesuré à 38 images/s dans la salle commune, contre 84 avec la limite). |
 | Brouillard lointain | `DistanceFog` | Le même interrupteur que dans *le Prince de sang-mêlé*. `1`, le défaut, garde le brouillard tel que livré ; `0` le retire (pas encore vu en extérieur dans ce jeu). |
+| Niveau de détail au premier lancement | `TextureDetail` | Comme dans *le Prince de sang-mêlé* : `2`, le défaut, démarre en « Quality » tant qu'aucun niveau n'est enregistré ; un niveau choisi dans les options du jeu reste le sien. |
 
 ### Dans *Harry Potter et le Prince de sang-mêlé* (`hp6.exe`)
 
@@ -71,6 +72,7 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 | Images régulières | `FPSLimit` | 120 par défaut. Le plafond du jeu seul tient 120 images/s en moyenne, mais par à-coups : des images très rapides puis une attente de 25 ms (1 % low mesuré à 31 images/s, contre 102 avec la limite). |
 | Langue au démarrage | `Language` | Le menu des 16 langues s'ouvre sur celle de Windows et la prend seul au bout de 15 s, mais le jeu ne connaît qu'une variante de chaque langue : un Windows en français de Belgique, de Suisse ou du Canada, ou en espagnol tel que Windows le règle aujourd'hui en Espagne, le faisait démarrer en anglais. `auto` (défaut) ramène la langue de Windows à celle que le jeu connaît ; `fr`, `en`, `es`, `de`, `it`… choisissent ; `windows` laisse faire le jeu. |
 | Brouillard lointain | `DistanceFog` | Le jeu noie le décor lointain dans un voile vert : les collines autour du château y fondent. `0` le retire (collines nettes et contrastées, scène un peu plus sombre) ; `1`, le défaut, le garde tel que livré. |
+| Niveau de détail au premier lancement | `TextureDetail` | Tant qu'aucun niveau n'est enregistré, le jeu démarre en « Balanced », sans le dire. `2`, le défaut, le fait démarrer en « Quality », les textures les plus fines ; `1` comme livré, `0` « Speed ». Un niveau choisi dans les options du jeu reste le sien, et rien n'est écrit dans le registre. |
 
 Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le disque, et seulement là où les octets attendus sont trouvés : une autre version du jeu tourne simplement sans changement, et le journal le dit.
 

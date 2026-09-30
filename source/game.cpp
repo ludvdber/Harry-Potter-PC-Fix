@@ -436,6 +436,41 @@ void RemoveDistanceFog(const char* exeName)
 		CloseHandle(t);
 }
 
+// HP5 and HP6 read their detail level (OptionLOD: 0 Speed, 1 Balanced, 2 Quality, HP6's names at
+// 0x892844) from HKCU\...\GameSettings when the main window is made, and take 1 when the value is
+// absent: a new player, or a new Wine prefix, starts on Balanced without knowing it (Ludo's
+// laptop, 2026-09-30). In HP6 the level picks the texture set (0x5DD10D) and the size of some of
+// them (128 or 512 pixels, 0x6155BF). What changes is the default, the push before the reader's
+// call (HP6 0x5D9AD2, HP5 0x60E721): a level the player chose in the game's options is in the
+// registry and still wins, and the registry is never written.
+void DefaultTextureDetail(const char* exeName)
+{
+	if (g_cfg.textureDetail == 1)
+		return;
+	Bytes site = { nullptr, 0 };
+	int offset = 0;
+	if (_stricmp(exeName, "hp6.exe") == 0)
+	{
+		// lea edx, [esp+0x14] ; push 1 ; push edx ; lea ecx, [esp+0x54] ; lea edx, [esp+0x38] ; call
+		site = BYTES(0x8D, 0x54, 0x24, 0x14, 0x6A, 0x01, 0x52, 0x8D, 0x4C, 0x24, 0x54, 0x8D, 0x54, 0x24, 0x38, 0xE8);
+		offset = 5;
+	}
+	else if (_stricmp(exeName, "hp.exe") == 0)
+	{
+		// push 1 ; lea ecx, [esp+0x30] ; push ecx ; lea edx, [esp+0x18] ; push edx ; lea eax, [esp+0x54] ; call
+		site = BYTES(0x6A, 0x01, 0x8D, 0x4C, 0x24, 0x30, 0x51, 0x8D, 0x54, 0x24, 0x18, 0x52, 0x8D, 0x44, 0x24, 0x54, 0xE8);
+		offset = 1;
+	}
+	else
+		return;
+	BYTE* at = Locate(site, "texture detail default");
+	if (!at)
+		return;
+	const BYTE level = static_cast<BYTE>(g_cfg.textureDetail);
+	const bool ok = WriteMemory(at + offset, &level, sizeof(level));
+	Log("Game: detail level %d when the game has none saved %s\n", g_cfg.textureDetail, ok ? "set" : "NOT set");
+}
+
 // Counted for the log (ReportHaze): whether the haze is drawn at all, and how wide it asked.
 LONG g_hazeCalls = 0;
 LONG g_hazeWidest = 0;
@@ -740,6 +775,7 @@ void ApplyGamePatches()
 	PatchHaze(*p);
 	ChooseLanguage(p->exe);
 	RemoveDistanceFog(p->exe);
+	DefaultTextureDetail(p->exe);
 	DescribePlayStationPads(p->exe);
 }
 

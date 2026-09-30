@@ -70,6 +70,7 @@ int main(int argc, char** argv)
 		EXPECT(c.fpsLimit == 120 && c.centerWindow && c.dpiAware);
 		EXPECT(Near(c.aspectRatio, 0.0f) && c.unlockFrameRate == 1 && c.frameRateCap == 120 && c.hazeOverlay == -1);
 		EXPECT(c.distanceFog == 1); // the switch is wired, the fog stays as shipped
+		EXPECT(c.textureDetail == 2); // a first start on Quality, not the game's Balanced
 		EXPECT(c.fxaa && Near(c.sharpness, 0.40f) && c.msaa == 16 && c.anisotropy == 16);
 		EXPECT(Near(c.lodBias, -1.5f) && c.vsync && c.ssaa == 1 && c.shadowScale == 1);
 		EXPECT(c.grading && Near(c.vibrance, 0.60f) && Near(c.vignette, 0.08f) && Near(c.lift, 0.0f));
@@ -86,7 +87,7 @@ int main(int argc, char** argv)
 		Load(data + "\\HP6\\d3d9.ini");
 		EXPECT(c.fpsLimit == 120 && !c.centerWindow && !c.dpiAware);
 		EXPECT(c.unlockFrameRate == 1 && c.frameRateCap == 120);
-		EXPECT(strcmp(c.language, "auto") == 0 && c.distanceFog == 1);
+		EXPECT(strcmp(c.language, "auto") == 0 && c.distanceFog == 1 && c.textureDetail == 2);
 		// Judged on same-frame before/after pictures (2026-09-27): every effect on, a soft grading
 		// with faces spared; no MSAA, no light shafts.
 		EXPECT(c.fxaa && c.anisotropy == 16 && c.msaa == 0 && !c.transparencyAa && !c.godRays);
@@ -238,6 +239,21 @@ int main(int argc, char** argv)
 		fclose(f);
 		Load(path);
 		EXPECT(c.ssaaMaxHeight == 0);
+		EXPECT(c.textureDetail == 2); // absent: Quality on a first start
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Game]\r\nTextureDetail=7\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.textureDetail == 2); // clamped to the game's three levels
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Game]\r\nTextureDetail=1\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.textureDetail == 1); // as shipped
 	}
 	{
 		// The factor actually used: lowered to the height limit and to the card, never below 1.
