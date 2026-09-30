@@ -50,6 +50,28 @@ bool IsLeaving(UINT msg, WPARAM wp, LPARAM lp)
 	}
 }
 
+// Over their window the three games hide the pointer (WM_SETCURSOR: SetCursor(NULL), then
+// ShowCursor(FALSE) until it is gone) and bring it back only when told they lost the front,
+// news kept from them above. With another window in front, the game stays on screen and the
+// pointer vanished as soon as it crossed it: "Alt+Tab ne rend pas la souris" (Ludo, HP4 and HP6,
+// 2026-09-28; the log said "hidden" one second into each departure). Read in the executables:
+// HP4 0x407848 (WM_SETCURSOR) and 0x40789A (WM_ACTIVATEAPP shows it again), HP5 0x60D829 with
+// the flag its deactivation sets at 0x60D75A. While another window is in front, the arrow is
+// shown here instead; back in front, the game's own handler hides it again.
+bool ShowPointerWhileAway(UINT msg, LPARAM lp)
+{
+	if (msg != WM_SETCURSOR || LOWORD(lp) != HTCLIENT || ProcessInForegroundNow())
+		return false;
+	for (int i = 0; i < 64 && ShowCursor(TRUE) < 0; i++) // the game's count, on its own thread
+	{
+	}
+	SetCursor(LoadCursorA(nullptr, IDC_ARROW));
+	static volatile LONG said = 0;
+	if (!InterlockedExchange(&said, 1))
+		Log("Window: pointer shown over the game while another window is in front\n");
+	return true;
+}
+
 LRESULT CALLBACK GameWindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
 	if (g_cfg.keepRunning && IsLeaving(msg, wp, lp))
@@ -58,6 +80,8 @@ LRESULT CALLBACK GameWindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 			Log("Window: another program in front, the game is not told (frame %ld)\n", g_frames);
 		return 0;
 	}
+	if (g_cfg.keepRunning && ShowPointerWhileAway(msg, lp))
+		return TRUE;
 	return CallWindowProcA(g_gameProc, hwnd, msg, wp, lp);
 }
 

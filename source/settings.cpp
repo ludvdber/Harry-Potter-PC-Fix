@@ -168,6 +168,7 @@ void LoadSettings(const char* iniPath)
 	c.anisotropy = Clamp(Int(graphics, "AnisotropicFiltering", 0), 0, 16);
 	c.lodBias = Clamp(Float(graphics, "TextureLODBias", 0.0f), -3.0f, 3.0f);
 	c.ssaa = Clamp(Float(graphics, "SSAAFactor", 1.0f), 1.0f, 4.0f);
+	c.ssaaMaxHeight = Clamp(Int(graphics, "SSAAMaxHeight", 2880), 0, 16384);
 	c.shadowScale = Clamp(Int(graphics, "ShadowMapScale", 1), 1, 8);
 	c.vsync = Bool(graphics, "VSync", false);
 	c.grading = Bool(graphics, "ColorGrading", false);
@@ -209,8 +210,8 @@ void LoadSettings(const char* iniPath)
 	Log("  game: %dx%d aspect=%.4f (old index %d) fov=%.3f (old %d) animations=%d frameRateCap=%d unlock=%d haze=%d language=%s fog=%d playstation=%d\n",
 		c.width, c.height, c.aspectRatio, c.legacyAspectIndex, c.fovScale, c.legacyFov, c.animationRate,
 		c.frameRateCap, c.unlockFrameRate, c.hazeOverlay, c.language, c.distanceFog, c.playStationPads);
-	Log("  image: FXAA=%d sharp=%.2f MSAA=%d transparency=%d AF=%d LOD=%.2f SSAA=%.2f shadows=%d vsync=%d grading=%d SSAO=%d bloom=%d rays=%d render=%dx%d\n",
-		c.fxaa, c.sharpness, c.msaa, c.transparencyAa, c.anisotropy, c.lodBias, c.ssaa, c.shadowScale, c.vsync, c.grading,
+	Log("  image: FXAA=%d sharp=%.2f MSAA=%d transparency=%d AF=%d LOD=%.2f SSAA=%.2f (max height %d) shadows=%d vsync=%d grading=%d SSAO=%d bloom=%d rays=%d render=%dx%d\n",
+		c.fxaa, c.sharpness, c.msaa, c.transparencyAa, c.anisotropy, c.lodBias, c.ssaa, c.ssaaMaxHeight, c.shadowScale, c.vsync, c.grading,
 		c.ssao, c.bloom, c.godRays, c.renderWidth, c.renderHeight);
 	Log("  mipmaps=%d (filter %d, coverage %d) trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,
 		c.mipmapFilter, c.mipmapCoverage, c.forceTrilinear, c.maxFrameLatency, c.retakeInput, c.releaseStaleKeys);

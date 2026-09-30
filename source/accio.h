@@ -13,6 +13,23 @@
 #include <windows.h>
 #include <d3d9.h>
 
+// The supersampling factor actually used for an image of w x h: the one asked, lowered so the
+// enlarged image stays within maxHeight (0 = no limit) and within what the card draws into
+// (cardW x cardH, 0 = unknown). Below 1.01 it is not worth an image: 1 = off.
+inline float FitSupersampling(UINT w, UINT h, float factor, int maxHeight, UINT cardW, UINT cardH)
+{
+	if (factor <= 1.0f || !w || !h)
+		return 1.0f;
+	auto lower = [&](UINT limit, UINT size) {
+		if (limit && size * factor > static_cast<float>(limit))
+			factor = static_cast<float>(limit) / static_cast<float>(size);
+	};
+	lower(maxHeight > 0 ? static_cast<UINT>(maxHeight) : 0, h);
+	lower(cardW, w);
+	lower(cardH, h);
+	return factor < 1.01f ? 1.0f : factor;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Settings (settings.cpp). Read once from d3d9.ini next to this DLL, at load time.
 // ---------------------------------------------------------------------------------------------
@@ -57,6 +74,7 @@ struct Settings
 	int   anisotropy = 0;
 	float lodBias = 0.0f;
 	float ssaa = 1.0f;              // supersampling factor, 1 = off; 1.5, 2...
+	int   ssaaMaxHeight = 2880;     // the enlarged image never taller than this, 0 = no limit
 	int   shadowScale = 1;
 	bool  vsync = false;
 	bool  grading = false;
@@ -123,6 +141,7 @@ void InstallFocusHooks();
 // input.cpp
 void InstallInputHooks();
 bool ProcessInForeground();
+bool ProcessInForegroundNow(); // asked of Windows now, not the last sample
 
 // keys.cpp
 void LoadKeyMap(const char* iniPath);

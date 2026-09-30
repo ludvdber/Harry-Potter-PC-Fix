@@ -29,7 +29,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 | | Setting | |
 |---|---|---|
 | Borderless window | `Windowed`, `WindowStyle` | Instead of exclusive full screen, where Alt+Tab freezes the game. Style 1 covers the monitor; 2 to 4 are windows. |
-| Keeps running in the background | `KeepRunningInBackground` | The engine stops its clock at any sign that another program is in front. Those signs are kept from it, so it goes on running while you are elsewhere. |
+| Keeps running in the background | `KeepRunningInBackground` | The engine stops its clock at any sign that another program is in front. Those signs are kept from it, so it goes on running while you are elsewhere. Since it no longer knows to give the mouse pointer back, the pointer is shown over the game on its behalf. |
 | Keyboard and mouse back at once | `RetakeInputOnReturn` | The games read their devices in DirectInput exclusive mode and are never told they are back in front: the keyboard used to stay dead for up to 30 seconds. The return is detected and every device taken back at its next read. The other way round, an exclusive mouse keeps the cursor inside the game window: as soon as another window comes in front it is let go, otherwise the mouse could not leave the game. |
 | No key stuck after Alt+Tab | `ReleaseKeysOnReturn` | A key released in another window never reached the game, which believed it still held (Harry walking on his own). It is released for the game too. |
 | Your own keys | `[Accio.Keys]` | Any key or mouse button for any game key, named as printed on **your** keyboard. *Goblet of Fire* also has named actions (`Charm`, `Jinx`, `Accio`…) and a ready-made preset in its ini. |
@@ -92,7 +92,7 @@ Each change is made in the executable once it is loaded, never on disk, and only
 | Colour grading | `ColorGrading` and the values under it | Lift, gain, gamma, white balance, contrast, vibrance, split toning, vignette; `SkinProtect` (0 to 1) spares faces part of the contrast and vibrance; `YellowRestraint` (0 to 1) keeps yellows out of the vibrance and tones them down a little (HP5: 1, its stone and grass turned bright yellow). |
 | Ambient occlusion | `SSAO` and its values | Drawn the moment the 3D scene is done, before menus and subtitles. |
 | Bloom and light shafts | `Bloom`, `GodRays` | Half resolution, faded out on menus and white screens. |
-| Supersampling | `SSAAFactor` | The image is drawn larger, then scaled down: every edge smoothed, without blur. `1` = off, `1.5`, `2`… up to `4`. Very demanding: `2` draws four times the pixels, `1.5` a little over twice. |
+| Supersampling | `SSAAFactor`, `SSAAMaxHeight` | The image is drawn larger, then scaled down: every edge smoothed, without blur. `1` = off, `1.5`, `2`… up to `4`. Very demanding: `2` draws four times the pixels, `1.5` a little over twice. The enlarged image is never taller than `SSAAMaxHeight` lines (2880: a 4K screen goes from 1.5 to 1.33), nor larger than the graphics card takes; should the card still refuse, the game starts without supersampling. |
 | Render size | `RenderWidth`, `RenderHeight` | 0 = the size chosen in the game; -1 = the monitor's own. |
 
 ### Performance, like a benchmark tool (`[Accio.Overlay]`)

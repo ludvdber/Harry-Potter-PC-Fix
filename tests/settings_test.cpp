@@ -91,6 +91,7 @@ int main(int argc, char** argv)
 		// with faces spared; no MSAA, no light shafts.
 		EXPECT(c.fxaa && c.anisotropy == 16 && c.msaa == 0 && !c.transparencyAa && !c.godRays);
 		EXPECT(Near(c.ssaa, 1.5f)); // played that way, menus click where they point (2026-09-28)
+		EXPECT(c.ssaaMaxHeight == 2880);
 		EXPECT(c.ssao && Near(c.ssaoStrength, 0.55f) && Near(c.ssaoMinDelta, 0.02f) && Near(c.ssaoMaxDelta, 0.15f));
 		EXPECT(c.bloom && c.grading && Near(c.vibrance, 0.30f) && Near(c.contrast, 0.20f) && Near(c.skinProtect, 0.70f));
 		EXPECT(Near(c.gain, 1.0f) && Near(c.splitTone, 0.0f) && Near(c.temperature, 0.0f));
@@ -229,6 +230,26 @@ int main(int argc, char** argv)
 		fclose(f);
 		Load(path);
 		EXPECT(Near(c.ssaa, 4.0f));
+		EXPECT(c.ssaaMaxHeight == 2880); // absent: the shipped limit
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nSSAAMaxHeight=0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.ssaaMaxHeight == 0);
+	}
+	{
+		// The factor actually used: lowered to the height limit and to the card, never below 1.
+		const char* game = "supersampling limit";
+		EXPECT(Near(FitSupersampling(1920, 1080, 1.5f, 2880, 16384, 16384), 1.5f));
+		EXPECT(Near(FitSupersampling(2560, 1440, 2.0f, 2880, 16384, 16384), 2.0f));
+		EXPECT(Near(FitSupersampling(3840, 2160, 1.5f, 2880, 16384, 16384), 2880.0f / 2160.0f));
+		EXPECT(Near(FitSupersampling(3840, 2160, 2.0f, 0, 16384, 16384), 2.0f));   // no limit asked
+		EXPECT(Near(FitSupersampling(3840, 2160, 2.0f, 0, 4096, 4096), 4096.0f / 3840.0f)); // the card's
+		EXPECT(Near(FitSupersampling(3840, 2160, 2.0f, 0, 0, 0), 2.0f));           // card not known
+		EXPECT(Near(FitSupersampling(2880, 2880, 1.5f, 2880, 16384, 16384), 1.0f)); // nothing left: off
+		EXPECT(Near(FitSupersampling(1920, 1080, 1.0f, 2880, 16384, 16384), 1.0f));
 	}
 
 	printf("%d failure(s)\n", failures);

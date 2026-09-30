@@ -29,7 +29,7 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 | | Réglage | |
 |---|---|---|
 | Fenêtre sans bordure | `Windowed`, `WindowStyle` | À la place du plein écran exclusif, où Alt+Tab fige le jeu. Le style 1 couvre l'écran ; 2 à 4 sont des fenêtres. |
-| Le jeu continue en arrière-plan | `KeepRunningInBackground` | Le moteur arrête son horloge au moindre signe qu'un autre programme passe devant. Ces signes lui sont cachés : il continue pendant que vous êtes ailleurs. |
+| Le jeu continue en arrière-plan | `KeepRunningInBackground` | Le moteur arrête son horloge au moindre signe qu'un autre programme passe devant. Ces signes lui sont cachés : il continue pendant que vous êtes ailleurs. Comme il ne sait plus qu'il doit rendre le pointeur de la souris, celui-ci est affiché à sa place au-dessus du jeu. |
 | Clavier et souris dès le retour | `RetakeInputOnReturn` | Les jeux lisent leurs périphériques en DirectInput exclusif et ne sont jamais prévenus de leur retour au premier plan : le clavier restait mort jusqu'à 30 secondes. Le retour est détecté et chaque périphérique repris à sa lecture suivante. Dans l'autre sens, une souris exclusive garde le curseur dans la fenêtre du jeu : dès qu'une autre fenêtre passe devant, elle est relâchée, sinon la souris ne pouvait plus sortir du jeu. |
 | Plus de touche bloquée après Alt+Tab | `ReleaseKeysOnReturn` | Une touche relâchée dans une autre fenêtre n'arrivait jamais au jeu, qui la croyait encore enfoncée (Harry qui marche tout seul). Elle est relâchée pour le jeu aussi. |
 | Vos propres touches | `[Accio.Keys]` | N'importe quelle touche ou bouton de souris pour n'importe quelle touche du jeu, nommée comme elle est imprimée sur **votre** clavier : ZQSD en AZERTY s'écrit tel quel. *La Coupe de feu* a aussi des actions nommées (`Charm`, `Jinx`, `Accio`…) et un préréglage prêt dans son ini. |
@@ -92,7 +92,7 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 | Étalonnage des couleurs | `ColorGrading` et les valeurs dessous | Noirs, gain, gamma, balance des blancs, contraste, vibrance, virage partiel, vignettage ; `SkinProtect` (0 à 1) épargne aux visages une part du contraste et de la vibrance ; `YellowRestraint` (0 à 1) tient les jaunes à l'écart de la vibrance et les atténue un peu (HP5 : 1, sa pierre et son herbe viraient au jaune vif). |
 | Occlusion ambiante | `SSAO` et ses valeurs | Dessinée dès que la scène 3D est finie, avant les menus et sous-titres. |
 | Halo et rayons de lumière | `Bloom`, `GodRays` | En demi-résolution, estompés sur les menus et les écrans blancs. |
-| Suréchantillonnage | `SSAAFactor` | L'image est calculée plus grande puis réduite : tous les contours lissés, sans flou. `1` = éteint, `1.5`, `2`… jusqu'à `4`. Très gourmand : `2` calcule quatre fois plus de points, `1.5` un peu plus de deux fois. |
+| Suréchantillonnage | `SSAAFactor`, `SSAAMaxHeight` | L'image est calculée plus grande puis réduite : tous les contours lissés, sans flou. `1` = éteint, `1.5`, `2`… jusqu'à `4`. Très gourmand : `2` calcule quatre fois plus de points, `1.5` un peu plus de deux fois. L'image agrandie ne dépasse jamais `SSAAMaxHeight` lignes (2880 : un écran 4K passe de 1,5 à 1,33), ni ce que la carte graphique accepte ; si la carte refuse quand même, le jeu démarre sans suréchantillonnage. |
 | Taille de rendu | `RenderWidth`, `RenderHeight` | 0 = la taille choisie dans le jeu ; -1 = celle de l'écran. |
 
 ### Performances, comme un outil de benchmark (`[Accio.Overlay]`)

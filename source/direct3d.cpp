@@ -29,6 +29,9 @@ namespace
 // to coverage) was tried first: no visible change in HP6 (2026-09-26).
 constexpr DWORD kSsaa = MAKEFOURCC('S', 'S', 'A', 'A');
 bool g_ssaaSupported = false;
+// The largest texture the card takes: the games draw their scene into a texture the size of the
+// image, so supersampling must not go past it (0 = not known yet).
+UINT g_cardMaxW = 0, g_cardMaxH = 0;
 
 void CheckDepthTexture(IDirect3D9* d3d, UINT adapter, D3DDEVTYPE type)
 {
@@ -41,6 +44,13 @@ void CheckDepthTexture(IDirect3D9* d3d, UINT adapter, D3DDEVTYPE type)
 	D3DDISPLAYMODE mode = {};
 	const D3DFORMAT display = SUCCEEDED(d3d->GetAdapterDisplayMode(adapter, &mode)) ? mode.Format : D3DFMT_X8R8G8B8;
 	g_depth.supported = SUCCEEDED(d3d->CheckDeviceFormat(adapter, type, display, D3DUSAGE_DEPTHSTENCIL, D3DRTYPE_TEXTURE, D3DFMT_INTZ));
+	D3DCAPS9 caps = {};
+	if (SUCCEEDED(d3d->GetDeviceCaps(adapter, type, &caps)))
+	{
+		g_cardMaxW = caps.MaxTextureWidth;
+		g_cardMaxH = caps.MaxTextureHeight;
+		Log("Direct3D: textures up to %lux%lu\n", g_cardMaxW, g_cardMaxH);
+	}
 	Log("Direct3D: depth as texture (INTZ) %s\n", g_depth.supported ? "available" : "not available");
 	if (g_cfg.transparencyAa && g_cfg.msaa > 0)
 	{
@@ -80,6 +90,7 @@ bool NativeSize(HWND hwnd, int& w, int& h)
 // 2026-09-27: 2560x1440, then 5120x2880, then 10240x5760 after a few Alt+Tab, 43 FPS, and a game
 // that stopped answering with the mouse held in its window).
 UINT g_askedW = 0, g_askedH = 0, g_givenW = 0, g_givenH = 0;
+UINT g_plainW = 0, g_plainH = 0; // the image before supersampling, for WithFallbacks
 
 void AdjustPresentation(D3DPRESENT_PARAMETERS* pp)
 {
@@ -106,11 +117,21 @@ void AdjustPresentation(D3DPRESENT_PARAMETERS* pp)
 	}
 
 	int msaa = g_cfg.msaa;
-	if (g_cfg.ssaa > 1.0f)
+	g_plainW = pp->BackBufferWidth;
+	g_plainH = pp->BackBufferHeight;
+	// A 4K screen at 1.5 asked for 5760x3240, at 2 for 7680x4320: past what many cards draw into,
+	// for a picture no sharper on screen. Capped by SSAAMaxHeight (2880 = the largest image seen
+	// running, HP5 5120x2880) and by the card's largest texture.
+	const float factor = FitSupersampling(pp->BackBufferWidth, pp->BackBufferHeight, g_cfg.ssaa, g_cfg.ssaaMaxHeight,
+		g_cardMaxW, g_cardMaxH);
+	if (factor < g_cfg.ssaa)
+		Log("Direct3D: supersampling %.2f lowered to %.2f for a %ux%u image\n", g_cfg.ssaa, factor,
+			pp->BackBufferWidth, pp->BackBufferHeight);
+	if (factor > 1.0f)
 	{
 		// Rendered larger, scaled down by Present. Multisampling on top would be both redundant
 		// and far too heavy. Any factor: 1.5 costs about half of 2 (2.25 times the pixels, not 4).
-		auto scaled = [](UINT v) { return (static_cast<UINT>(v * g_cfg.ssaa + 0.5f) + 1) & ~1u; };
+		auto scaled = [factor](UINT v) { return (static_cast<UINT>(v * factor + 0.5f) + 1) & ~1u; };
 		pp->BackBufferWidth = scaled(pp->BackBufferWidth);
 		pp->BackBufferHeight = scaled(pp->BackBufferHeight);
 		pp->SwapEffect = D3DSWAPEFFECT_DISCARD;
@@ -176,6 +197,19 @@ HRESULT WithFallbacks(D3DPRESENT_PARAMETERS* pp, D3DFORMAT gameDepth, Call call)
 		Log("Direct3D: refused with MSAA (0x%lX), again without\n", static_cast<unsigned long>(hr));
 		pp->MultiSampleType = D3DMULTISAMPLE_NONE;
 		pp->MultiSampleQuality = 0;
+		hr = call();
+	}
+	// A card short of memory for the enlarged image: the game still starts, at its own size.
+	if (FAILED(hr) && pp && g_plainW && (pp->BackBufferWidth != g_plainW || pp->BackBufferHeight != g_plainH))
+	{
+		Log("Direct3D: refused at %ux%u (0x%lX), again without supersampling\n", pp->BackBufferWidth,
+			pp->BackBufferHeight, static_cast<unsigned long>(hr));
+		pp->BackBufferWidth = g_plainW;
+		pp->BackBufferHeight = g_plainH;
+		g_backBufferWidth = static_cast<int>(g_plainW);
+		g_backBufferHeight = static_cast<int>(g_plainH);
+		g_givenW = g_plainW;
+		g_givenH = g_plainH;
 		hr = call();
 	}
 	return hr;

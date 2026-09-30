@@ -426,3 +426,9 @@ bool ProcessInForeground()
 {
 	return g_inFront != 0;
 }
+
+bool ProcessInForegroundNow()
+{
+	SampleForeground();
+	return g_inFront != 0;
+}

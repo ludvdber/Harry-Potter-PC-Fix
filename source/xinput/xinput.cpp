@@ -110,6 +110,7 @@ struct Pad
 	bool used;                 // slot taken (the thread may have ended: see alive)
 	volatile LONG alive;       // its thread still runs
 	bool fresh;                // a report has been read: the pad is shown to the game
+	bool heard;                // a report has been parsed, shown or not (see WaitFirstReports)
 	uint16_t pid;
 	uint64_t order;            // connection order, which decides the XInput slot
 	wchar_t path[512];
@@ -150,6 +151,7 @@ void OnReport(Pad& p, const uint8_t* r, DWORD n)
 		return;
 	const bool shown = !AdapterAlone(p, r, n);
 	AcquireSRWLockExclusive(&g_lock);
+	p.heard = true;
 	if (shown && (!p.fresh || memcmp(&g, &p.state, sizeof(g)) != 0))
 	{
 		p.state = g;
@@ -367,6 +369,41 @@ DWORD WINAPI Monitor(void*)
 	}
 }
 
+// HP5 decides at its FIRST controller poll whether the pad chosen in its own menu is there
+// (registry ControllerConfig\CurrentSelection = 4): if no pad answers, it falls back to the
+// keyboard for the whole session and writes that choice back (hp.exe 0xE93C19, in a function
+// run once a frame whose first pass polls the pads before reading the registry). That first poll
+// is the game's first XInput call, the very one that opens our PlayStation pads — and an opened
+// pad is only shown to the game once its first report has been read, a few milliseconds later.
+// Hence "with the registry at 4, the menus answer the pad but the game stays on the keyboard"
+// (Ludo, 2026-09-28). So the first call waits for those first reports, 300 ms at most: USB pads
+// report every 4 ms, and the wait only happens when a Sony pad has just been opened.
+void WaitFirstReports()
+{
+	const ULONGLONG start = GetTickCount64();
+	for (;;)
+	{
+		int waiting = 0, opened = 0;
+		AcquireSRWLockShared(&g_lock);
+		for (const Pad& p : g_pads)
+			if (p.used && p.alive)
+			{
+				opened++;
+				waiting += p.heard ? 0 : 1;
+			}
+		ReleaseSRWLockShared(&g_lock);
+		const ULONGLONG spent = GetTickCount64() - start;
+		if (!waiting || spent >= 300)
+		{
+			if (opened)
+				Log("first reports: %d pad(s) heard in %llu ms%s\n", opened - waiting, spent,
+					waiting ? ", still waiting for the others (not shown yet)" : "");
+			return;
+		}
+		Sleep(2);
+	}
+}
+
 // ---- Slots ---------------------------------------------------------------------------------
 
 // Which slots hold an Xbox pad. The slot being asked is known exactly (the call just went to
@@ -488,6 +525,7 @@ BOOL CALLBACK Start(INIT_ONCE*, void*, void**)
 		Scan();
 		if (HANDLE t = CreateThread(nullptr, 0, Monitor, nullptr, 0, nullptr))
 			CloseHandle(t);
+		WaitFirstReports();
 	}
 	return TRUE;
 }
