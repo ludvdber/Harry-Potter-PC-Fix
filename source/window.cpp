@@ -84,14 +84,32 @@ bool IsLeaving(UINT msg, WPARAM wp, LPARAM lp)
 // its cross pointer sat in the middle of the screen for the rest of the game ("HP8 met une croix
 // comme curseur au milieu de l'ecran", Ludo, 2026-10-01). What was raised here is taken back
 // when the game is in front again (HideWhatWeShowed).
-LONG g_raised = 0; // ShowCursor(TRUE) calls made here, on the game window's thread
+// Seen in game the same day: back in front, HP8 reads its mouse by DirectInput, exclusive, and
+// Windows sends its window no WM_SETCURSOR at all, so the pointer stayed shown. The return is
+// also told by the foreground watch (input.cpp), which posts kHidePointer to the window: the
+// count is per thread, and only the window's thread can take it back.
+volatile LONG g_raised = 0; // ShowCursor(TRUE) calls made here, on the game window's thread
+const UINT kHidePointer = RegisterWindowMessageA("AccioHidePointer");
 
 bool ShowPointerWhileAway(UINT msg, LPARAM lp)
 {
 	if (msg != WM_SETCURSOR || LOWORD(lp) != HTCLIENT || ProcessInForegroundNow())
 		return false;
-	for (int i = 0; i < 64 && ShowCursor(TRUE) < 0; i++) // the game's count, on its own thread
+	// The game's count, on its own thread. Every call that raised it is counted: the one that
+	// brings it from -1 to 0 was not (seen in HP8: nothing was ever hidden again), and a call
+	// on a pointer already shown is taken back at once.
+	for (int i = 0; i < 64; i++)
+	{
+		const int count = ShowCursor(TRUE);
+		if (count > 0)
+		{
+			ShowCursor(FALSE);
+			break;
+		}
 		g_raised++;
+		if (count == 0)
+			break;
+	}
 	SetCursor(LoadCursorA(nullptr, IDC_ARROW));
 	static volatile LONG said = 0;
 	if (!InterlockedExchange(&said, 1))
@@ -101,7 +119,7 @@ bool ShowPointerWhileAway(UINT msg, LPARAM lp)
 
 void HideWhatWeShowed(UINT msg)
 {
-	if (msg != WM_SETCURSOR || !g_raised || !ProcessInForegroundNow())
+	if ((msg != WM_SETCURSOR && (!kHidePointer || msg != kHidePointer)) || !g_raised || !ProcessInForegroundNow())
 		return;
 	const LONG raised = g_raised;
 	for (; g_raised > 0; g_raised--)
@@ -123,6 +141,8 @@ LRESULT CALLBACK GameWindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 		return TRUE;
 	if (g_cfg.keepRunning)
 		HideWhatWeShowed(msg);
+	if (kHidePointer && msg == kHidePointer)
+		return 0;
 	if (msg == WM_WINDOWPOSCHANGING)
 		KeepFitted(hwnd, reinterpret_cast<WINDOWPOS*>(lp));
 	return CallWindowProcA(g_gameProc, hwnd, msg, wp, lp);
@@ -208,6 +228,13 @@ FARPROC WINAPI GetProcAddressForGame(HMODULE module, LPCSTR name)
 				return reinterpret_cast<FARPROC>(s.function);
 	return g_getProcAddress(module, name);
 }
+}
+
+// From the foreground watch's thread, when the game is back in front.
+void HidePointerWhenBack()
+{
+	if (g_cfg.keepRunning && g_raised && kHidePointer && GameWindowAlive())
+		PostMessageA(g_gameWindow, kHidePointer, 0, 0);
 }
 
 void InstallFocusHooks()

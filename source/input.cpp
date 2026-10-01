@@ -49,7 +49,10 @@ void SampleForeground()
 	const LONG now = OwnsForeground() ? 1 : 0;
 	const LONG before = InterlockedExchange(&g_inFront, now);
 	if (now && !before)
+	{
 		Log("Input: back in front (return %ld, frame %ld)\n", InterlockedIncrement(&g_returns), g_frames);
+		HidePointerWhenBack();
+	}
 	else if (!now && before)
 		Log("Input: another window in front (frame %ld)\n", g_frames);
 }

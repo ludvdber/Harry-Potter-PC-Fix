@@ -144,6 +144,7 @@ void KeepDeviceRedirects(IDirect3DDevice9* dev);   // after drawing with D3DX, s
 // window.cpp
 void PrepareWindow(D3DPRESENT_PARAMETERS* pp, HWND focusWindow);
 void InstallFocusHooks();
+void HidePointerWhenBack(); // the foreground watch, back in front: the pointer raised while away
 
 // input.cpp
 void InstallInputHooks();
