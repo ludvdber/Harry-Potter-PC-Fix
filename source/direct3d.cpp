@@ -219,7 +219,7 @@ HRESULT WithFallbacks(D3DPRESENT_PARAMETERS* pp, D3DFORMAT gameDepth, Call call)
 // The games draw their projected shadows into small square render targets (128 to 512). They
 // get targets N times larger; since they still believe the old size, every viewport set on those
 // targets is scaled by the same factor. The same size is also used for reflections, which are
-// scaled too: this is why the option is off in every shipped ini.
+// scaled too; blur buffers are set apart below. HP6 ships with 4 (Ludo, 2026-10-01).
 
 std::unordered_map<IDirect3DSurface9*, std::pair<UINT, UINT>> g_bigSurfaces; // surface -> size asked
 std::unordered_map<IDirect3DTexture9*, IDirect3DSurface9*> g_bigTextures;
@@ -229,11 +229,72 @@ UINT g_targetW = 0, g_targetH = 0;
 
 bool ShadowSized(UINT w, UINT h) { return w == h && w >= 32 && w <= 512; }
 
+// The size alone also takes the games' blur and glow buffers: HP6 copies its scene into a 512x512
+// target for the menus and the depth of field. Drawn N times larger, each of their passes kept the
+// half-pixel offset meant for the small size, and the blurred layer came back shifted: a pale copy
+// of every object beside it (HP6 menu desk, Harry's face, ShadowMapScale=4, 2026-10-01). A target
+// the game draws ANOTHER of its targets into is such a buffer, never a shadow map: from then on it
+// is served by a twin of the size the game asked for, bound and read in its place.
+struct SmallTwin
+{
+	IDirect3DTexture9* tex = nullptr;
+	IDirect3DSurface9* surface = nullptr;
+};
+std::unordered_map<IDirect3DTexture9*, SmallTwin> g_smallTwins;            // large texture -> twin
+std::unordered_map<IDirect3DSurface9*, IDirect3DSurface9*> g_smallSurfaces; // large surface -> twin's
+IDirect3DSurface9* g_boundBig = nullptr; // the large target bound as target 0, while it is
+
+void DropSmallTwin(const SmallTwin& t)
+{
+	InternalCalls inside;
+	if (t.surface)
+		t.surface->Release();
+	if (t.tex)
+		t.tex->Release();
+}
+
 void ForgetBigTargets()
 {
+	for (auto& [big, twin] : g_smallTwins)
+		DropSmallTwin(twin);
+	g_smallTwins.clear();
+	g_smallSurfaces.clear();
 	g_bigSurfaces.clear();
 	g_bigTextures.clear();
 	g_targetIsBig = false;
+	g_boundBig = nullptr;
+}
+
+// The large target bound now turns out to be a blur buffer: a twin of the size asked replaces it.
+bool MakeSmallTwin(IDirect3DDevice9* dev, IDirect3DSurface9* bigSurface)
+{
+	IDirect3DTexture9* bigTex = nullptr;
+	for (const auto& [tex, surface] : g_bigTextures)
+		if (surface == bigSurface)
+			bigTex = tex;
+	const auto size = g_bigSurfaces.find(bigSurface);
+	D3DSURFACE_DESC d;
+	if (!bigTex || size == g_bigSurfaces.end() || FAILED(bigSurface->GetDesc(&d)))
+		return false;
+	SmallTwin twin;
+	{
+		InternalCalls inside;
+		if (FAILED(dev->CreateTexture(size->second.first, size->second.second, 1, D3DUSAGE_RENDERTARGET, d.Format,
+				D3DPOOL_DEFAULT, &twin.tex, nullptr)) || !twin.tex)
+			return false;
+		if (FAILED(twin.tex->GetSurfaceLevel(0, &twin.surface)) || !twin.surface)
+		{
+			DropSmallTwin(twin);
+			return false;
+		}
+	}
+	g_smallTwins[bigTex] = twin;
+	g_smallSurfaces[bigSurface] = twin.surface;
+	static int said = 0; // the game makes them again at each new scene
+	if (said < 8 && ++said)
+		Log("Direct3D: the %ux%u target is a blur buffer, not a shadow map: back to %ux%u (frame %ld)\n", d.Width,
+			d.Height, size->second.first, size->second.second, g_frames);
+	return true;
 }
 
 // ---- Redirected methods ------------------------------------------------------------------
@@ -922,8 +983,16 @@ ULONG STDMETHODCALLTYPE ReleaseTexture(IDirect3DTexture9* self)
 		auto it = g_bigTextures.find(self);
 		if (it != g_bigTextures.end())
 		{
+			if (g_boundBig == it->second)
+				g_boundBig = nullptr;
+			g_smallSurfaces.erase(it->second);
 			g_bigSurfaces.erase(it->second);
 			g_bigTextures.erase(it);
+		}
+		if (auto twinOf = g_smallTwins.find(self); twinOf != g_smallTwins.end())
+		{
+			DropSmallTwin(twinOf->second);
+			g_smallTwins.erase(twinOf);
 		}
 		if (auto twin = g_sceneTwins.find(self); twin != g_sceneTwins.end())
 			DropTwin(twin);
@@ -1020,8 +1089,12 @@ HRESULT STDMETHODCALLTYPE SetRenderTarget(IDirect3DDevice9* self, DWORD index, I
 {
 	if (!g_internal && index == 0 && g_cfg.shadowScale > 1)
 	{
+		// A blur buffer found out (MakeSmallTwin): its twin is drawn into instead.
+		if (auto twinOf = target ? g_smallSurfaces.find(target) : g_smallSurfaces.end(); twinOf != g_smallSurfaces.end())
+			target = twinOf->second;
 		auto it = target ? g_bigSurfaces.find(target) : g_bigSurfaces.end();
 		g_targetIsBig = it != g_bigSurfaces.end();
+		g_boundBig = g_targetIsBig ? target : nullptr;
 		if (g_targetIsBig)
 		{
 			g_targetW = it->second.first;
@@ -1183,6 +1256,20 @@ HRESULT STDMETHODCALLTYPE SetSamplerState(IDirect3DDevice9* self, DWORD sampler,
 
 HRESULT STDMETHODCALLTYPE SetTexture(IDirect3DDevice9* self, DWORD stage, IDirect3DBaseTexture9* tex)
 {
+	if (!g_internal && tex && g_cfg.shadowScale > 1 && tex->GetType() == D3DRTYPE_TEXTURE)
+	{
+		auto* t = static_cast<IDirect3DTexture9*>(tex);
+		if (auto twinOf = g_smallTwins.find(t); twinOf != g_smallTwins.end())
+			tex = twinOf->second.tex; // a blur buffer is read from its twin, where it was drawn
+		// Read from the image or from another blur buffer, never from a shadow map: a shadow map
+		// drawn into another (HP6 softens its shadows that way, 128 into 128) stays large.
+		const bool fromShadow = g_bigTextures.count(t) && !g_smallTwins.count(t);
+		D3DSURFACE_DESC d;
+		IDirect3DSurface9* bound = g_boundBig;
+		if (bound && !fromShadow && SUCCEEDED(t->GetLevelDesc(0, &d)) && (d.Usage & D3DUSAGE_RENDERTARGET)
+			&& MakeSmallTwin(self, bound))
+			self->SetRenderTarget(0, bound); // through the hook above: the twin, at the size asked
+	}
 	if (!g_internal && tex && !g_sceneTwins.empty())
 	{
 		// Read before the game has moved to another target: the scene drawn so far first.
