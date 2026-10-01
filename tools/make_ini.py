@@ -22,9 +22,13 @@ JEUX = {
                 # no crash): HP6's soft grade, sharp mipmaps that keep their density. Bloom made the Pensieve
                 # (level choice) "too bright": it only takes the brightest spots here, and less of them.
                 # Supersampling 1.5 on both of those games: Ludo wants "as little pixelation as possible, first".
+                # Grade "E2, readable" (2026-10-01): the forest is the game's own darkness, not our SSAO;
+                # a lower gamma and a pivot at 0.30 open the shadows without flattening. Chosen by Ludo on
+                # in-game pairs (HP4_3_en_jeu): "on voit vachement mieux Harry".
                 graphics=dict(FXAA=1, AnisotropicFiltering=16, SSAAFactor="1.5", SSAO=1, Bloom=1, BloomStrength="0.25",
-                              BloomThreshold="0.85", GodRays=1, ColorGrading=1, Vibrance="0.30",
-                              Contrast="0.20", SkinProtect="0.70", MipmapFilter=1, MipmapCoverage=1)),
+                              BloomThreshold="0.85", GodRays=1, ColorGrading=1, Vibrance="0.28", Gamma="0.90",
+                              Temperature="0.05", Contrast="0.28", ContrastPivot="0.30",
+                              SkinProtect="0.70", MipmapFilter=1, MipmapCoverage=1)),
     "HP5": dict(titre="Harry Potter and the Order of the Phoenix", resolution="640x480",
                 fps_limit=120, center=1, dpi=1, fov_note="0 = as shipped",
                 animations=False, cap=120, unlock=True, haze=False, fog=True, detail=True, xinput=True,
@@ -55,7 +59,12 @@ JEUX = {
                 # way by Ludo, menus clicked where pointed (2026-09-28); "as little pixelation as possible".
                 graphics=dict(FXAA=1, AnisotropicFiltering=16, SSAAFactor="1.5", SSAO=1, SSAOStrength="0.55",
                               SSAOMinDelta="0.02", SSAOMaxDelta="0.15", Bloom=1, ColorGrading=1,
-                              Vibrance="0.30", Contrast="0.20", SkinProtect="0.70")),
+                              # Grade "E, nature with the haze held back" (2026-10-01): the mint green of sky,
+                              # hills and lamp halos taken out (GreenRestraint), stone grey again. Chosen by
+                              # Ludo on in-game pairs (HP6_5_en_jeu a, b, c).
+                              Vibrance="0.35", Vignette="0.06", Gamma="0.95", Temperature="0.10", Tint="0.75",
+                              Contrast="0.25", ContrastPivot="0.40", SkinProtect="0.75",
+                              YellowRestraint="0.60", GreenRestraint="0.50")),
     # HP7 parts 1 and 2: no start-up resolution or frame-rate ceiling of their own to change; a 30 fps
     # wait of their own instead. FOV: what the earlier fix gave every player (part 1: its camera
     # set-up converted with 0.03 instead of pi/180; part 2: [FOV] fov=1, pi/180 made 0.025).
