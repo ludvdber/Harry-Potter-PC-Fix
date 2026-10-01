@@ -217,6 +217,59 @@ BOOL WINAPI SetCursorPosForGame(int x, int y)
 	return SetCursorPos(x, y);
 }
 
+// Ludo, HP8, same evening: in game the pointer was the game's cross over the other windows, and a
+// click on Discord brought the game back in front. Told it is still in front, the game keeps
+// setting its cursor and taking the front back. While another program is in front, neither happens.
+void SaidOnce(volatile LONG& said, const char* what)
+{
+	if (!InterlockedExchange(&said, 1))
+		Log("Window: the game %s while another window is in front: ignored\n", what);
+}
+
+HCURSOR WINAPI SetCursorForGame(HCURSOR cursor)
+{
+	static volatile LONG said = 0;
+	if (!ProcessInForegroundNow())
+	{
+		SaidOnce(said, "sets its cursor");
+		return GetCursor();
+	}
+	return SetCursor(cursor);
+}
+
+BOOL WINAPI SetForegroundWindowForGame(HWND hwnd)
+{
+	static volatile LONG said = 0;
+	if (!ProcessInForegroundNow())
+	{
+		SaidOnce(said, "takes the front back");
+		return TRUE;
+	}
+	return SetForegroundWindow(hwnd);
+}
+
+HWND WINAPI SetActiveWindowForGame(HWND hwnd)
+{
+	static volatile LONG said = 0;
+	if (!ProcessInForegroundNow())
+	{
+		SaidOnce(said, "activates its window");
+		return hwnd;
+	}
+	return SetActiveWindow(hwnd);
+}
+
+HWND WINAPI SetFocusForGame(HWND hwnd)
+{
+	static volatile LONG said = 0;
+	if (!ProcessInForegroundNow())
+	{
+		SaidOnce(said, "takes the keyboard focus");
+		return hwnd;
+	}
+	return SetFocus(hwnd);
+}
+
 struct Substitute
 {
 	const char* name;
@@ -227,6 +280,10 @@ const Substitute kSubstitutes[] = {
 	{ "GetActiveWindow", reinterpret_cast<void*>(ActiveWindowForGame) },
 	{ "GetFocus", reinterpret_cast<void*>(FocusForGame) },
 	{ "SetCursorPos", reinterpret_cast<void*>(SetCursorPosForGame) },
+	{ "SetCursor", reinterpret_cast<void*>(SetCursorForGame) },
+	{ "SetForegroundWindow", reinterpret_cast<void*>(SetForegroundWindowForGame) },
+	{ "SetActiveWindow", reinterpret_cast<void*>(SetActiveWindowForGame) },
+	{ "SetFocus", reinterpret_cast<void*>(SetFocusForGame) },
 };
 
 using GetProcAddressFn = FARPROC(WINAPI*)(HMODULE, LPCSTR);
