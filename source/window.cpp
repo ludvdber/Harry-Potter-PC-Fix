@@ -12,6 +12,28 @@ namespace
 {
 WNDPROC g_gameProc = nullptr;
 HWND g_subclassed = nullptr;
+RECT g_fitted = {}; // FitToScreen: the window placed in the screen's free area, empty when not needed
+RECT g_work = {};   // that free area
+
+// HP7 sizes its window itself after we placed it (2026-10-01: back to 2560x1440 under the taskbar).
+// A size that does not fit the free area is brought back to the fitted one; a maximised window
+// (the free area plus its frame) is left to Windows.
+void KeepFitted(HWND hwnd, WINDOWPOS* wp)
+{
+	if (!wp || (wp->flags & SWP_NOSIZE) || g_fitted.right <= g_fitted.left || IsZoomed(hwnd))
+		return;
+	const int w = g_fitted.right - g_fitted.left, h = g_fitted.bottom - g_fitted.top;
+	if (wp->cx <= g_work.right - g_work.left && wp->cy <= g_work.bottom - g_work.top)
+		return;
+	wp->cx = w;
+	wp->cy = h;
+	wp->x = g_fitted.left;
+	wp->y = g_fitted.top;
+	wp->flags &= ~SWP_NOMOVE;
+	static volatile LONG said = 0;
+	if (!InterlockedExchange(&said, 1))
+		Log("Window: the game made its window bigger than the screen's free area, kept at %dx%d\n", w, h);
+}
 
 // The monitor the window is on, or the primary one when asked.
 MONITORINFO MonitorOf(HWND hwnd)
@@ -82,6 +104,8 @@ LRESULT CALLBACK GameWindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 	}
 	if (g_cfg.keepRunning && ShowPointerWhileAway(msg, lp))
 		return TRUE;
+	if (msg == WM_WINDOWPOSCHANGING)
+		KeepFitted(hwnd, reinterpret_cast<WINDOWPOS*>(lp));
 	return CallWindowProcA(g_gameProc, hwnd, msg, wp, lp);
 }
 
@@ -227,6 +251,38 @@ void PrepareWindow(D3DPRESENT_PARAMETERS* pp, HWND focusWindow)
 		{
 			x = mon.left + (monW - w) / 2;
 			y = mon.top + (monH - h) / 2;
+		}
+		// A framed window around an image the size of the screen is taller than the screen, and its
+		// bottom went under the taskbar (HP7, 2026-10-01: the "TM" of the logos cut off). Too big for
+		// the free area of the monitor, it is scaled into it, proportions kept (Direct3D stretches the
+		// image to the client area), and kept inside it.
+		const RECT& work = mi.rcWork;
+		const int workW = work.right - work.left, workH = work.bottom - work.top;
+		g_fitted = RECT{}; // decided again for each new image size
+		g_work = work;
+		if (g_cfg.fitToScreen && (g_cfg.windowStyle == 2 || g_cfg.windowStyle == 3))
+		{
+			const int frameW = w - static_cast<int>(pp->BackBufferWidth), frameH = h - static_cast<int>(pp->BackBufferHeight);
+			if ((w > workW || h > workH) && pp->BackBufferWidth && pp->BackBufferHeight && workW > frameW && workH > frameH)
+			{
+				const double sx = static_cast<double>(workW - frameW) / pp->BackBufferWidth;
+				const double sy = static_cast<double>(workH - frameH) / pp->BackBufferHeight;
+				const double s = sx < sy ? sx : sy;
+				w = static_cast<int>(pp->BackBufferWidth * s) + frameW;
+				h = static_cast<int>(pp->BackBufferHeight * s) + frameH;
+				x = work.left + (workW - w) / 2;
+				y = work.top + (workH - h) / 2;
+				Log("Window: too big for the screen's free area (%dx%d), scaled to %.0f %%\n", workW, workH, s * 100);
+				g_fitted = RECT{ x, y, x + w, y + h };
+			}
+			if (x + w > work.right)
+				x = work.right - w;
+			if (y + h > work.bottom)
+				y = work.bottom - h;
+			if (x < work.left)
+				x = work.left;
+			if (y < work.top)
+				y = work.top;
 		}
 	}
 	SetWindowPos(hwnd, g_cfg.alwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, x, y, w, h,

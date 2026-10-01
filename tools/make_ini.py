@@ -45,8 +45,10 @@ JEUX = {
                               SkinProtect="0.70", YellowRestraint="1.00",
                               Bloom=1, GodRays=1, SSAO=1, SSAOStrength="0.55",
                               SSAOMinDelta="0.02", SSAOMaxDelta="0.15")),
+    # DPIAware=1 (2026-10-01): with 0, Windows enlarged a WINDOWED HP6 by the display scale (3200x1518
+    # on a 2560x1440 screen at 125 %, image cut off); with 1, window and menus right (seen 2026-09-30).
     "HP6": dict(titre="Harry Potter and the Half-Blood Prince", resolution="640x480",
-                fps_limit=120, center=0, dpi=0, fov_note="0 = as shipped",
+                fps_limit=120, center=0, dpi=1, fov_note="0 = as shipped",
                 animations=False, cap=120, unlock=True, haze=False, language=True, fog=True, detail=True, xinput=True,
                 # Measured in game (2026-09-26, same walk, F11): the game's own ceiling alone
                 # averages 120 in bursts, 1 % low 31 FPS; with FPSLimit=120, 1 % low 102.
@@ -61,24 +63,32 @@ JEUX = {
                               SSAOMinDelta="0.02", SSAOMaxDelta="0.15", Bloom=1, ColorGrading=1,
                               # Grade "E, nature with the haze held back" (2026-10-01): the mint green of sky,
                               # hills and lamp halos taken out (GreenRestraint), stone grey again. Chosen by
-                              # Ludo on in-game pairs (HP6_5_en_jeu a, b, c).
+                              # Ludo on in-game pairs (HP6_5_en_jeu a, b, c); the green held back in full
+                              # (1, not 0.5), judged on the hills and outdoors (2026-10-01).
                               Vibrance="0.35", Vignette="0.06", Gamma="0.95", Temperature="0.10", Tint="0.75",
                               Contrast="0.25", ContrastPivot="0.40", SkinProtect="0.75",
-                              YellowRestraint="0.60", GreenRestraint="0.50")),
+                              YellowRestraint="0.60", GreenRestraint="1.00",
+                              # Shadows x4 judged better than x1 and x2 by Ludo, outdoors (2026-10-01).
+                              ShadowMapScale=4)),
     # HP7 parts 1 and 2: no start-up resolution or frame-rate ceiling of their own to change; a 30 fps
     # wait of their own instead. FOV: what the earlier fix gave every player (part 1: its camera
     # set-up converted with 0.03 instead of pi/180; part 2: [FOV] fov=1, pi/180 made 0.025).
     "HP7a": dict(titre="Harry Potter and the Deathly Hallows Part 1", resolution=None,
                  fps_limit=60, center=1, dpi=0, fov="1.7189",
                  fov_note="1.7189 = as with the earlier fix",
-                 animations=False, cap=None, unlock="wait", haze=False, aspect=0, xinput=True),
+                 animations=False, cap=None, unlock="wait", haze=False, aspect=0, xinput=True,
+                 # The camera's mouse speed follows the frame rate (measured 2026-10-01): kept as at 30.
+                 mouse=30),
     "HP7b": dict(titre="Harry Potter and the Deathly Hallows Part 2", resolution=None,
                  fps_limit=60, center=1, dpi=0, fov="1.4324",
                  fov_note="1.4324 = as with the earlier fix",
                  animations=False, cap=None, unlock="wait", haze=False, aspect=None, xinput=True,
                  # Off until seen in game: the earlier fix's frame-rate unlock (fps.dll) crashed the
                  # cut-scene at the Thief's Downfall (Ludo, 2026-09-25); that scene not yet played at 60.
-                 unlock_off=True),
+                 unlock_off=True,
+                 # Same camera as part 1: at 20 fps a gesture turned it 1.67 times more than at 30
+                 # (measured 2026-10-01); kept as at 30 whenever the game drops below.
+                 mouse=30),
 }
 
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
@@ -131,6 +141,10 @@ def ini(jeu, graphismes=None):
     a("; 1 = always on the main monitor, 0 = the monitor the game opens on.")
     a("UsePrimaryMonitor=0")
     a("AlwaysOnTop=0")
+    a("; Styles 2 and 3: a window too big for the screen (an image the size of the")
+    a("; screen plus the frame) went under the taskbar. 1 = scaled down to fit,")
+    a("; proportions kept; 0 = the window is the image size plus the frame.")
+    a("FitToScreen=1")
     a("")
     a("; The game was made before Windows display scaling. 0 keeps its original")
     a("; behaviour; 1 makes it ignore scaling (sharper at 125 % and up, but the")
@@ -252,6 +266,14 @@ def ini(jeu, graphismes=None):
         a("; The game's frame-rate reference: 60 as shipped, which holds it back.")
         a("; 120 lets it follow FPSLimit, as the earlier fix did; 0 = as shipped.")
         a(f"FrameRateCap={j['cap']}")
+    if j.get("mouse"):
+        a("")
+        a("; The game turns its camera by the mouse movement of a frame times that")
+        a("; frame's length: the faster the game runs, the less the same gesture turns")
+        a("; it (measured: 1.7 times less at 60 than at 30), and the camera's speed")
+        a("; follows every change of frame rate. 30 = the mouse turns the camera as it")
+        a("; did at 30 frames per second, whatever the frame rate; 0 = as shipped.")
+        a(f"MouseFrameRate={j['mouse']}")
     if j["haze"]:
         a("")
         a("; The haze of the Forbidden Forest, the lake, the maze and the graveyard. As")

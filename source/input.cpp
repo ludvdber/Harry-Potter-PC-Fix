@@ -105,10 +105,13 @@ struct Device
 {
 	void* object;
 	bool keyboard;
+	bool mouse;
 	LONG seenReturns;
 	BYTE held[256]; // keys down when the game came back, hidden until really released
 	DWORD cooperation; // DISCL_* flags the game asked for
 	bool letGo;        // released by us while another window is in front
+	LARGE_INTEGER lastRead; // mouse: when the game last read it (MouseFrameRate)
+	float restX, restY;     // mouse: fractions of a count carried to the next read
 };
 
 constexpr int kMaxDevices = 16;
@@ -123,16 +126,16 @@ Device* FindDevice(void* object)
 	return nullptr;
 }
 
-void Remember(void* object, bool keyboard)
+void Remember(void* object, bool keyboard, bool mouse)
 {
 	EnterCriticalSection(&g_lock);
 	Device* d = FindDevice(object);
 	if (!d)
 		d = FindDevice(nullptr);
 	if (d)
-		*d = Device{ object, keyboard, g_returns, {}, 0, false };
+		*d = Device{ object, keyboard, mouse, g_returns, {}, 0, false, {}, 0.0f, 0.0f };
 	LeaveCriticalSection(&g_lock);
-	Log("Input: %s %p %s\n", keyboard ? "keyboard" : "device", object, d ? "followed" : "NOT followed (table full)");
+	Log("Input: %s %p %s\n", keyboard ? "keyboard" : mouse ? "mouse" : "device", object, d ? "followed" : "NOT followed (table full)");
 }
 
 void Forget(void* object)
@@ -246,6 +249,38 @@ void HideStaleKeys(Device& d, BYTE* keys, bool returned)
 
 bool Lost(HRESULT hr) { return hr == DIERR_INPUTLOST || hr == DIERR_NOTACQUIRED; }
 
+// HP7a turns its camera by the mouse movement of a frame TIMES that frame's duration, so the same
+// gesture turned it 1.7 times less at 60 frames per second than at 30 (2026-10-01, measured in the
+// game: 60 counts gave 59 px at 30 and 35 px at 60), and the camera's speed followed every change of
+// frame rate: the "mouse deceleration" players report. With MouseFrameRate=N, each movement is
+// scaled by (1/N) / (time since the game's previous read of the mouse), so a gesture turns the
+// camera as it did at N frames per second, whatever the frame rate. Fractions of a count are carried
+// over, so slow movements are not lost.
+void ScaleMouse(Device& d, LONG& x, LONG& y)
+{
+	LARGE_INTEGER now, freq;
+	QueryPerformanceCounter(&now);
+	QueryPerformanceFrequency(&freq);
+	const bool first = d.lastRead.QuadPart == 0;
+	const double dt = first ? 0.0 : static_cast<double>(now.QuadPart - d.lastRead.QuadPart) / static_cast<double>(freq.QuadPart);
+	d.lastRead = now;
+	if (first || dt <= 0.0)
+		return;
+	double f = 1.0 / (g_cfg.mouseFrameRate * dt);
+	f = f < 0.25 ? 0.25 : f > 8.0 ? 8.0 : f; // a pause or a hitch is no reason to multiply by 100
+	const double sx = x * f + d.restX, sy = y * f + d.restY;
+	x = static_cast<LONG>(sx); // toward zero; the rest goes with the next read
+	y = static_cast<LONG>(sy);
+	d.restX = static_cast<float>(sx - x);
+	d.restY = static_cast<float>(sy - y);
+	static bool said = false;
+	if (!said)
+	{
+		said = true;
+		Log("Input: mouse scaled to %d frames per second (first read: x%.2f)\n", g_cfg.mouseFrameRate, f);
+	}
+}
+
 // ---- Redirected methods -----------------------------------------------------------------------
 // The A and W interfaces have the same layout for everything used here, so one function serves
 // both; MethodRedirect keeps each table's original.
@@ -308,6 +343,12 @@ HRESULT STDMETHODCALLTYPE GetDeviceState(IDirectInputDevice8A* self, DWORD size,
 	HRESULT hr = original(self, size, data);
 	if (Lost(hr) && SUCCEEDED(self->Acquire()))
 		hr = original(self, size, data);
+	if (SUCCEEDED(hr) && d && d->mouse && g_cfg.mouseFrameRate > 0 && data
+		&& (size == sizeof(DIMOUSESTATE) || size == sizeof(DIMOUSESTATE2)))
+	{
+		auto* m = static_cast<DIMOUSESTATE*>(data);
+		ScaleMouse(*d, m->lX, m->lY);
+	}
 	if (SUCCEEDED(hr) && d && d->keyboard && size == 256 && data)
 	{
 		if (g_cfg.releaseStaleKeys)
@@ -383,7 +424,7 @@ HRESULT STDMETHODCALLTYPE CreateDevice(IDirectInput8A* self, REFGUID guid, LPDIR
 		g_getData.Install(dev);
 		g_poll.Install(dev);
 		g_release.Install(dev);
-		Remember(dev, guid == GUID_SysKeyboard);
+		Remember(dev, guid == GUID_SysKeyboard, guid == GUID_SysMouse);
 	}
 	return hr;
 }

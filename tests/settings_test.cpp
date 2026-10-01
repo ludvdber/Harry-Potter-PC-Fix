@@ -40,7 +40,7 @@ int main(int argc, char** argv)
 	{
 		Load(data + "\\" + game + "\\d3d9.ini");
 		EXPECT(c.windowed && c.windowStyle == 1 && c.keepRunning);
-		EXPECT(c.retakeInput && c.releaseStaleKeys);
+		EXPECT(c.retakeInput && c.releaseStaleKeys && c.fitToScreen);
 		EXPECT(c.screenshotKey == VK_F12 && !c.showFps && c.compareKey == 0);
 		EXPECT(c.width == 1920 && c.height == 1080);
 		EXPECT(Near(c.fovScale, 0.0f));
@@ -61,7 +61,9 @@ int main(int argc, char** argv)
 		// Played to the Forbidden Forest with all of it (2026-09-28); bloom kept to the brightest spots.
 		EXPECT(c.fxaa && c.msaa == 0 && !c.transparencyAa && c.anisotropy == 16 && Near(c.ssaa, 1.5f) && c.ssao && c.godRays);
 		EXPECT(c.bloom && Near(c.bloomStrength, 0.25f) && Near(c.bloomThreshold, 0.85f));
-		EXPECT(c.grading && Near(c.vibrance, 0.30f) && Near(c.contrast, 0.20f) && Near(c.skinProtect, 0.70f));
+		// Grade "E2, readable", chosen by Ludo on in-game pairs (2026-10-01).
+		EXPECT(c.grading && Near(c.vibrance, 0.28f) && Near(c.contrast, 0.28f) && Near(c.skinProtect, 0.70f));
+		EXPECT(Near(c.gamma, 0.90f) && Near(c.temperature, 0.05f) && Near(c.contrastPivot, 0.30f));
 		EXPECT(c.mipmapFilter == 1 && c.mipmapCoverage);
 	}
 	{
@@ -87,7 +89,7 @@ int main(int argc, char** argv)
 	{
 		const char* game = "HP6";
 		Load(data + "\\HP6\\d3d9.ini");
-		EXPECT(c.fpsLimit == 120 && !c.centerWindow && !c.dpiAware);
+		EXPECT(c.fpsLimit == 120 && !c.centerWindow && c.dpiAware); // 0 enlarged a windowed HP6 at 125 % (2026-10-01)
 		EXPECT(c.unlockFrameRate == 1 && c.frameRateCap == 120);
 		EXPECT(strcmp(c.language, "auto") == 0 && c.distanceFog == 1 && c.textureDetail == 2);
 		// Judged on same-frame before/after pictures (2026-09-27): every effect on, a soft grading
@@ -96,8 +98,11 @@ int main(int argc, char** argv)
 		EXPECT(Near(c.ssaa, 1.5f)); // played that way, menus click where they point (2026-09-28)
 		EXPECT(c.ssaaMaxHeight == 2880);
 		EXPECT(c.ssao && Near(c.ssaoStrength, 0.55f) && Near(c.ssaoMinDelta, 0.02f) && Near(c.ssaoMaxDelta, 0.15f));
-		EXPECT(c.bloom && c.grading && Near(c.vibrance, 0.30f) && Near(c.contrast, 0.20f) && Near(c.skinProtect, 0.70f));
-		EXPECT(Near(c.gain, 1.0f) && Near(c.splitTone, 0.0f) && Near(c.temperature, 0.0f));
+		// Grade "E, nature with the haze held back", chosen by Ludo on in-game pairs (2026-10-01).
+		EXPECT(c.bloom && c.grading && Near(c.vibrance, 0.35f) && Near(c.contrast, 0.25f) && Near(c.skinProtect, 0.75f));
+		EXPECT(Near(c.vignette, 0.06f) && Near(c.gamma, 0.95f) && Near(c.temperature, 0.10f) && Near(c.tint, 0.75f));
+		EXPECT(Near(c.contrastPivot, 0.40f) && Near(c.yellowRestraint, 0.60f) && Near(c.greenRestraint, 1.0f));
+		EXPECT(c.shadowScale == 4); // x4 judged better outdoors (2026-10-01)
 	}
 	// HP7 parts 1 and 2: the window and focus of the others, 60 fps without the game's own
 	// 30 fps wait, and the field of view the earlier fix gave every player.
@@ -105,7 +110,7 @@ int main(int argc, char** argv)
 	{
 		Load(data + "\\" + game + "\\d3d9.ini");
 		EXPECT(c.windowed && c.windowStyle == 1 && c.keepRunning);
-		EXPECT(c.retakeInput && c.releaseStaleKeys);
+		EXPECT(c.retakeInput && c.releaseStaleKeys && c.fitToScreen);
 		EXPECT(c.screenshotKey == VK_F12 && !c.showFps && c.compareKey == 0);
 		EXPECT(c.fpsLimit == 60 && c.centerWindow && !c.dpiAware);
 		EXPECT(c.renderWidth == 0 && c.renderHeight == 0);
@@ -117,6 +122,7 @@ int main(int argc, char** argv)
 		Load(data + "\\HP7a\\d3d9.ini");
 		EXPECT(Near(c.fovScale, 1.7189f) && Near(c.aspectRatio, 0.0f));
 		EXPECT(c.unlockFrameRate == 1);
+		EXPECT(c.mouseFrameRate == 30); // the camera's mouse speed kept as at 30 fps (measured 2026-10-01)
 	}
 	{
 		const char* game = "HP7b";
@@ -124,6 +130,7 @@ int main(int argc, char** argv)
 		EXPECT(Near(c.fovScale, 1.4324f));
 		// Kept at 30 until the Thief's Downfall cut-scene has been played at 60 (see make_ini.py).
 		EXPECT(c.unlockFrameRate == 0);
+		EXPECT(c.mouseFrameRate == 30); // the same camera as part 1: kept as at 30 when the game drops below
 	}
 	{
 		// A file in the earlier format, comments on the lines as players had them.

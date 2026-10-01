@@ -29,6 +29,7 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 | | Réglage | |
 |---|---|---|
 | Fenêtre sans bordure | `Windowed`, `WindowStyle` | À la place du plein écran exclusif, où Alt+Tab fige le jeu. Le style 1 couvre l'écran ; 2 à 4 sont des fenêtres. |
+| Fenêtre qui tient dans l'écran | `FitToScreen` | En fenêtre avec bordure (styles 2 et 3), une image de la taille de l'écran donnait une fenêtre plus grande que lui : le bas passait sous la barre des tâches. `1`, le défaut, la réduit dans la place libre de l'écran (proportions gardées) et l'y maintient, même quand le jeu la redimensionne lui-même ; agrandie au maximum, elle reste à Windows. `0` : la taille de l'image plus la bordure. |
 | Le jeu continue en arrière-plan | `KeepRunningInBackground` | Le moteur arrête son horloge au moindre signe qu'un autre programme passe devant. Ces signes lui sont cachés : il continue pendant que vous êtes ailleurs. Comme il ne sait plus qu'il doit rendre le pointeur de la souris, celui-ci est affiché à sa place au-dessus du jeu. |
 | Clavier et souris dès le retour | `RetakeInputOnReturn` | Les jeux lisent leurs périphériques en DirectInput exclusif et ne sont jamais prévenus de leur retour au premier plan : le clavier restait mort jusqu'à 30 secondes. Le retour est détecté et chaque périphérique repris à sa lecture suivante. Dans l'autre sens, une souris exclusive garde le curseur dans la fenêtre du jeu : dès qu'une autre fenêtre passe devant, elle est relâchée, sinon la souris ne pouvait plus sortir du jeu. |
 | Plus de touche bloquée après Alt+Tab | `ReleaseKeysOnReturn` | Une touche relâchée dans une autre fenêtre n'arrivait jamais au jeu, qui la croyait encore enfoncée (Harry qui marche tout seul). Elle est relâchée pour le jeu aussi. |
@@ -104,7 +105,7 @@ Chaque ligne s'active séparément, tout est coupé par défaut : images/s (`Sho
 
 Pour juger les effets d'image, `CompareKey` (coupée par défaut, 119 = F8) les éteint puis les rallume en direct : étalonnage, netteté, occlusion ambiante, bloom, rayons, filtrage anisotrope et biais de détail des textures. La même scène avec et sans, à un dixième de seconde d'écart. L'anticrénelage MSAA reste tel quel (il se choisit à la création de l'image, pas après).
 
-Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG dans `screenshots`, ou dans `ScreenshotFolder` : Accio Launcher y met `Images\Accio Launcher\<jeu>`, qu'une désinstallation n'efface pas), une limite d'images/s (`FPSLimit`), une seule image d'avance chez le pilote au lieu de trois (`MaxFrameLatency`), et `DPIAware` pour les écrans à haute densité.
+Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG dans `screenshots`, ou dans `ScreenshotFolder` : Accio Launcher y met `Images\Accio Launcher\<jeu>`, qu'une désinstallation n'efface pas), une limite d'images/s (`FPSLimit`), une seule image d'avance chez le pilote au lieu de trois (`MaxFrameLatency`), et `DPIAware` pour les écrans à haute densité (activé dans *l'Ordre du Phénix* et *le Prince de sang-mêlé* : sans lui, en fenêtre, Windows agrandissait la fenêtre de l'échelle d'affichage, 3200×1518 sur un écran 2560×1440 à 125 %, image coupée).
 
 ### Manettes (`xinput1_3.dll`, `[Accio.Controller]`)
 

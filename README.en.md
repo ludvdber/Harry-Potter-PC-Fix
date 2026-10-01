@@ -29,6 +29,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 | | Setting | |
 |---|---|---|
 | Borderless window | `Windowed`, `WindowStyle` | Instead of exclusive full screen, where Alt+Tab freezes the game. Style 1 covers the monitor; 2 to 4 are windows. |
+| A window that fits the screen | `FitToScreen` | In a framed window (styles 2 and 3), an image the size of the screen made a window bigger than the screen: its bottom went under the taskbar. `1`, the default, scales it into the screen's free area (proportions kept) and keeps it there, even when the game resizes it itself; maximised, it is left to Windows. `0`: the image size plus the frame. |
 | Keeps running in the background | `KeepRunningInBackground` | The engine stops its clock at any sign that another program is in front. Those signs are kept from it, so it goes on running while you are elsewhere. Since it no longer knows to give the mouse pointer back, the pointer is shown over the game on its behalf. |
 | Keyboard and mouse back at once | `RetakeInputOnReturn` | The games read their devices in DirectInput exclusive mode and are never told they are back in front: the keyboard used to stay dead for up to 30 seconds. The return is detected and every device taken back at its next read. The other way round, an exclusive mouse keeps the cursor inside the game window: as soon as another window comes in front it is let go, otherwise the mouse could not leave the game. |
 | No key stuck after Alt+Tab | `ReleaseKeysOnReturn` | A key released in another window never reached the game, which believed it still held (Harry walking on his own). It is released for the game too. |
@@ -104,7 +105,7 @@ Each line has its own switch, all off by default: frames per second (`ShowFPS`),
 
 To judge the image effects, `CompareKey` (off by default, 119 = F8) switches them off and back on live: grading, sharpening, ambient occlusion, bloom, light rays, anisotropic filtering and texture detail bias. The same scene with and without, a tenth of a second apart. MSAA anti-aliasing stays as it is (it is chosen when the image is created, not afterwards).
 
-Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screenshots`, or in `ScreenshotFolder`: Accio Launcher sets it to `Pictures\Accio Launcher\<game>`, which uninstalling leaves alone), a frame-rate limit (`FPSLimit`), one frame of driver queue instead of three (`MaxFrameLatency`), and `DPIAware` for high-DPI screens.
+Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screenshots`, or in `ScreenshotFolder`: Accio Launcher sets it to `Pictures\Accio Launcher\<game>`, which uninstalling leaves alone), a frame-rate limit (`FPSLimit`), one frame of driver queue instead of three (`MaxFrameLatency`), and `DPIAware` for high-DPI screens (on in *the Order of the Phoenix* and *the Half-Blood Prince*: without it, in a window, Windows enlarged the window by the display scale, 3200×1518 on a 2560×1440 screen at 125 %, the image cut off).
 
 ### Controllers (`xinput1_3.dll`, `[Accio.Controller]`)
 

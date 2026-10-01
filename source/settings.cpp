@@ -100,6 +100,7 @@ void LoadSettings(const char* iniPath)
 	c.centerWindow = Bool(windowOld, "CenterWindow", false);
 	c.primaryMonitor = Bool(windowOld, "UsePrimaryMonitor", false);
 	c.alwaysOnTop = Bool(windowOld, "AlwaysOnTop", false);
+	c.fitToScreen = Bool(window, "FitToScreen", true);
 	c.dpiAware = Bool(windowOld, "DPIAware", false);
 	c.fpsLimit = Clamp(Int(windowOld, "FPSLimit", 0), 0, 1000);
 	// Overlay. ShowFPS lived in [Accio.Window] before the overlay had its own section.
@@ -147,6 +148,7 @@ void LoadSettings(const char* iniPath)
 	c.textureDetail = Clamp(Int(game, "TextureDetail", 2), 0, 2);
 	c.playStationPads = Int(game, "PlayStationController", 1) ? 1 : 0;
 	c.audioStreamGuard = Int(game, "AudioStreamGuard", 1) ? 1 : 0;
+	c.mouseFrameRate = Clamp(Int(game, "MouseFrameRate", 0), 0, 240);
 	if (!Text(game, "Language", c.language, sizeof(c.language)))
 		strcpy_s(c.language, "auto");
 	for (char* p = c.language + strlen(c.language); p > c.language && (p[-1] == ' ' || p[-1] == '\t'); )
@@ -209,8 +211,8 @@ void LoadSettings(const char* iniPath)
 	c.maxFrameLatency = Clamp(Int(renderSize, "MaxFrameLatency", 1), 0, 16);
 
 	Log("Settings from %s\n", iniPath);
-	Log("  window: windowed=%d style=%d keepRunning=%d center=%d primary=%d onTop=%d dpiAware=%d fpsLimit=%d\n",
-		c.windowed, c.windowStyle, c.keepRunning, c.centerWindow, c.primaryMonitor, c.alwaysOnTop, c.dpiAware, c.fpsLimit);
+	Log("  window: windowed=%d style=%d keepRunning=%d center=%d primary=%d onTop=%d fit=%d dpiAware=%d fpsLimit=%d\n",
+		c.windowed, c.windowStyle, c.keepRunning, c.centerWindow, c.primaryMonitor, c.alwaysOnTop, c.fitToScreen, c.dpiAware, c.fpsLimit);
 	Log("  game: %dx%d aspect=%.4f (old index %d) fov=%.3f (old %d) animations=%d frameRateCap=%d unlock=%d haze=%d language=%s fog=%d detail=%d playstation=%d\n",
 		c.width, c.height, c.aspectRatio, c.legacyAspectIndex, c.fovScale, c.legacyFov, c.animationRate,
 		c.frameRateCap, c.unlockFrameRate, c.hazeOverlay, c.language, c.distanceFog, c.textureDetail, c.playStationPads);
