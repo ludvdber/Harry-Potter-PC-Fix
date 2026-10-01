@@ -9,6 +9,7 @@
 // saves the whole device state and puts it back, so the game never sees a difference.
 
 #include "hooks.h"
+#include <cmath>
 #include "render_state.h"
 // Shader bytecode, compiled with the DLL from source/shaders/*.hlsl (FxCompile, ps_3_0): no
 // shader compiler is needed on the player's PC, and none runs while the game loads.
@@ -483,6 +484,10 @@ static void ApplyFXAA(IDirect3DDevice9* dev, IDirect3DSurface9* pBB)
     float gradeC[4] = { g_cfg.grading ? g_cfg.contrast : 0.0f, g_cfg.grading ? g_cfg.splitTone : 0.0f,
                         g_cfg.grading ? g_cfg.skinProtect : 0.0f, g_cfg.grading ? g_cfg.yellowRestraint : 0.0f };
     dev->SetPixelShaderConstantF(6, gradeC, 1);
+    // c7 = (greenRestraint, contrast exponent): the exponent puts ContrastPivot at 0.5 (log 0.5 / log pivot).
+    float gradeD[4] = { g_cfg.grading ? g_cfg.greenRestraint : 0.0f,
+                        g_cfg.grading ? logf(0.5f) / logf(g_cfg.contrastPivot) : 1.0f, 0.0f, 0.0f };
+    dev->SetPixelShaderConstantF(7, gradeD, 1);
 
     // SSAO: use the cached scene-depth INTZ texture (populated at CreateDepthStencilSurface time).
     // We do NOT use GetDepthStencilSurface here because the game often unbinds depth before Present

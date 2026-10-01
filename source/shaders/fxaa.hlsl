@@ -14,6 +14,8 @@
 //            c5 = (bloomStrength, godRayStrength, _, _) — 0 disables that effect's composite
 //            c6 = (contrast, splitToneStrength, skinProtect, yellowRestraint) — S-curve contrast; teal/orange split
 //                 toning; how much of both contrast and vibrance skin tones are spared; yellows held back
+//            c7 = (greenRestraint, contrastExponent, _, _) — green haze held back (HP5/HP6 skies and distance);
+//                 exponent that moves the contrast pivot to ContrastPivot (1 = pivot 0.5, the original curve)
 // Samplers: s0 = scene color, s1 = depth (INTZ when available), s2 = bloom, s3 = god rays
 sampler2D scene    : register(s0);
 sampler2D depthTex : register(s1);
@@ -26,6 +28,7 @@ float4 ssaoP       : register(c3);
 float4 dScale      : register(c4);
 float4 lightP      : register(c5);
 float4 gradeC      : register(c6);
+float4 gradeD      : register(c7);
 float luma(float3 c){return dot(c,float3(0.299,0.587,0.114));}
 float ssaoFactor(float2 uv, float lumaRange){
     if (ssaoP.x < 0.001) return 1.0;
@@ -94,7 +97,12 @@ float3 grade(float3 col,float2 uv){
     float spare = 1.0 - gradeC.z * skin;
     // Contrast S-curve (gradeC.x): blend toward smoothstep, which deepens shadows AND lifts
     // highlights around the 0.5 pivot — adds depth/pop to HP5's flat midtones without crushing.
-    col = lerp(col, col*col*(3.0 - 2.0*col), gradeC.x * spare);
+    // ContrastPivot: the S-curve pivots at 0.5, so on a dark game (HP5 averages about 0.3) it mostly
+    // darkens. Raising to gradeD.y first puts the chosen pivot at 0.5, and the curve adds depth without
+    // dimming the image; gradeD.y = 1 is exactly the original curve.
+    float3 cp = pow(max(col, 1e-5), gradeD.y);
+    cp = lerp(cp, cp*cp*(3.0 - 2.0*cp), gradeC.x * spare);
+    col = pow(max(cp, 1e-5), 1.0 / gradeD.y);
     float lum = luma(col);
     float mx = max(col.r, max(col.g, col.b));
     float mn = min(col.r, min(col.g, col.b));
@@ -106,6 +114,20 @@ float3 grade(float3 col,float2 uv){
               * saturate(sat * 8.0);
     float vib = grade1.w * spare * (1.0 - sat);
     col = lerp(lum.xxx, col, 1.0 + vib - gradeC.w * yel * (vib + 0.2));
+    // Green restraint (gradeD.x): HP5 and HP6 veil their skies, hills and distance in a mint green
+    // that no white balance removes without turning faces magenta. Weight 1 where green clearly leads
+    // (green, mint, green-cyan), 0 on yellows and skin: those hues lose up to 60 % of their saturation
+    // and their green leans toward blue-grey.
+    float mx2 = max(col.r, max(col.g, col.b));
+    float s2 = mx2 - min(col.r, min(col.g, col.b));
+    float gLead = col.g - max(col.r, col.b);
+    float gOverB = col.g - col.b;
+    float green = saturate(gLead / max(s2, 1e-4) * 2.0) * saturate(s2 * 10.0)
+                * saturate((col.g - col.r) / max(s2, 1e-4) * 1.5);
+    float gw = gradeD.x * green;
+    float l2 = luma(col);
+    col = lerp(col, l2.xxx + (col - l2.xxx) * 0.4, gw);
+    col += float3(0.0, -0.35 * gLead, 0.35 * gOverB) * (gw * 0.5);   // clamped by the split toning below
     // Split toning (gradeC.y = strength): push shadows toward cool teal and highlights toward warm
     // orange — the classic cinematic "teal & orange". Tints are roughly luma-neutral (a positive
     // channel paired with a negative one) so they re-colour rather than brighten. Midtones (0.45..

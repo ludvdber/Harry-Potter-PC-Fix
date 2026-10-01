@@ -60,6 +60,7 @@ struct Settings
 	char  language[12] = "auto";    // HP6: the language the start menu opens on, see game.cpp
 	int   distanceFog = 1;          // HP6: 1 = as shipped, 0 = removed (sharp far hills)
 	int   textureDetail = 2;        // HP5/HP6: detail when the game has none saved (0 Speed, 1 Balanced as shipped, 2 Quality)
+	int   audioStreamGuard = 1;     // HP4: 1 = a sound stream read before its buffer exists counts as empty, 0 = as shipped
 	int   playStationPads = 1;      // HP4: 1 = PlayStation pads added to the game's controller list, 0 = ignored as shipped
 
 	// The same choices in the file format used before 2026-09-26, kept so that a player's old
@@ -83,6 +84,8 @@ struct Settings
 	float temperature = 0.0f, tint = 0.0f, contrast = 0.0f, splitTone = 0.0f;
 	float skinProtect = 0.0f;       // 0..1: share of contrast and vibrance that skin tones are spared
 	float yellowRestraint = 0.0f;   // 0..1: share of vibrance yellows lose (plus a fifth of their saturation)
+	float greenRestraint = 0.0f;    // 0..1: green haze (HP5/HP6 skies, distance) desaturated toward blue-grey
+	float contrastPivot = 0.5f;     // the grey the contrast curve leaves in place (0.5 = the original curve)
 	bool  ssao = false;
 	float ssaoStrength = 0.5f, ssaoRadius = 6.0f, ssaoMinDelta = 0.0005f, ssaoMaxDelta = 0.05f;
 	bool  bloom = false;

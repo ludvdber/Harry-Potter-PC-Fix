@@ -57,6 +57,7 @@ int main(int argc, char** argv)
 		EXPECT(c.fpsLimit == 120 && c.centerWindow && !c.dpiAware);
 		EXPECT(Near(c.aspectRatio, 16.0f / 9));
 		EXPECT(c.animationRate == 0 && c.frameRateCap == 120 && c.hazeOverlay == 1 && c.playStationPads == 1);
+		EXPECT(c.audioStreamGuard == 1);
 		// Played to the Forbidden Forest with all of it (2026-09-28); bloom kept to the brightest spots.
 		EXPECT(c.fxaa && c.msaa == 0 && !c.transparencyAa && c.anisotropy == 16 && Near(c.ssaa, 1.5f) && c.ssao && c.godRays);
 		EXPECT(c.bloom && Near(c.bloomStrength, 0.25f) && Near(c.bloomThreshold, 0.85f));
@@ -77,6 +78,7 @@ int main(int argc, char** argv)
 		EXPECT(Near(c.gamma, 1.0f) && Near(c.gain, 1.05f) && Near(c.temperature, 0.0f) && Near(c.tint, 0.0f));
 		EXPECT(Near(c.contrast, 0.30f) && Near(c.splitTone, 0.10f));
 		EXPECT(Near(c.skinProtect, 0.70f) && Near(c.yellowRestraint, 1.0f));
+		EXPECT(Near(c.greenRestraint, 0.0f) && Near(c.contrastPivot, 0.5f)); // new keys neutral: HP5 as Ludo set it
 		EXPECT(c.bloom && Near(c.bloomStrength, 0.35f) && Near(c.bloomThreshold, 0.75f));
 		EXPECT(c.godRays && Near(c.godRaysStrength, 0.45f) && Near(c.godRaysDecay, 0.96f));
 		EXPECT(c.ssao && Near(c.ssaoStrength, 0.55f) && Near(c.ssaoRadius, 6.0f));

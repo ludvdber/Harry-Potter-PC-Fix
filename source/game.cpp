@@ -752,6 +752,47 @@ void DescribePlayStationPads(const char* exeName)
 }
 }
 
+// HP4 crashes now and then about two seconds after "Yes" at the autosave prompt, when the menu
+// music starts (seen 2026-09-30 with Frida: gof_f.exe 0x62626B reads [0 + 4]). The routine at
+// 0x626239 takes a sound stream (checked by its "STRM" tag), returns 0 when the stream holds
+// nothing ([ebx+8] == 0), then reads its buffer [ebx+0xC], which another thread has not filled
+// yet. The guard answers 0 in that case too; the caller already handles 0 (`test esi, esi ; je`).
+// Replaces `cmp dword [ebx+8], 0 ; jne +4 ; xor eax, eax ; jmp exit` by `call StreamGuard ;
+// jne past ; jmp exit ; nop`: ZF set (and eax 0) means "nothing to read".
+LONG g_streamGuarded = 0;
+
+__declspec(naked) void StreamGuard()
+{
+	__asm {
+		cmp dword ptr [ebx + 8], 0
+		je empty
+		cmp dword ptr [ebx + 0Ch], 0
+		je unready
+		ret
+	unready:
+		lock inc dword ptr [g_streamGuarded]
+	empty:
+		xor eax, eax
+		ret
+	}
+}
+
+void GuardAudioStream(const char* exeName)
+{
+	if (_stricmp(exeName, "gof_f.exe") != 0 || !g_cfg.audioStreamGuard)
+		return;
+	// cmp dword [ebx+8], 0 ; jne +4 ; xor eax, eax ; jmp +0x6E ; mov eax, [ebx+0xC] ; mov ecx, [ebp-4] ; push esi ; mov esi, [eax+4]
+	BYTE* at = Locate(BYTES(0x83, 0x7B, 0x08, 0x00, 0x75, 0x04, 0x33, 0xC0, 0xEB, 0x6E, 0x8B, 0x43, 0x0C, 0x8B, 0x4D,
+		0xFC, 0x56, 0x8B, 0x70, 0x04), "sound stream read");
+	if (!at)
+		return;
+	BYTE code[10] = { 0xE8, 0, 0, 0, 0, 0x75, 0x03, 0xEB, 0x6F, 0x90 };
+	const LONG rel = static_cast<LONG>(reinterpret_cast<LONG_PTR>(&StreamGuard) - reinterpret_cast<LONG_PTR>(at + 5));
+	memcpy(code + 1, &rel, sizeof(rel));
+	const bool ok = WriteMemory(at, code, sizeof(code));
+	Log("Game: sound stream guard %s\n", ok ? "set" : "NOT set");
+}
+
 void ApplyGamePatches()
 {
 	g_exe = GetModuleHandleA(nullptr);
@@ -777,6 +818,7 @@ void ApplyGamePatches()
 	RemoveDistanceFog(p->exe);
 	DefaultTextureDetail(p->exe);
 	DescribePlayStationPads(p->exe);
+	GuardAudioStream(p->exe);
 }
 
 // Once a frame: the first haze drawn, and the first one the cap had to shorten.
@@ -787,6 +829,12 @@ void ReportHaze()
 	{
 		said = 1;
 		Log("Game: haze drawn (frame %ld), %ld columns\n", g_frames, g_hazeWidest);
+	}
+	static LONG guardSaid = 0;
+	if (!guardSaid && g_streamGuarded)
+	{
+		guardSaid = 1;
+		Log("Game: a sound stream was read before its buffer existed, answered empty (frame %ld)\n", g_frames);
 	}
 	if (!cappedSaid && g_hazeWidest > 127)
 	{

@@ -146,6 +146,7 @@ void LoadSettings(const char* iniPath)
 	c.distanceFog = Int(game, "DistanceFog", 1) ? 1 : 0;
 	c.textureDetail = Clamp(Int(game, "TextureDetail", 2), 0, 2);
 	c.playStationPads = Int(game, "PlayStationController", 1) ? 1 : 0;
+	c.audioStreamGuard = Int(game, "AudioStreamGuard", 1) ? 1 : 0;
 	if (!Text(game, "Language", c.language, sizeof(c.language)))
 		strcpy_s(c.language, "auto");
 	for (char* p = c.language + strlen(c.language); p > c.language && (p[-1] == ' ' || p[-1] == '\t'); )
@@ -184,6 +185,8 @@ void LoadSettings(const char* iniPath)
 	c.splitTone = Clamp(Float(graphics, "SplitTone", 0.0f), 0.0f, 1.0f);
 	c.skinProtect = Clamp(Float(graphics, "SkinProtect", 0.0f), 0.0f, 1.0f);
 	c.yellowRestraint = Clamp(Float(graphics, "YellowRestraint", 0.0f), 0.0f, 1.0f);
+	c.greenRestraint = Clamp(Float(graphics, "GreenRestraint", 0.0f), 0.0f, 1.0f);
+	c.contrastPivot = Clamp(Float(graphics, "ContrastPivot", 0.5f), 0.1f, 0.9f);
 	c.ssao = Bool(graphics, "SSAO", false);
 	c.ssaoStrength = Float(graphics, "SSAOStrength", 0.50f);
 	c.ssaoRadius = Float(graphics, "SSAORadius", 6.0f);
@@ -214,6 +217,8 @@ void LoadSettings(const char* iniPath)
 	Log("  image: FXAA=%d sharp=%.2f MSAA=%d transparency=%d AF=%d LOD=%.2f SSAA=%.2f (max height %d) shadows=%d vsync=%d grading=%d SSAO=%d bloom=%d rays=%d render=%dx%d\n",
 		c.fxaa, c.sharpness, c.msaa, c.transparencyAa, c.anisotropy, c.lodBias, c.ssaa, c.ssaaMaxHeight, c.shadowScale, c.vsync, c.grading,
 		c.ssao, c.bloom, c.godRays, c.renderWidth, c.renderHeight);
+	Log("  colour: contrast=%.2f pivot=%.2f vibrance=%.2f skin=%.2f yellow=%.2f green=%.2f\n", c.contrast, c.contrastPivot,
+		c.vibrance, c.skinProtect, c.yellowRestraint, c.greenRestraint);
 	Log("  mipmaps=%d (filter %d, coverage %d) trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,
 		c.mipmapFilter, c.mipmapCoverage, c.forceTrilinear, c.maxFrameLatency, c.retakeInput, c.releaseStaleKeys);
 	Log("  screenshots: key=%d folder=%s\n", c.screenshotKey, c.screenshotFolder[0] ? "set" : "next to the game");

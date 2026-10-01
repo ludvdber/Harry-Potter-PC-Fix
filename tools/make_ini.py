@@ -75,7 +75,7 @@ JEUX = {
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
                     SSAAFactor=1, ShadowMapScale=1, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
-                    Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", SSAO=0, SSAOStrength="0.50",
+                    Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", GreenRestraint="0.00", ContrastPivot="0.50", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
                     BloomStrength="0.35", BloomThreshold="0.75", GodRays=0, GodRaysStrength="0.45",
                     GodRaysDecay="0.96", MipmapFilter=0, MipmapCoverage=0)
@@ -250,6 +250,11 @@ def ini(jeu, graphismes=None):
         a("; 0 = not drawn (the earlier fix's cure), 1 = drawn, with the crash fixed")
         a("; (played through the Forbidden Forest at 2880 pixels wide), 2 = drawn as shipped.")
         a("HazeOverlay=1")
+        a("")
+        a("; About two seconds after Yes at the autosave prompt, the game sometimes reads")
+        a("; a sound stream before its buffer exists and crashes (about 1 start in 10).")
+        a("; 1 = that read counts as empty and the game goes on, 0 = as shipped.")
+        a("AudioStreamGuard=1")
     if j.get("pads"):
         a("")
         a("; The game only plays the controllers of its own list, which has no")
@@ -373,9 +378,12 @@ def ini(jeu, graphismes=None):
     a(f"VSync={g['VSync']}")
     a("")
     a("; Colour adjustments. SkinProtect (0 to 1) spares faces part of the contrast and vibrance;")
-    a("; YellowRestraint (0 to 1) keeps yellows out of the vibrance and tones them down a little.")
+    a("; YellowRestraint (0 to 1) keeps yellows out of the vibrance and tones them down a little;")
+    a("; GreenRestraint (0 to 1) takes the mint green out of skies and distance (HP5, HP6).")
+    a("; ContrastPivot: the grey the contrast leaves in place; 0.5 = as before, lower (0.35) adds")
+    a("; depth to a dark game without darkening it.")
     for k in ("ColorGrading", "Vibrance", "Vignette", "Lift", "Gamma", "Gain", "Temperature", "Tint",
-              "Contrast", "SplitTone", "SkinProtect", "YellowRestraint"):
+              "Contrast", "ContrastPivot", "SplitTone", "SkinProtect", "YellowRestraint", "GreenRestraint"):
         a(f"{k}={g[k]}")
     a("")
     a("; Ambient occlusion (contact shadows), bloom and light shafts.")
