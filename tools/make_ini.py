@@ -78,7 +78,9 @@ JEUX = {
                  fov_note="1.7189 = as with the earlier fix",
                  animations=False, cap=None, unlock="wait", haze=False, aspect=0, xinput=True,
                  # The camera's mouse speed follows the frame rate (measured 2026-10-01): kept as at 30.
-                 mouse=30),
+                 mouse=30,
+                 # Above 60 fps the cut-scenes play too fast (Ludo, 2026-10-01, launcher limit at 144).
+                 ceiling=60),
     "HP7b": dict(titre="Harry Potter and the Deathly Hallows Part 2", resolution=None,
                  fps_limit=60, center=1, dpi=0, fov="1.4324",
                  fov_note="1.4324 = as with the earlier fix",
@@ -88,7 +90,9 @@ JEUX = {
                  unlock_off=True,
                  # Same camera as part 1: at 20 fps a gesture turned it 1.67 times more than at 30
                  # (measured 2026-10-01); kept as at 30 whenever the game drops below.
-                 mouse=30),
+                 mouse=30,
+                 # Same engine as part 1: its cut-scenes would play too fast above 60 once unlocked.
+                 ceiling=60),
 }
 
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
@@ -132,8 +136,8 @@ def ini(jeu, graphismes=None):
     a("")
     a("; Keeps the game running while another window is in front (Alt+Tab, a")
     a("; click on another monitor) instead of freezing it. Meanwhile the mouse")
-    a("; pointer stays visible over the game; keyboard and mouse are taken back as")
-    a("; soon as the game is in front again.")
+    a("; pointer stays visible over the game and the game cannot move it; keyboard")
+    a("; and mouse are taken back as soon as the game is in front again.")
     a("KeepRunningInBackground=1")
     a("")
     a("; Placement of a window (styles 2 to 4).")
@@ -274,6 +278,11 @@ def ini(jeu, graphismes=None):
         a("; follows every change of frame rate. 30 = the mouse turns the camera as it")
         a("; did at 30 frames per second, whatever the frame rate; 0 = as shipped.")
         a(f"MouseFrameRate={j['mouse']}")
+    if j.get("ceiling"):
+        a("")
+        a("; Highest frame rate allowed, whatever FPSLimit says (0 there included):")
+        a("; above 60 the cut-scenes play too fast. 0 = no ceiling.")
+        a(f"FPSCeiling={j['ceiling']}")
     if j["haze"]:
         a("")
         a("; The haze of the Forbidden Forest, the lake, the maze and the graveyard. As")

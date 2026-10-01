@@ -21,16 +21,27 @@ namespace
 LARGE_INTEGER g_freq = {};
 LONGLONG g_nextFrame = 0;
 
+// FPSCeiling: HP7 part 1 plays its cut-scenes faster above 60 frames per second (Ludo,
+// 2026-10-01), so a limit of 0 (none) or above the ceiling is held at the ceiling.
+int EffectiveLimit()
+{
+	const int ceiling = g_cfg.fpsCeiling;
+	if (ceiling > 0 && (g_cfg.fpsLimit <= 0 || g_cfg.fpsLimit > ceiling))
+		return ceiling;
+	return g_cfg.fpsLimit;
+}
+
 void WaitForFrameSlot()
 {
-	if (g_cfg.fpsLimit <= 0)
+	const int limit = EffectiveLimit();
+	if (limit <= 0)
 		return;
 	if (!g_freq.QuadPart)
 	{
 		QueryPerformanceFrequency(&g_freq);
 		timeBeginPeriod(1); // Sleep(1) sleeps 1 ms instead of 15
 	}
-	const LONGLONG period = g_freq.QuadPart / g_cfg.fpsLimit;
+	const LONGLONG period = g_freq.QuadPart / limit;
 	LARGE_INTEGER now;
 	QueryPerformanceCounter(&now);
 	if (!g_nextFrame || now.QuadPart - g_nextFrame > period)

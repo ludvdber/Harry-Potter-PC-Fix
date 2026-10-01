@@ -63,6 +63,7 @@ struct Settings
 	int   textureDetail = 2;        // HP5/HP6: detail when the game has none saved (0 Speed, 1 Balanced as shipped, 2 Quality)
 	int   audioStreamGuard = 1;     // HP4: 1 = a sound stream read before its buffer exists counts as empty, 0 = as shipped
 	int   mouseFrameRate = 0;        // HP7a/HP7b: frame rate the camera's mouse speed was tuned at, 0 = as shipped
+	int   fpsCeiling = 0;            // HP7a/HP7b: FPSLimit never above this (cut-scenes too fast), 0 = no ceiling
 	int   playStationPads = 1;      // HP4: 1 = PlayStation pads added to the game's controller list, 0 = ignored as shipped
 
 	// The same choices in the file format used before 2026-09-26, kept so that a player's old

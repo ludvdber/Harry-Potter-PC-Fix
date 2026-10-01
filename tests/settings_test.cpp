@@ -123,6 +123,7 @@ int main(int argc, char** argv)
 		EXPECT(Near(c.fovScale, 1.7189f) && Near(c.aspectRatio, 0.0f));
 		EXPECT(c.unlockFrameRate == 1);
 		EXPECT(c.mouseFrameRate == 30); // the camera's mouse speed kept as at 30 fps (measured 2026-10-01)
+		EXPECT(c.fpsCeiling == 60);     // cut-scenes too fast above 60 (Ludo, 2026-10-01)
 	}
 	{
 		const char* game = "HP7b";
@@ -131,6 +132,7 @@ int main(int argc, char** argv)
 		// Kept at 30 until the Thief's Downfall cut-scene has been played at 60 (see make_ini.py).
 		EXPECT(c.unlockFrameRate == 0);
 		EXPECT(c.mouseFrameRate == 30); // the same camera as part 1: kept as at 30 when the game drops below
+		EXPECT(c.fpsCeiling == 60);
 	}
 	{
 		// A file in the earlier format, comments on the lines as players had them.

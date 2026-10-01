@@ -80,18 +80,35 @@ bool IsLeaving(UINT msg, WPARAM wp, LPARAM lp)
 // HP4 0x407848 (WM_SETCURSOR) and 0x40789A (WM_ACTIVATEAPP shows it again), HP5 0x60D829 with
 // the flag its deactivation sets at 0x60D75A. While another window is in front, the arrow is
 // shown here instead; back in front, the game's own handler hides it again.
+// HP7 part 2 does not: it hides the pointer once, at start, so the count raised here stayed up and
+// its cross pointer sat in the middle of the screen for the rest of the game ("HP8 met une croix
+// comme curseur au milieu de l'ecran", Ludo, 2026-10-01). What was raised here is taken back
+// when the game is in front again (HideWhatWeShowed).
+LONG g_raised = 0; // ShowCursor(TRUE) calls made here, on the game window's thread
+
 bool ShowPointerWhileAway(UINT msg, LPARAM lp)
 {
 	if (msg != WM_SETCURSOR || LOWORD(lp) != HTCLIENT || ProcessInForegroundNow())
 		return false;
 	for (int i = 0; i < 64 && ShowCursor(TRUE) < 0; i++) // the game's count, on its own thread
-	{
-	}
+		g_raised++;
 	SetCursor(LoadCursorA(nullptr, IDC_ARROW));
 	static volatile LONG said = 0;
 	if (!InterlockedExchange(&said, 1))
 		Log("Window: pointer shown over the game while another window is in front\n");
 	return true;
+}
+
+void HideWhatWeShowed(UINT msg)
+{
+	if (msg != WM_SETCURSOR || !g_raised || !ProcessInForegroundNow())
+		return;
+	const LONG raised = g_raised;
+	for (; g_raised > 0; g_raised--)
+		ShowCursor(FALSE);
+	static volatile LONG said = 0;
+	if (!InterlockedExchange(&said, 1))
+		Log("Window: back in front, the pointer shown while away is hidden again (%ld)\n", raised);
 }
 
 LRESULT CALLBACK GameWindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -104,6 +121,8 @@ LRESULT CALLBACK GameWindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 	}
 	if (g_cfg.keepRunning && ShowPointerWhileAway(msg, lp))
 		return TRUE;
+	if (g_cfg.keepRunning)
+		HideWhatWeShowed(msg);
 	if (msg == WM_WINDOWPOSCHANGING)
 		KeepFitted(hwnd, reinterpret_cast<WINDOWPOS*>(lp));
 	return CallWindowProcA(g_gameProc, hwnd, msg, wp, lp);
@@ -148,6 +167,23 @@ HWND WINAPI FocusForGame()
 	return real;
 }
 
+// HP7 parts 1 and 2 read the mouse by the Windows pointer and put it back in the middle of their
+// window every frame (SetCursorPos, notes/HP7a.md). Told they are still in front, they kept doing
+// it behind another window: the pointer left the game but came back to its centre before any
+// click landed elsewhere (Ludo, HP8, 2026-10-01). While another program is in front, the game
+// does not move the pointer.
+BOOL WINAPI SetCursorPosForGame(int x, int y)
+{
+	if (!ProcessInForegroundNow())
+	{
+		static volatile LONG said = 0;
+		if (!InterlockedExchange(&said, 1))
+			Log("Window: the game moves the pointer while another window is in front: left where it is\n");
+		return TRUE;
+	}
+	return SetCursorPos(x, y);
+}
+
 struct Substitute
 {
 	const char* name;
@@ -157,6 +193,7 @@ const Substitute kSubstitutes[] = {
 	{ "GetForegroundWindow", reinterpret_cast<void*>(ForegroundForGame) },
 	{ "GetActiveWindow", reinterpret_cast<void*>(ActiveWindowForGame) },
 	{ "GetFocus", reinterpret_cast<void*>(FocusForGame) },
+	{ "SetCursorPos", reinterpret_cast<void*>(SetCursorPosForGame) },
 };
 
 using GetProcAddressFn = FARPROC(WINAPI*)(HMODULE, LPCSTR);
