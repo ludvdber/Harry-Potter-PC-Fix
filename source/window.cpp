@@ -91,13 +91,13 @@ bool IsLeaving(UINT msg, WPARAM wp, LPARAM lp)
 volatile LONG g_raised = 0; // ShowCursor(TRUE) calls made here, on the game window's thread
 const UINT kHidePointer = RegisterWindowMessageA("AccioHidePointer");
 
-bool ShowPointerWhileAway(UINT msg, LPARAM lp)
+const UINT kShowPointer = RegisterWindowMessageA("AccioShowPointer");
+
+// Ludo, HP7a and HP8, 2026-10-01 evening: after Alt+Tab the pointer left the game but stayed
+// invisible over the other windows (log: "cursor hidden at -1846,1978"). It was shown again only
+// over the game window (WM_SETCURSOR); now also as soon as the game loses the front.
+void RaisePointer()
 {
-	if (msg != WM_SETCURSOR || LOWORD(lp) != HTCLIENT || ProcessInForegroundNow())
-		return false;
-	// The game's count, on its own thread. Every call that raised it is counted: the one that
-	// brings it from -1 to 0 was not (seen in HP8: nothing was ever hidden again), and a call
-	// on a pointer already shown is taken back at once.
 	for (int i = 0; i < 64; i++)
 	{
 		const int count = ShowCursor(TRUE);
@@ -110,6 +110,19 @@ bool ShowPointerWhileAway(UINT msg, LPARAM lp)
 		if (count == 0)
 			break;
 	}
+}
+
+bool ShowPointerWhileAway(UINT msg, LPARAM lp)
+{
+	if (kShowPointer && msg == kShowPointer)
+	{
+		if (!ProcessInForegroundNow())
+			RaisePointer();
+		return true;
+	}
+	if (msg != WM_SETCURSOR || LOWORD(lp) != HTCLIENT || ProcessInForegroundNow())
+		return false;
+	RaisePointer();
 	SetCursor(LoadCursorA(nullptr, IDC_ARROW));
 	static volatile LONG said = 0;
 	if (!InterlockedExchange(&said, 1))
@@ -228,6 +241,13 @@ FARPROC WINAPI GetProcAddressForGame(HMODULE module, LPCSTR name)
 				return reinterpret_cast<FARPROC>(s.function);
 	return g_getProcAddress(module, name);
 }
+}
+
+// From the foreground watch's thread, when another program takes the front.
+void ShowPointerWhenAway()
+{
+	if (g_cfg.keepRunning && kShowPointer && GameWindowAlive())
+		PostMessageA(g_gameWindow, kShowPointer, 0, 0);
 }
 
 // From the foreground watch's thread, when the game is back in front.

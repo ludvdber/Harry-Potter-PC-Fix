@@ -54,7 +54,10 @@ void SampleForeground()
 		HidePointerWhenBack();
 	}
 	else if (!now && before)
+	{
 		Log("Input: another window in front (frame %ld)\n", g_frames);
+		ShowPointerWhenAway();
+	}
 }
 
 // The loss of focus has to be seen even while the game stops reading its devices, so the

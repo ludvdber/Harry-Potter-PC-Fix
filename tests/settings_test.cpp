@@ -102,7 +102,7 @@ int main(int argc, char** argv)
 		EXPECT(c.bloom && c.grading && Near(c.vibrance, 0.35f) && Near(c.contrast, 0.25f) && Near(c.skinProtect, 0.75f));
 		EXPECT(Near(c.vignette, 0.06f) && Near(c.gamma, 0.95f) && Near(c.temperature, 0.10f) && Near(c.tint, 0.75f));
 		EXPECT(Near(c.contrastPivot, 0.40f) && Near(c.yellowRestraint, 0.60f) && Near(c.greenRestraint, 1.0f));
-		EXPECT(c.shadowScale == 4); // x4 judged better outdoors (2026-10-01)
+		EXPECT(c.shadowScale == 1); // x4 left to the player: dark patches outdoors (2026-10-01)
 	}
 	// HP7 parts 1 and 2: the window and focus of the others, 60 fps without the game's own
 	// 30 fps wait, and the field of view the earlier fix gave every player.

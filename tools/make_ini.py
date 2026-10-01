@@ -68,8 +68,10 @@ JEUX = {
                               Vibrance="0.35", Vignette="0.06", Gamma="0.95", Temperature="0.10", Tint="0.75",
                               Contrast="0.25", ContrastPivot="0.40", SkinProtect="0.75",
                               YellowRestraint="0.60", GreenRestraint="1.00",
-                              # Shadows x4 judged better than x1 and x2 by Ludo, outdoors (2026-10-01).
-                              ShadowMapScale=4)),
+                              # Shadows x4 judged better outdoors (2026-10-01), then taken back the same
+                              # evening: dark patches and a ghost on Harry outdoors when the camera turns.
+                              # Left to the player, at his own risk (launcher: ombres_nettes).
+                              ShadowMapScale=1)),
     # HP7 parts 1 and 2: no start-up resolution or frame-rate ceiling of their own to change; a 30 fps
     # wait of their own instead. FOV: what the earlier fix gave every player (part 1: its camera
     # set-up converted with 0.03 instead of pi/180; part 2: [FOV] fov=1, pi/180 made 0.025).
