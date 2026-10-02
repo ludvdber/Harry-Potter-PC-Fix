@@ -167,4 +167,4 @@ The only official sources are [Accio Launcher](https://acciolauncher.be/) and th
 
 The fix contains no one else's code ([notices](THIRD_PARTY_NOTICES.md)). The games and their files belong to their owners (Electronic Arts, Warner Bros.); this project claims no rights over them and ships none of them.
 
-Found it useful? [A coffee on Ko-fi](https://ko-fi.com/ludovic01) keeps it going.
+Found it useful? [A coffee on Ko-fi](https://ko-fi.com/ludovic01) keeps the fix and the launcher going (it pays for no game).

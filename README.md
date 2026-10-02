@@ -198,4 +198,4 @@ Les seules sources officielles sont [Accio Launcher](https://acciolauncher.be/) 
 
 Le correctif ne contient le code de personne d'autre ([avis](THIRD_PARTY_NOTICES.md)). Les jeux et leurs fichiers appartiennent à leurs propriétaires (Electronic Arts, Warner Bros.) ; ce projet ne revendique aucun droit sur eux et n'en distribue aucun.
 
-Ce projet vous est utile ? [Un café sur Ko-fi](https://ko-fi.com/ludovic01) le fait avancer.
+Ce projet vous est utile ? [Un café sur Ko-fi](https://ko-fi.com/ludovic01) fait avancer le correctif et le launcher (il ne paie aucun jeu).
