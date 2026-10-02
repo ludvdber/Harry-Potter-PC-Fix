@@ -128,6 +128,8 @@ La *Coupe de feu* lit ses manettes par DirectInput et n'est pas concernée : ses
 
 **À la main** : prenez le zip de votre jeu dans une [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) et copiez ses fichiers (`d3d9.dll`, `d3d9.ini`, et `xinput1_3.dll` pour les jeux qui l'utilisent) à côté de l'exécutable du jeu. Les fichiers laissés par d'anciens correctifs (`d3d9_original.dll`, `fps.dll`) peuvent être supprimés : plus rien ne les charge.
 
+Le correctif ne contient aucun fichier de jeu : il s'installe sur **votre** copie, que vous devez posséder (CD, DVD ou achat numérique).
+
 **Sous Linux** (Wine ou Proton), Wine utilise son propre `d3d9` sauf indication contraire : `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher le fait pour vous. Pas `xinput1_3` : le XInput de Wine reconnaît déjà les manettes PlayStation.
 
 Les réglages sont lus au lancement : modifiez `d3d9.ini`, puis relancez le jeu. Chaque ligne du fichier est commentée. Un `d3d9.ini` écrit pour un ancien correctif fonctionne encore : les clés absentes des sections `[Accio.*]` sont lues là où les anciennes versions les rangeaient.

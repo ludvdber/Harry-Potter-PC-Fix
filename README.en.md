@@ -128,6 +128,8 @@ Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screensho
 
 **By hand**: take your game's zip from a [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) and copy its files (`d3d9.dll`, `d3d9.ini`, and `xinput1_3.dll` for the games that use it) next to the game's executable. Files left by earlier fixes (`d3d9_original.dll`, `fps.dll`) can be deleted: nothing loads them any more.
 
+The fix contains no game files: it goes on top of **your** copy, which you must own (CD, DVD or digital purchase).
+
 **On Linux** (Wine or Proton), Wine uses its own `d3d9` unless told otherwise: `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher does it for you. Not `xinput1_3`: Wine's XInput already knows PlayStation controllers.
 
 Settings are read when the game starts: change `d3d9.ini`, then restart the game. Every line of the file is commented. A `d3d9.ini` written for an earlier fix still works: keys missing from the `[Accio.*]` sections are read where earlier versions kept them.
