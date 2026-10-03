@@ -1,4 +1,5 @@
-"""Generates data/<game>/d3d9.ini (HP4, HP5, HP6, HP7a, HP7b): the shipped settings of each game.
+"""Generates data/<game>/d3d9.ini (HP4, HP5, HP6, HP7a, HP7b) and data/HP2/winmm.ini: the shipped
+settings of each game.
 
     python tools/make_ini.py          writes the three files
     python tools/make_ini.py --check  fails if a committed file differs (run by the Build workflow)
@@ -457,14 +458,72 @@ def ini(jeu, graphismes=None):
     return "\r\n".join(L)
 
 
+def winmm_ini():
+    """data/HP2/winmm.ini, read by winmm.dll (HP2 has no Direct3D 9: no d3d9.dll, no d3d9.ini)."""
+    L = []
+    a = L.append
+    a("; ============================================================================")
+    a(";  Harry Potter and the Chamber of Secrets - PC fix")
+    a(";  Accio Launcher - https://acciolauncher.be/")
+    a(";  (c) 2026 Accio Launcher. PolyForm Strict 1.0.0 - see license.")
+    a("; ============================================================================")
+    a(";")
+    a(";  Read by winmm.dll, next to Game.exe, once when the game starts.")
+    a(";  1 = on, 0 = off. A line you delete falls back to its default; a missing")
+    a(";  file means all defaults.")
+    a("; ============================================================================")
+    a("")
+    a("")
+    a("; ----------------------------------------------------------------------------")
+    a(";  Window")
+    a("; ----------------------------------------------------------------------------")
+    a("[Accio.Window]")
+    a("")
+    a("; Writes winmm_accio.log next to the game: the controllers found, and what")
+    a("; was done with them.")
+    a("Log=1")
+    a("")
+    a("; Alt+Enter switches the game between window and full screen: its menu")
+    a("; stays at the old size (too large, cut off) and the new size is written")
+    a("; into Game.ini. 1 = Alt+Enter does nothing.")
+    a("BlockAltEnter=1")
+    a("")
+    a("")
+    a("; ----------------------------------------------------------------------------")
+    a(";  Controller")
+    a("; ----------------------------------------------------------------------------")
+    a("[Accio.Controller]")
+    a("")
+    a("; The game knows buttons by their number, and the numbers Accio Launcher binds")
+    a("; are a PlayStation controller's. 1 = an Xbox controller is shown to the game")
+    a("; with those numbers (A = cross, B = circle, X = square, Y = triangle, Back =")
+    a("; Share, Start = Options, triggers = L2 and R2). 0 = as it is.")
+    a("XboxLayout=1")
+    a("")
+    a("; The key pressed by Share (Back on Xbox) and by Options (Start), held as long")
+    a("; as the button: the game opens its map and its menu only from the keyboard.")
+    a("; Windows key codes: 9 = Tab (map), 27 = Escape (menu). 0 = the button stays")
+    a("; a button, for a binding in User.ini.")
+    a("ShareKey=9")
+    a("OptionsKey=27")
+    a("")
+    return "\r\n".join(L)
+
+
+# Every generated file: data/<path> -> its text.
+def fichiers():
+    out = {f"{game}/d3d9.ini": ini(game) for game in JEUX}
+    out["HP2/winmm.ini"] = winmm_ini()
+    return out
+
 
 if __name__ == "__main__":
     root = Path(__file__).resolve().parent.parent
     check = "--check" in sys.argv[1:]
     stale = []
-    for game in JEUX:
-        path = root / "data" / game / "d3d9.ini"
-        wanted = ini(game).encode("ascii")
+    for name, text in fichiers().items():
+        path = root / "data" / name
+        wanted = text.encode("ascii")
         if check:
             if not path.exists() or path.read_bytes() != wanted:
                 stale.append(str(path.relative_to(root)))
@@ -476,4 +535,4 @@ if __name__ == "__main__":
         print("Out of date (run python tools/make_ini.py and commit):", ", ".join(stale))
         sys.exit(1)
     if check:
-        print("data/*/d3d9.ini up to date")
+        print("data/*/d3d9.ini and data/HP2/winmm.ini up to date")

@@ -5,6 +5,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "accio-fix", "accio-fix.vcxp
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "accio-xinput", "accio-xinput.vcxproj", "{3F8A2C51-9D47-4B1E-8E36-C2A7F05B19D4}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "accio-winmm", "accio-winmm.vcxproj", "{8D2E6B14-5A3C-4F71-B0E9-7C41A6D25F38}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -19,6 +21,10 @@ Global
 		{3F8A2C51-9D47-4B1E-8E36-C2A7F05B19D4}.Debug|Win32.Build.0 = Debug|Win32
 		{3F8A2C51-9D47-4B1E-8E36-C2A7F05B19D4}.Release|Win32.ActiveCfg = Release|Win32
 		{3F8A2C51-9D47-4B1E-8E36-C2A7F05B19D4}.Release|Win32.Build.0 = Release|Win32
+		{8D2E6B14-5A3C-4F71-B0E9-7C41A6D25F38}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8D2E6B14-5A3C-4F71-B0E9-7C41A6D25F38}.Debug|Win32.Build.0 = Debug|Win32
+		{8D2E6B14-5A3C-4F71-B0E9-7C41A6D25F38}.Release|Win32.ActiveCfg = Release|Win32
+		{8D2E6B14-5A3C-4F71-B0E9-7C41A6D25F38}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

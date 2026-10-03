@@ -21,6 +21,9 @@ A PC fix for the three Harry Potter games Electronic Arts built on the same engi
 | *Harry Potter and the Goblet of Fire* | 2005 | `gof_f.exe` | [`data/HP4/d3d9.ini`](data/HP4/d3d9.ini) | `HP4-Goblet-of-Fire.zip` |
 | *Harry Potter and the Order of the Phoenix* | 2007 | `hp.exe` | [`data/HP5/d3d9.ini`](data/HP5/d3d9.ini) | `HP5-Order-of-the-Phoenix.zip` |
 | *Harry Potter and the Half-Blood Prince* | 2009 | `hp6.exe` | [`data/HP6/d3d9.ini`](data/HP6/d3d9.ini) | `HP6-Half-Blood-Prince.zip` |
+| *Harry Potter and the Chamber of Secrets* | 2002 | `system\Game.exe` | [`data/HP2/winmm.ini`](data/HP2/winmm.ini) | `HP2-Chamber-of-Secrets.zip` |
+
+*Chamber of Secrets* is not of that family and does not use Direct3D 9: it gets a `winmm.dll` of its own, for the controller and Alt+Enter ([below](#inside-harry-potter-and-the-chamber-of-secrets-winmmdll-winmmini)).
 
 It turns the game's exclusive full screen into a borderless window that survives Alt+Tab, gives keyboard and mouse back the moment you return, lets you choose your own keys, and patches the resolution, aspect ratio, field of view and frame rate the engine starts with. Optional post-processing sharpens and grades the image. Every setting lives in `d3d9.ini`, read once when the game starts.
 
@@ -126,17 +129,29 @@ Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screensho
 
 *Goblet of Fire* reads its controllers through DirectInput and is not concerned: its PlayStation controllers go through `PlayStationController`, above.
 
+### Inside *Harry Potter and the Chamber of Secrets* (`winmm.dll`, `winmm.ini`)
+
+This game does not use Direct3D 9: `d3d9.dll` cannot reach it. It reads its controller through WinMM, hence a `winmm.dll` to place in its `system` folder, next to `Game.exe`. All 193 WinMM functions are there: three, the controller's, are rewritten; every other one goes as it is to Windows' own `winmm.dll`.
+
+| | Setting | |
+|---|---|---|
+| Map and menu from the controller | `ShareKey`, `OptionsKey` | The game opens its menu only on Escape and closes its map only when Tab is released, two keys it tests by their code: no controller button bound in `User.ini` can stand in for them. Share (Back on an Xbox controller) presses Tab and Options (Start) presses Escape, for as long as the button is held, and only while the game is in front. Windows key codes; `0` leaves the button as it is. |
+| Xbox controllers | `XboxLayout` | The game knows buttons by their number, and an Xbox controller's are not a PlayStation controller's. `1`, the default, shows an Xbox controller with a PlayStation controller's numbers (A = cross, B = circle, X = square, Y = triangle, triggers = L2 and R2, right stick in the same place): the same bindings serve both. Based on the layout Windows gives every XInput controller; not yet seen with an Xbox controller. |
+| Alt+Enter | `BlockAltEnter` | Alt+Enter switches the game between window and full screen: its menu stays sized for the old size (too large, cut off) and the new size is written into `Game.ini`. `1`, the default, makes Alt+Enter do nothing. |
+
+The log, `winmm_accio.log` (`Log=0` turns it off), names each controller found and what was done with it.
+
 ---
 
 ## Installation
 
 **With [Accio Launcher](https://acciolauncher.be/)**: nothing to do, each game comes with its fix.
 
-**By hand**: take your game's zip from a [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) and copy its files (`d3d9.dll`, `d3d9.ini`, and `xinput1_3.dll` for the games that use it) next to the game's executable. Files left by earlier fixes (`d3d9_original.dll`, `fps.dll`) can be deleted: nothing loads them any more.
+**By hand**: take your game's zip from a [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) and copy its files (`d3d9.dll`, `d3d9.ini`, and `xinput1_3.dll` for the games that use it; `winmm.dll` and `winmm.ini` for *Chamber of Secrets*) next to the game's executable. Files left by earlier fixes (`d3d9_original.dll`, `fps.dll`) can be deleted: nothing loads them any more.
 
 The fix contains no game files: it goes on top of **your** copy, which you must own (CD, DVD or digital purchase).
 
-**On Linux** (Wine or Proton), Wine uses its own `d3d9` unless told otherwise: `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher does it for you. Not `xinput1_3`: Wine's XInput already knows PlayStation controllers.
+**On Linux** (Wine or Proton), Wine uses its own `d3d9` unless told otherwise: `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher does it for you. Not `xinput1_3`: Wine's XInput already knows PlayStation controllers. For *Chamber of Secrets*: `WINEDLLOVERRIDES="winmm=n,b"`.
 
 Settings are read when the game starts: change `d3d9.ini`, then restart the game. Every line of the file is commented. A `d3d9.ini` written for an earlier fix still works: keys missing from the `[Accio.*]` sections are read where earlier versions kept them.
 
