@@ -6,7 +6,13 @@
 [![License](https://img.shields.io/badge/license-PolyForm%20Strict%20%C2%B7%20no%20redistribution-8b1a1a)](license)
 [![Accio Launcher](https://img.shields.io/badge/Accio%20Launcher-acciolauncher.be-d6a72c)](https://acciolauncher.be/)
 
-<!-- Images to come: banner, before / after screenshots. -->
+Before on the left, with the fix on the right; below, the same detail enlarged twice.
+
+<img src="docs/avant-apres/hp4-foret-interdite.jpg" width="860" alt="Goblet of Fire, the Forbidden Forest: before / after">
+
+<img src="docs/avant-apres/hp5-hall.jpg" width="860" alt="Order of the Phoenix, the entrance hall: before / after">
+
+<img src="docs/avant-apres/hp6-cercle-de-pierres.jpg" width="860" alt="Half-Blood Prince, the stone circle: before / after">
 
 A PC fix for the three Harry Potter games Electronic Arts built on the same engine family, made for [Accio Launcher](https://acciolauncher.be/). It is a single `d3d9.dll` placed next to the game's executable: the game loads it instead of the system Direct3D 9, and it hands everything on to the real one. The same DLL serves the three games and recognises the one it is loaded into; each game has its own `d3d9.ini`.
 

@@ -6,7 +6,13 @@
 [![Licence](https://img.shields.io/badge/licence-PolyForm%20Strict%20%C2%B7%20aucune%20redistribution-8b1a1a)](license)
 [![Accio Launcher](https://img.shields.io/badge/Accio%20Launcher-acciolauncher.be-d6a72c)](https://acciolauncher.be/)
 
-<!-- Images à venir : bannière, captures avant / après. -->
+Avant à gauche, avec le correctif à droite ; en bas, le même détail agrandi deux fois.
+
+<img src="docs/avant-apres/hp4-foret-interdite.jpg" width="860" alt="Coupe de feu, la forêt interdite : avant / après">
+
+<img src="docs/avant-apres/hp5-hall.jpg" width="860" alt="Ordre du Phénix, le hall : avant / après">
+
+<img src="docs/avant-apres/hp6-cercle-de-pierres.jpg" width="860" alt="Prince de sang-mêlé, le cercle de pierres : avant / après">
 
 Un correctif PC pour les trois jeux Harry Potter qu'Electronic Arts a bâtis sur la même famille de moteur, conçu pour [Accio Launcher](https://acciolauncher.be/). C'est une seule `d3d9.dll` posée à côté de l'exécutable du jeu : le jeu la charge à la place du Direct3D 9 du système, et elle transmet tout au vrai. La même DLL sert les trois jeux et reconnaît celui qui la charge ; chaque jeu a son propre `d3d9.ini`.
 
