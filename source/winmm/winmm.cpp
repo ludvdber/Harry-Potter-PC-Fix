@@ -4,8 +4,10 @@
 // winmm.dll for HP2 (Chamber of Secrets) and HP1 (Philosopher's Stone), next to the game's exe in
 // its system folder. Both are Unreal Engine 1 games with no Direct3D 9 of their own (their
 // renderer is Direct3D 11), so d3d9.dll cannot reach them; winmm.dll is the one Windows file their
-// Core.dll and WinDrv.dll load, and it holds the pad. Four jobs, each one switched in winmm.ini
+// Core.dll and WinDrv.dll load, and it holds the pad. Five jobs, each one switched in winmm.ini
 // (HP1's turns the pad keys and Alt+Enter off: no pad bindings there, Alt+Enter SEEN fine):
+//   - HP1 only: its setup, run at EVERY start (a wizard, or a renderer test that writes D3DDrv into
+//     HP.ini), is skipped (setup.h, which says why).
 //   - A picture as large as the screen fills it: the window loses its title bar and border and
 //     takes the screen's rectangle (fill.h, which says why).
 //   - Options and Share (Start and Back on an Xbox pad) press Escape and Tab. The game opens its
@@ -23,6 +25,7 @@
 
 #include "fill.h"
 #include "remap.h"
+#include "setup.h"
 #include <cstdarg>
 #include <cstdio>
 #include <cwchar>
@@ -50,6 +53,7 @@ struct Settings
 {
 	bool log = true;
 	bool fillScreen = true;
+	bool skipSetup = false;
 	bool blockAltEnter = true;
 	bool xboxLayout = true;
 	UINT shareKey = VK_TAB;
@@ -96,6 +100,7 @@ void LoadSettings(const wchar_t* ini)
 	};
 	g_cfg.log = flag(L"Accio.Window", L"Log", g_cfg.log);
 	g_cfg.fillScreen = flag(L"Accio.Window", L"FillScreen", g_cfg.fillScreen);
+	g_cfg.skipSetup = flag(L"Accio.Window", L"SkipSetup", g_cfg.skipSetup);
 	g_cfg.blockAltEnter = flag(L"Accio.Window", L"BlockAltEnter", g_cfg.blockAltEnter);
 	g_cfg.xboxLayout = flag(L"Accio.Controller", L"XboxLayout", g_cfg.xboxLayout);
 	g_cfg.shareKey = GetPrivateProfileIntW(L"Accio.Controller", L"ShareKey", g_cfg.shareKey, ini) & 0xFF;
@@ -192,6 +197,40 @@ LRESULT CALLBACK OnWindow(int code, WPARAM wParam, LPARAM lParam)
 			Fill(m->hwnd);
 	}
 	return CallNextHookEx(nullptr, code, wParam, lParam);
+}
+
+// ---- HP1's setup ---------------------------------------------------------------------------
+
+// The game's exe is mapped and has not run yet when its Core.dll loads this DLL: its code can be
+// changed before it gets there. Only in the exe's own code; a pattern not found (HP2, another
+// edition) changes nothing and says so.
+void SkipSetup()
+{
+	auto* image = reinterpret_cast<uint8_t*>(GetModuleHandleW(nullptr));
+	const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(image);
+	const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(image + dos->e_lfanew);
+	const IMAGE_SECTION_HEADER* section = IMAGE_FIRST_SECTION(nt);
+	for (WORD n = 0; n < nt->FileHeader.NumberOfSections; ++n, ++section)
+	{
+		if (!(section->Characteristics & IMAGE_SCN_MEM_EXECUTE))
+			continue;
+		uint8_t* code = image + section->VirtualAddress;
+		const ptrdiff_t at = setup::Find(code, section->Misc.VirtualSize);
+		if (at < 0)
+			continue;
+		DWORD old;
+		if (!VirtualProtect(code + at, 2, PAGE_EXECUTE_READWRITE, &old))
+		{
+			Log("Setup: found at %p, but not writable (error %lu)\n", code + at, GetLastError());
+			return;
+		}
+		setup::Skip(code + at);
+		VirtualProtect(code + at, 2, old, &old);
+		FlushInstructionCache(GetCurrentProcess(), code + at, 2);
+		Log("Setup: skipped at %p (SkipSetup): no wizard, no renderer test\n", code + at);
+		return;
+	}
+	Log("Setup: not found in this exe, left as it is\n");
 }
 
 // ---- Pad -----------------------------------------------------------------------------------
@@ -347,8 +386,9 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 	}
 	GetModuleFileNameW(nullptr, path, MAX_PATH);
 	Log("Accio Launcher PC fix (winmm.dll), %ls\n", path);
-	Log("Settings: XboxLayout=%d ShareKey=%u OptionsKey=%u BlockAltEnter=%d FillScreen=%d\n",
-		g_cfg.xboxLayout, g_cfg.shareKey, g_cfg.optionsKey, g_cfg.blockAltEnter, g_cfg.fillScreen);
+	Log("Settings: XboxLayout=%d ShareKey=%u OptionsKey=%u BlockAltEnter=%d FillScreen=%d SkipSetup=%d\n",
+		g_cfg.xboxLayout, g_cfg.shareKey, g_cfg.optionsKey, g_cfg.blockAltEnter, g_cfg.fillScreen,
+		g_cfg.skipSetup);
 
 	// Every Windows has one. Without it the stubs would have nowhere to go: refuse to load, and
 	// Windows says winmm.dll is broken, which is the truth.
@@ -357,6 +397,8 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 
 	// Loaded by Core.dll when the game starts, so this is the game's own thread, the one that
 	// will make the window and read its messages.
+	if (g_cfg.skipSetup)
+		SkipSetup();
 	if (g_cfg.blockAltEnter)
 	{
 		if (SetWindowsHookExW(WH_GETMESSAGE, OnMessage, nullptr, GetCurrentThreadId()))

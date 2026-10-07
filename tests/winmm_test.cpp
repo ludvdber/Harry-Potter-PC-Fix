@@ -6,6 +6,7 @@
 //     posted to a window that is never shown.
 #include "../source/winmm/fill.h"
 #include "../source/winmm/remap.h"
+#include "../source/winmm/setup.h"
 #include <cstdio>
 
 static int failures = 0;
@@ -117,6 +118,31 @@ static void Fill()
 	const RECT second{2560, 0, 6400, 2160};   // a second screen, to the right
 	Expect(fill::Wanted(framed, true, 3840, 2160, second), "measured against ITS screen");
 	Expect(static_cast<DWORD>(fill::Borderless(framed)) == 0x94000000, "pop-up, visible and clip flags kept");
+}
+
+// ---- setup.h -------------------------------------------------------------------------------
+
+static void Setup()
+{
+	// HP1's HP.exe at 0x1090C8CB (read 2026-10-07): both jumps land at 0x1090D1ED.
+	uint8_t hp1[] = {
+		0x8B, 0x0D, 0xDC, 0xEA, 0x95, 0x10, 0x83, 0x39, 0x00, 0x0F, 0x85, 0x13, 0x09, 0x00, 0x00,
+		0x8B, 0x15, 0xD8, 0xEA, 0x95, 0x10, 0x83, 0x3A, 0x00, 0x0F, 0x84, 0x04, 0x09, 0x00, 0x00,
+		0x8D, 0x8D, 0x58, 0xFC, 0xFF, 0xFF, 0xFF, 0x15, 0x18, 0xF1, 0x95, 0x10};
+	uint8_t code[64] = {0xCC, 0xCC, 0xCC};
+	memcpy(code + 3, hp1, sizeof(hp1));
+	Expect(setup::Find(code, sizeof(code)) == 3 + 9, "HP1's jump found");
+	Expect(setup::Find(code, 3 + setup::kLength - 1) == -1, "cut short: not found");
+	uint8_t other[sizeof(code)];
+	memcpy(other, code, sizeof(code));
+	other[3 + 26] = 0x05;   // the second jump lands elsewhere: a look-alike
+	Expect(setup::Find(other, sizeof(other)) == -1, "jumps to two places: not taken");
+	memcpy(other, code, sizeof(code));
+	other[3 + 31] = 0x4D;   // lea ecx, [ebp + disp8]: not the wizard's
+	Expect(setup::Find(other, sizeof(other)) == -1, "another instruction after: not taken");
+	setup::Skip(code + 12);
+	Expect(code[12] == 0x90 && code[13] == 0xE9 && code[14] == 0x13 && code[15] == 0x09,
+		"jne made nop + jmp, same distance");
 }
 
 // ---- The built DLL -------------------------------------------------------------------------
@@ -232,6 +258,7 @@ int main(int argc, char** argv)
 {
 	Remap();
 	Fill();
+	Setup();
 	if (argc > 1)
 		Dll(argv[1]);
 	else

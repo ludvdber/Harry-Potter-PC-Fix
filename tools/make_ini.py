@@ -463,9 +463,9 @@ def ini(jeu, graphismes=None):
 # and the Alt+Enter block are off.
 UE1 = {
     "HP1": dict(titre="Harry Potter and the Philosopher's Stone", ini_jeu="HP.ini", pads=False,
-                alt_enter=False),
+                alt_enter=False, setup=True),
     "HP2": dict(titre="Harry Potter and the Chamber of Secrets", ini_jeu="Game.ini", pads=True,
-                alt_enter=True),
+                alt_enter=True, setup=False),
 }
 
 
@@ -506,6 +506,13 @@ def winmm_ini(jeu):
     a(f"; into {c['ini_jeu']}. 1 = Alt+Enter does nothing.")
     a(f"BlockAltEnter={1 if c['alt_enter'] else 0}")
     a("")
+    if c["setup"]:
+        a("; At every start the game opens its first-run setup (an empty list of 3D")
+        a("; cards) or, without Running.ini, tests a renderer it does not have and")
+        a("; writes it into HP.ini. 1 = both skipped: the game starts with the")
+        a("; renderer HP.ini names. 0 = as shipped.")
+        a("SkipSetup=1")
+        a("")
     a("")
     a("; ----------------------------------------------------------------------------")
     a(";  Controller")
