@@ -83,6 +83,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\source\winmm\remap.h" />
+    <ClInclude Include="..\source\winmm\fill.h" />
     <ClInclude Include="..\source\winmm\exports.inc" />
     <ClInclude Include="..\source\version.h" />
   </ItemGroup>

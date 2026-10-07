@@ -1,5 +1,5 @@
-"""Generates data/<game>/d3d9.ini (HP4, HP5, HP6, HP7a, HP7b) and data/HP2/winmm.ini: the shipped
-settings of each game.
+"""Generates data/<game>/d3d9.ini (HP4, HP5, HP6, HP7a, HP7b) and data/<game>/winmm.ini (HP1,
+HP2): the shipped settings of each game.
 
     python tools/make_ini.py          writes the three files
     python tools/make_ini.py --check  fails if a committed file differs (run by the Build workflow)
@@ -458,17 +458,29 @@ def ini(jeu, graphismes=None):
     return "\r\n".join(L)
 
 
-def winmm_ini():
-    """data/HP2/winmm.ini, read by winmm.dll (HP2 has no Direct3D 9: no d3d9.dll, no d3d9.ini)."""
+# The Unreal Engine 1 games: no Direct3D 9 (no d3d9.dll, no d3d9.ini), winmm.dll instead.
+# HP1 has no pad bindings (notes/HP1.md) and its Alt+Enter was SEEN fine (2026-10-01): its pad keys
+# and the Alt+Enter block are off.
+UE1 = {
+    "HP1": dict(titre="Harry Potter and the Philosopher's Stone", ini_jeu="HP.ini", pads=False,
+                alt_enter=False),
+    "HP2": dict(titre="Harry Potter and the Chamber of Secrets", ini_jeu="Game.ini", pads=True,
+                alt_enter=True),
+}
+
+
+def winmm_ini(jeu):
+    """data/<game>/winmm.ini, read by winmm.dll."""
+    c = UE1[jeu]
     L = []
     a = L.append
     a("; ============================================================================")
-    a(";  Harry Potter and the Chamber of Secrets - PC fix")
+    a(f";  {c['titre']} - PC fix")
     a(";  Accio Launcher - https://acciolauncher.be/")
     a(";  (c) 2026 Accio Launcher. PolyForm Strict 1.0.0 - see license.")
     a("; ============================================================================")
     a(";")
-    a(";  Read by winmm.dll, next to Game.exe, once when the game starts.")
+    a(";  Read by winmm.dll, next to the game's exe, once when the game starts.")
     a(";  1 = on, 0 = off. A line you delete falls back to its default; a missing")
     a(";  file means all defaults.")
     a("; ============================================================================")
@@ -483,10 +495,16 @@ def winmm_ini():
     a("; was done with them.")
     a("Log=1")
     a("")
+    a("; The game's window has a title bar and a border: with a picture as large as")
+    a("; the screen, the bottom went under the taskbar. 1 = a picture as large as")
+    a("; the screen fills it, with no frame (taskbar hidden), without switching the")
+    a("; display mode. A smaller picture stays a normal window. 0 = as shipped.")
+    a("FillScreen=1")
+    a("")
     a("; Alt+Enter switches the game between window and full screen: its menu")
     a("; stays at the old size (too large, cut off) and the new size is written")
-    a("; into Game.ini. 1 = Alt+Enter does nothing.")
-    a("BlockAltEnter=1")
+    a(f"; into {c['ini_jeu']}. 1 = Alt+Enter does nothing.")
+    a(f"BlockAltEnter={1 if c['alt_enter'] else 0}")
     a("")
     a("")
     a("; ----------------------------------------------------------------------------")
@@ -498,14 +516,14 @@ def winmm_ini():
     a("; are a PlayStation controller's. 1 = an Xbox controller is shown to the game")
     a("; with those numbers (A = cross, B = circle, X = square, Y = triangle, Back =")
     a("; Share, Start = Options, triggers = L2 and R2). 0 = as it is.")
-    a("XboxLayout=1")
+    a(f"XboxLayout={1 if c['pads'] else 0}")
     a("")
     a("; The key pressed by Share (Back on Xbox) and by Options (Start), held as long")
     a("; as the button: the game opens its map and its menu only from the keyboard.")
     a("; Windows key codes: 9 = Tab (map), 27 = Escape (menu). 0 = the button stays")
     a("; a button, for a binding in User.ini.")
-    a("ShareKey=9")
-    a("OptionsKey=27")
+    a(f"ShareKey={9 if c['pads'] else 0}")
+    a(f"OptionsKey={27 if c['pads'] else 0}")
     a("")
     return "\r\n".join(L)
 
@@ -513,7 +531,7 @@ def winmm_ini():
 # Every generated file: data/<path> -> its text.
 def fichiers():
     out = {f"{game}/d3d9.ini": ini(game) for game in JEUX}
-    out["HP2/winmm.ini"] = winmm_ini()
+    out.update({f"{jeu}/winmm.ini": winmm_ini(jeu) for jeu in UE1})
     return out
 
 
@@ -535,4 +553,4 @@ if __name__ == "__main__":
         print("Out of date (run python tools/make_ini.py and commit):", ", ".join(stale))
         sys.exit(1)
     if check:
-        print("data/*/d3d9.ini and data/HP2/winmm.ini up to date")
+        print("data/*/d3d9.ini and data/*/winmm.ini up to date")

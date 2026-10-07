@@ -21,9 +21,10 @@ Un correctif PC pour les trois jeux Harry Potter qu'Electronic Arts a bâtis sur
 | *Harry Potter et la Coupe de feu* | 2005 | `gof_f.exe` | [`data/HP4/d3d9.ini`](data/HP4/d3d9.ini) | `HP4-Goblet-of-Fire.zip` |
 | *Harry Potter et l'Ordre du Phénix* | 2007 | `hp.exe` | [`data/HP5/d3d9.ini`](data/HP5/d3d9.ini) | `HP5-Order-of-the-Phoenix.zip` |
 | *Harry Potter et le Prince de sang-mêlé* | 2009 | `hp6.exe` | [`data/HP6/d3d9.ini`](data/HP6/d3d9.ini) | `HP6-Half-Blood-Prince.zip` |
+| *Harry Potter à l'école des sorciers* | 2001 | `System\HP.exe` | [`data/HP1/winmm.ini`](data/HP1/winmm.ini) | `HP1-Philosophers-Stone.zip` |
 | *Harry Potter et la Chambre des secrets* | 2002 | `system\Game.exe` | [`data/HP2/winmm.ini`](data/HP2/winmm.ini) | `HP2-Chamber-of-Secrets.zip` |
 
-*La Chambre des secrets* n'est pas de cette famille et n'utilise pas Direct3D 9 : elle reçoit un `winmm.dll` à elle, pour la manette et Alt+Entrée ([plus bas](#dans-harry-potter-et-la-chambre-des-secrets-winmmdll-winmmini)).
+*L'École des sorciers* et *la Chambre des secrets* ne sont pas de cette famille et n'utilisent pas Direct3D 9 : elles reçoivent un `winmm.dll` à elles, pour l'image à la taille de l'écran, la manette et Alt+Entrée ([plus bas](#dans-les-jeux-unreal-engine-1-winmmdll-winmmini)).
 
 Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab, le clavier et la souris répondent dès le retour dans le jeu, chaque touche se change, et la résolution, le format d'image, le champ de vision et les images/s du moteur se règlent. Des effets d'image facultatifs affinent et étalonnent le rendu. Tout se règle dans `d3d9.ini`, lu une fois au lancement du jeu.
 
@@ -129,12 +130,13 @@ Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG
 
 La *Coupe de feu* lit ses manettes par DirectInput et n'est pas concernée : ses manettes PlayStation passent par `PlayStationController`, plus haut.
 
-### Dans *Harry Potter et la Chambre des secrets* (`winmm.dll`, `winmm.ini`)
+### Dans les jeux Unreal Engine 1 (`winmm.dll`, `winmm.ini`)
 
-Ce jeu n'utilise pas Direct3D 9 : `d3d9.dll` ne l'atteint pas. Il lit sa manette par WinMM, d'où un `winmm.dll` à poser dans son dossier `system`, à côté de `Game.exe`. Les 193 fonctions de WinMM y sont : trois, celles de la manette, sont réécrites ; toutes les autres passent telles quelles au `winmm.dll` de Windows.
+*L'École des sorciers* et *la Chambre des secrets* n'utilisent pas Direct3D 9 : `d3d9.dll` ne les atteint pas. Leur moteur charge WinMM, d'où un `winmm.dll` à poser dans leur dossier `system`, à côté de l'exécutable. Les 193 fonctions de WinMM y sont : trois, celles de la manette, sont réécrites ; toutes les autres passent telles quelles au `winmm.dll` de Windows. Le même `winmm.dll` sert aux deux jeux ; leurs `winmm.ini` diffèrent (*l'École des sorciers* n'a pas de liaisons de manette, et son Alt+Entrée se passe bien : ces réglages y sont à `0`).
 
 | | Réglage | |
 |---|---|---|
+| Image à la taille de l'écran | `FillScreen` | La fenêtre du jeu a une barre de titre et une bordure, et son moteur de rendu n'a pas de mode sans bordure : avec une image aussi grande que l'écran, le bas de l'image passait sous la barre des tâches. `1`, le défaut, retire le cadre d'une image aussi grande que l'écran et pose la fenêtre sur l'écran entier, barre des tâches cachée, sans changer de mode d'affichage. Une image plus petite reste une fenêtre ordinaire. |
 | Carte et menu à la manette | `ShareKey`, `OptionsKey` | Le jeu n'ouvre son menu qu'avec Échap et ne referme sa carte qu'au relâchement de Tab, deux touches qu'il teste par leur code : aucun bouton de manette lié dans `User.ini` ne peut les remplacer. Share (Back sur une manette Xbox) appuie sur Tab et Options (Start) sur Échap, aussi longtemps que le bouton est tenu, et seulement quand le jeu est au premier plan. Codes de touche de Windows ; `0` laisse le bouton tel quel. |
 | Manettes Xbox | `XboxLayout` | Le jeu connaît les boutons par leur numéro, et ceux de la manette Xbox ne sont pas ceux de la manette PlayStation. `1`, le défaut, présente une manette Xbox avec les numéros d'une manette PlayStation (A = croix, B = rond, X = carré, Y = triangle, gâchettes = L2 et R2, stick droit au même endroit) : les mêmes liaisons servent aux deux. D'après la disposition que Windows donne à toute manette XInput ; pas encore vu avec une manette Xbox. |
 | Alt+Entrée | `BlockAltEnter` | Alt+Entrée bascule le jeu entre fenêtre et plein écran : son menu reste calculé pour l'ancienne taille (trop grand, coupé) et la nouvelle taille est écrite dans `Game.ini`. `1`, le défaut, rend Alt+Entrée sans effet. |
@@ -147,11 +149,11 @@ Le journal `winmm_accio.log` (`Log=0` le désactive) nomme chaque manette trouv�
 
 **Avec [Accio Launcher](https://acciolauncher.be/)** : rien à faire, chaque jeu arrive avec son correctif.
 
-**À la main** : prenez le zip de votre jeu dans une [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) et copiez ses fichiers (`d3d9.dll`, `d3d9.ini`, et `xinput1_3.dll` pour les jeux qui l'utilisent ; `winmm.dll` et `winmm.ini` pour *la Chambre des secrets*) à côté de l'exécutable du jeu. Les fichiers laissés par d'anciens correctifs (`d3d9_original.dll`, `fps.dll`) peuvent être supprimés : plus rien ne les charge.
+**À la main** : prenez le zip de votre jeu dans une [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) et copiez ses fichiers (`d3d9.dll`, `d3d9.ini`, et `xinput1_3.dll` pour les jeux qui l'utilisent ; `winmm.dll` et `winmm.ini` pour *l'École des sorciers* et *la Chambre des secrets*) à côté de l'exécutable du jeu. Les fichiers laissés par d'anciens correctifs (`d3d9_original.dll`, `fps.dll`) peuvent être supprimés : plus rien ne les charge.
 
 Le correctif ne contient aucun fichier de jeu : il s'installe sur **votre** copie, que vous devez posséder (CD, DVD ou achat numérique).
 
-**Sous Linux** (Wine ou Proton), Wine utilise son propre `d3d9` sauf indication contraire : `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher le fait pour vous. Pas `xinput1_3` : le XInput de Wine reconnaît déjà les manettes PlayStation. Pour *la Chambre des secrets* : `WINEDLLOVERRIDES="winmm=n,b"`.
+**Sous Linux** (Wine ou Proton), Wine utilise son propre `d3d9` sauf indication contraire : `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher le fait pour vous. Pas `xinput1_3` : le XInput de Wine reconnaît déjà les manettes PlayStation. Pour *l'École des sorciers* et *la Chambre des secrets* : `WINEDLLOVERRIDES="winmm=n,b"`.
 
 Les réglages sont lus au lancement : modifiez `d3d9.ini`, puis relancez le jeu. Chaque ligne du fichier est commentée. Un `d3d9.ini` écrit pour un ancien correctif fonctionne encore : les clés absentes des sections `[Accio.*]` sont lues là où les anciennes versions les rangeaient.
 

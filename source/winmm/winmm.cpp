@@ -1,10 +1,13 @@
 // Accio Launcher - PC fix for the EA Harry Potter games.
 // Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 //
-// winmm.dll for HP2 (Chamber of Secrets), next to Game.exe in its system folder. HP2 is an Unreal
-// Engine 1 game with no Direct3D 9 of its own (its renderer is Direct3D 11), so d3d9.dll cannot
-// reach it; winmm.dll is the one Windows file it loads that holds its pad. Three jobs, each one
-// switched in winmm.ini:
+// winmm.dll for HP2 (Chamber of Secrets) and HP1 (Philosopher's Stone), next to the game's exe in
+// its system folder. Both are Unreal Engine 1 games with no Direct3D 9 of their own (their
+// renderer is Direct3D 11), so d3d9.dll cannot reach them; winmm.dll is the one Windows file their
+// Core.dll and WinDrv.dll load, and it holds the pad. Four jobs, each one switched in winmm.ini
+// (HP1's turns the pad keys and Alt+Enter off: no pad bindings there, Alt+Enter SEEN fine):
+//   - A picture as large as the screen fills it: the window loses its title bar and border and
+//     takes the screen's rectangle (fill.h, which says why).
 //   - Options and Share (Start and Back on an Xbox pad) press Escape and Tab. The game opens its
 //     menu on Escape and closes its map when Tab is RELEASED, both tested by key code: no binding
 //     of a pad button can reach them (notes/HP2.md). The key goes down and up with the button.
@@ -18,6 +21,7 @@
 // are posted to the window that has the focus on that thread. Nothing is posted when the game is
 // not in front (no focus: GetFocus answers nothing).
 
+#include "fill.h"
 #include "remap.h"
 #include <cstdarg>
 #include <cstdio>
@@ -45,6 +49,7 @@ CRITICAL_SECTION g_logLock;
 struct Settings
 {
 	bool log = true;
+	bool fillScreen = true;
 	bool blockAltEnter = true;
 	bool xboxLayout = true;
 	UINT shareKey = VK_TAB;
@@ -90,6 +95,7 @@ void LoadSettings(const wchar_t* ini)
 		return GetPrivateProfileIntW(section, key, fallback ? 1 : 0, ini) != 0;
 	};
 	g_cfg.log = flag(L"Accio.Window", L"Log", g_cfg.log);
+	g_cfg.fillScreen = flag(L"Accio.Window", L"FillScreen", g_cfg.fillScreen);
 	g_cfg.blockAltEnter = flag(L"Accio.Window", L"BlockAltEnter", g_cfg.blockAltEnter);
 	g_cfg.xboxLayout = flag(L"Accio.Controller", L"XboxLayout", g_cfg.xboxLayout);
 	g_cfg.shareKey = GetPrivateProfileIntW(L"Accio.Controller", L"ShareKey", g_cfg.shareKey, ini) & 0xFF;
@@ -144,6 +150,48 @@ LRESULT CALLBACK OnMessage(int code, WPARAM removal, LPARAM lParam)
 		}
 	}
 	return CallNextHookEx(nullptr, code, removal, lParam);
+}
+
+// ---- Fill the screen -----------------------------------------------------------------------
+
+bool g_fitting;   // our own SetWindowPos sends WM_WINDOWPOSCHANGED again
+
+// After the game placed or showed a window: if its picture covers the screen, take the frame off
+// and put it on the screen's rectangle (fill.h). The engine may give the frame back (a new size
+// from its menu): the next WM_WINDOWPOSCHANGED takes it off again.
+void Fill(HWND hwnd)
+{
+	if (g_fitting)
+		return;
+	const LONG style = GetWindowLongW(hwnd, GWL_STYLE);
+	const bool topLevel = !GetParent(hwnd) && !GetWindow(hwnd, GW_OWNER);
+	RECT client{};
+	MONITORINFO screen{};
+	screen.cbSize = sizeof(screen);
+	if (!GetClientRect(hwnd, &client)
+		|| !GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &screen)
+		|| !fill::Wanted(style, topLevel, client.right, client.bottom, screen.rcMonitor))
+		return;
+	const RECT& r = screen.rcMonitor;
+	g_fitting = true;
+	SetWindowLongW(hwnd, GWL_STYLE, fill::Borderless(style));
+	SetWindowPos(hwnd, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top,
+		SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
+	g_fitting = false;
+	Log("Window %ldx%ld: frame taken off, now on the screen at %ld,%ld (FillScreen)\n", client.right,
+		client.bottom, r.left, r.top);
+}
+
+// Sees every message the game's thread SENT to its windows, after the window handled it.
+LRESULT CALLBACK OnWindow(int code, WPARAM wParam, LPARAM lParam)
+{
+	if (code == HC_ACTION)
+	{
+		const CWPRETSTRUCT* m = reinterpret_cast<const CWPRETSTRUCT*>(lParam);
+		if (m->message == WM_WINDOWPOSCHANGED || m->message == WM_SHOWWINDOW)
+			Fill(m->hwnd);
+	}
+	return CallNextHookEx(nullptr, code, wParam, lParam);
 }
 
 // ---- Pad -----------------------------------------------------------------------------------
@@ -299,8 +347,8 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 	}
 	GetModuleFileNameW(nullptr, path, MAX_PATH);
 	Log("Accio Launcher PC fix (winmm.dll), %ls\n", path);
-	Log("Settings: XboxLayout=%d ShareKey=%u OptionsKey=%u BlockAltEnter=%d\n", g_cfg.xboxLayout,
-		g_cfg.shareKey, g_cfg.optionsKey, g_cfg.blockAltEnter);
+	Log("Settings: XboxLayout=%d ShareKey=%u OptionsKey=%u BlockAltEnter=%d FillScreen=%d\n",
+		g_cfg.xboxLayout, g_cfg.shareKey, g_cfg.optionsKey, g_cfg.blockAltEnter, g_cfg.fillScreen);
 
 	// Every Windows has one. Without it the stubs would have nowhere to go: refuse to load, and
 	// Windows says winmm.dll is broken, which is the truth.
@@ -315,6 +363,13 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 			Log("Alt+Enter: watched\n");
 		else
 			Log("Alt+Enter: hook refused (error %lu)\n", GetLastError());
+	}
+	if (g_cfg.fillScreen)
+	{
+		if (SetWindowsHookExW(WH_CALLWNDPROCRET, OnWindow, nullptr, GetCurrentThreadId()))
+			Log("Fill the screen: watched\n");
+		else
+			Log("Fill the screen: hook refused (error %lu)\n", GetLastError());
 	}
 	return TRUE;
 }

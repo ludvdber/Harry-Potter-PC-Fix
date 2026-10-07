@@ -71,7 +71,7 @@ jobs:
         run: |
           python tools/make_ini.py --check
           if ($LASTEXITCODE -ne 0) {
-            Write-Output '::error::data/*/d3d9.ini or data/HP2/winmm.ini differ from tools/make_ini.py. Run python tools/make_ini.py and commit.'
+            Write-Output '::error::data/*/d3d9.ini or data/*/winmm.ini differ from tools/make_ini.py. Run python tools/make_ini.py and commit.'
             exit 1
           }
 

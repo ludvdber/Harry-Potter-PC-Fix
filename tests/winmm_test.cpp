@@ -4,6 +4,7 @@
 //   - the built DLL (path in argv[1]), loaded by this program: Windows' functions reached through
 //     the stubs (named and by ordinal), and Alt+Enter swallowed on the thread that loaded it,
 //     posted to a window that is never shown.
+#include "../source/winmm/fill.h"
 #include "../source/winmm/remap.h"
 #include <cstdio>
 
@@ -99,6 +100,25 @@ static void Remap()
 	Expect(caps.wZmax == 65535 && caps.wVmax == 65535, "caps: Z and V ranges");
 }
 
+// ---- fill.h --------------------------------------------------------------------------------
+
+static void Fill()
+{
+	const RECT screen{0, 0, 2560, 1440};
+	const LONG framed = WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPSIBLINGS;   // HP1's, read 0x14CF0000
+	Expect(framed == 0x14CF0000, "HP1's window style as read");
+	Expect(fill::Wanted(framed, true, 2560, 1440, screen), "a screen-sized picture loses its frame");
+	Expect(fill::Wanted(framed, true, 3840, 2160, screen), "a larger one too");
+	Expect(!fill::Wanted(framed, true, 2542, 1333, screen), "a smaller picture stays a window");
+	Expect(!fill::Wanted(framed, true, 2560, 1333, screen), "as wide but not as tall: a window");
+	Expect(!fill::Wanted(framed, false, 2560, 1440, screen), "a child or owned window is left alone");
+	Expect(!fill::Wanted(framed & ~WS_VISIBLE, true, 2560, 1440, screen), "a hidden window is left alone");
+	Expect(!fill::Wanted(WS_POPUP | WS_VISIBLE, true, 2560, 1440, screen), "already without a frame: nothing to do");
+	const RECT second{2560, 0, 6400, 2160};   // a second screen, to the right
+	Expect(fill::Wanted(framed, true, 3840, 2160, second), "measured against ITS screen");
+	Expect(static_cast<DWORD>(fill::Borderless(framed)) == 0x94000000, "pop-up, visible and clip flags kept");
+}
+
 // ---- The built DLL -------------------------------------------------------------------------
 
 static void Dll(const char* path)
@@ -169,11 +189,49 @@ static void Dll(const char* path)
 	Expect(altEnter == 0, "Alt+Enter swallowed");
 	Expect(altF4 == 1 && enter == 1, "other keys untouched");
 	DestroyWindow(w);
+
+	// A framed window whose picture covers the screen loses its frame and takes the screen's
+	// rectangle; a smaller one keeps its frame. Fully transparent (layered, alpha 0) and never
+	// activated: nothing shows on the screen of whoever runs the test.
+	MONITORINFO mi{};
+	mi.cbSize = sizeof(mi);
+	GetMonitorInfoA(MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY), &mi);
+	const RECT s = mi.rcMonitor;
+	auto framedWindow = [&](int clientW, int clientH) {
+		RECT r{0, 0, clientW, clientH};
+		AdjustWindowRectEx(&r, WS_OVERLAPPEDWINDOW, FALSE, 0);
+		HWND f = CreateWindowExA(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, "STATIC", "",
+			WS_OVERLAPPEDWINDOW, s.left, s.top, r.right - r.left, r.bottom - r.top, nullptr, nullptr, nullptr, nullptr);
+		if (f)
+		{
+			SetLayeredWindowAttributes(f, 0, 0, LWA_ALPHA);
+			ShowWindow(f, SW_SHOWNOACTIVATE);
+		}
+		return f;
+	};
+	HWND big = framedWindow(s.right - s.left, s.bottom - s.top);
+	Expect(big != nullptr, "screen-sized framed window");
+	if (big)
+	{
+		RECT placed{};
+		GetWindowRect(big, &placed);
+		Expect(!(GetWindowLongA(big, GWL_STYLE) & WS_CAPTION), "its frame taken off (FillScreen)");
+		Expect(EqualRect(&placed, &s) != 0, "it covers the screen exactly");
+		DestroyWindow(big);
+	}
+	HWND small = framedWindow((s.right - s.left) / 2, (s.bottom - s.top) / 2);
+	Expect(small != nullptr, "smaller framed window");
+	if (small)
+	{
+		Expect((GetWindowLongA(small, GWL_STYLE) & WS_CAPTION) == WS_CAPTION, "a smaller picture keeps its frame");
+		DestroyWindow(small);
+	}
 }
 
 int main(int argc, char** argv)
 {
 	Remap();
+	Fill();
 	if (argc > 1)
 		Dll(argv[1]);
 	else
