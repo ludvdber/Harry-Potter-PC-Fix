@@ -219,6 +219,25 @@ static void Dll(const char* path)
 	// A framed window whose picture covers the screen loses its frame and takes the screen's
 	// rectangle; a smaller one keeps its frame. Fully transparent (layered, alpha 0) and never
 	// activated: nothing shows on the screen of whoever runs the test.
+	//
+	// Windows caps a framed window at the screen plus its border (WM_GETMINMAXINFO): a picture as
+	// large as the screen PLUS a title bar does not fit, and the window is made shorter before the
+	// DLL sees it. That happened on GitHub's runner (one screen): "frame taken off" failed there
+	// and passed on a desk with two screens. The game lifts that cap, its window was 2578x1487 on
+	// 2560x1440 (fill.h); the test window lifts it the same way.
+	WNDCLASSA framedClass{};
+	framedClass.lpszClassName = "winmm_test_framed";
+	framedClass.hInstance = GetModuleHandleA(nullptr);
+	framedClass.lpfnWndProc = [](HWND h, UINT msg, WPARAM wParam, LPARAM lParam) -> LRESULT {
+		const LRESULT result = DefWindowProcA(h, msg, wParam, lParam);
+		if (msg == WM_GETMINMAXINFO)
+		{
+			MINMAXINFO* mm = reinterpret_cast<MINMAXINFO*>(lParam);
+			mm->ptMaxTrackSize = POINT{32767, 32767};
+		}
+		return result;
+	};
+	Expect(RegisterClassA(&framedClass) != 0, "test window class");
 	MONITORINFO mi{};
 	mi.cbSize = sizeof(mi);
 	GetMonitorInfoA(MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY), &mi);
@@ -226,10 +245,13 @@ static void Dll(const char* path)
 	auto framedWindow = [&](int clientW, int clientH) {
 		RECT r{0, 0, clientW, clientH};
 		AdjustWindowRectEx(&r, WS_OVERLAPPEDWINDOW, FALSE, 0);
-		HWND f = CreateWindowExA(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, "STATIC", "",
-			WS_OVERLAPPEDWINDOW, s.left, s.top, r.right - r.left, r.bottom - r.top, nullptr, nullptr, nullptr, nullptr);
+		HWND f = CreateWindowExA(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, framedClass.lpszClassName, "",
+			WS_OVERLAPPEDWINDOW, s.left, s.top, r.right - r.left, r.bottom - r.top, nullptr, nullptr, framedClass.hInstance, nullptr);
 		if (f)
 		{
+			RECT client{};
+			GetClientRect(f, &client);
+			Expect(client.right == clientW && client.bottom == clientH, "the picture has the size asked for");
 			SetLayeredWindowAttributes(f, 0, 0, LWA_ALPHA);
 			ShowWindow(f, SW_SHOWNOACTIVATE);
 		}
@@ -252,6 +274,7 @@ static void Dll(const char* path)
 		Expect((GetWindowLongA(small, GWL_STYLE) & WS_CAPTION) == WS_CAPTION, "a smaller picture keeps its frame");
 		DestroyWindow(small);
 	}
+	UnregisterClassA(framedClass.lpszClassName, framedClass.hInstance);
 }
 
 int main(int argc, char** argv)
