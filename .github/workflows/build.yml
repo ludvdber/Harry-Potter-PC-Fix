@@ -164,7 +164,7 @@ jobs:
           cd tests
           if not exist out mkdir out
           cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source keys_test.cpp ..\source\keys.cpp /Feout\gof_f.exe /Foout\ user32.lib dxguid.lib || exit /b 1
-          out\gof_f.exe "%CD%\out\keys_test.ini"
+          out\gof_f.exe "%CD%\out\keys_test.ini" || exit /b 1
           cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source settings_test.cpp ..\source\settings.cpp /Feout\settings_test.exe /Foout\ || exit /b 1
           out\settings_test.exe "%CD%\..\data" "%CD%\out" || exit /b 1
           cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source mipmaps_test.cpp ..\source\mipmaps.cpp /Feout\mipmaps_test.exe /Foout\ || exit /b 1
