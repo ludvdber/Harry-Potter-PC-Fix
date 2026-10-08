@@ -3,9 +3,10 @@
 # - Box unchecked (default): trial build. Compiles, verifies and packages
 #   the release files as an artifact; nothing is published.
 # - Box checked: same, then creates a DRAFT release (tag v<VERSION>) with
-#   d3d9.dll, xinput1_3.dll, winmm.dll, one zip per game (d3d9.dll + that game's
-#   d3d9.ini + license + THIRD_PARTY_NOTICES.md, + xinput1_3.dll for the games
-#   that import it; for HP2, winmm.dll + winmm.ini instead of d3d9), and a
+#   d3d9.dll, xinput1_3.dll, winmm.dll, dinput8.dll, one zip per game (d3d9.dll +
+#   that game's d3d9.ini + license + THIRD_PARTY_NOTICES.md, + xinput1_3.dll for the
+#   games that import it; for HP1 and HP2, winmm.dll + winmm.ini instead of d3d9;
+#   for HP3, dinput8.dll + dinput8.ini), and a
 #   signed build provenance attestation for
 #   each of them. The draft stays private until
 #   it is published by hand; the tag is only created at that point.
@@ -32,7 +33,8 @@ concurrency:
 jobs:
   version:
     name: Version
-    runs-on: ubuntu-latest
+    # Pinned like the launcher's: the 'latest' label moves under our feet.
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -84,7 +86,8 @@ jobs:
   package:
     name: Package
     needs: [version, build]
-    runs-on: ubuntu-latest
+    # Pinned like the launcher's: the 'latest' label moves under our feet.
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -104,9 +107,10 @@ jobs:
           DLL_SHA256: ${{ needs.build.outputs.sha256 }}
           XINPUT_SHA256: ${{ needs.build.outputs.xinput-sha256 }}
           WINMM_SHA256: ${{ needs.build.outputs.winmm-sha256 }}
+          DINPUT8_SHA256: ${{ needs.build.outputs.dinput8-sha256 }}
         run: |
-          (cd build-output && for f in d3d9.dll xinput1_3.dll winmm.dll; do sha256sum --check --strict "$f.sha256" || exit 1; done)
-          for pair in "d3d9.dll:$DLL_SHA256" "xinput1_3.dll:$XINPUT_SHA256" "winmm.dll:$WINMM_SHA256"; do
+          (cd build-output && for f in d3d9.dll xinput1_3.dll winmm.dll dinput8.dll; do sha256sum --check --strict "$f.sha256" || exit 1; done)
+          for pair in "d3d9.dll:$DLL_SHA256" "xinput1_3.dll:$XINPUT_SHA256" "winmm.dll:$WINMM_SHA256" "dinput8.dll:$DINPUT8_SHA256"; do
             file=${pair%%:*}
             want=${pair#*:}
             actual=$(sha256sum "build-output/$file" | cut -d' ' -f1)
@@ -117,11 +121,12 @@ jobs:
           done
 
           mkdir release
-          cp build-output/d3d9.dll build-output/xinput1_3.dll build-output/winmm.dll release/
+          cp build-output/d3d9.dll build-output/xinput1_3.dll build-output/winmm.dll build-output/dinput8.dll release/
           # One zip per game: data/<game>/d3d9.ini next to the same d3d9.dll, and xinput1_3.dll
           # for the games whose ini has an [Accio.Controller] section (those that import it).
           # HP1 and HP2 have no Direct3D 9: data/<game>/winmm.ini next to winmm.dll instead.
-          declare -A names=([HP1]=Philosophers-Stone [HP2]=Chamber-of-Secrets [HP4]=Goblet-of-Fire [HP5]=Order-of-the-Phoenix [HP6]=Half-Blood-Prince [HP7a]=Deathly-Hallows-Part-1 [HP7b]=Deathly-Hallows-Part-2)
+          # HP3's pad goes through DirectInput: data/HP3/dinput8.ini next to dinput8.dll.
+          declare -A names=([HP1]=Philosophers-Stone [HP2]=Chamber-of-Secrets [HP3]=Prisoner-of-Azkaban [HP4]=Goblet-of-Fire [HP5]=Order-of-the-Phoenix [HP6]=Half-Blood-Prince [HP7a]=Deathly-Hallows-Part-1 [HP7b]=Deathly-Hallows-Part-2)
           for dir in data/*/; do
             game=$(basename "$dir")
             name=${names[$game]:?"no release name for data/$game"}
@@ -129,6 +134,12 @@ jobs:
             if [[ -f $dir/winmm.ini ]]; then
               files=(winmm.dll winmm.ini license THIRD_PARTY_NOTICES.md)
               cp build-output/winmm.dll "$dir/winmm.ini" license THIRD_PARTY_NOTICES.md "$staging/"
+              (cd "$staging" && zip -q -X "$GITHUB_WORKSPACE/release/$game-$name.zip" "${files[@]}")
+              continue
+            fi
+            if [[ -f $dir/dinput8.ini ]]; then
+              files=(dinput8.dll dinput8.ini license THIRD_PARTY_NOTICES.md)
+              cp build-output/dinput8.dll "$dir/dinput8.ini" license THIRD_PARTY_NOTICES.md "$staging/"
               (cd "$staging" && zip -q -X "$GITHUB_WORKSPACE/release/$game-$name.zip" "${files[@]}")
               continue
             fi
@@ -164,7 +175,9 @@ jobs:
             echo
             echo "\`xinput1_3.dll\` (Order of the Phoenix, Half-Blood Prince, both Deathly Hallows): Xbox controllers through Windows' own XInput, so the June 2010 DirectX runtime is no longer needed for them, and PlayStation 4 and 5 controllers played as Xbox controllers, with vibration and light bar over USB. Settings in \`[Accio.Controller]\` of \`d3d9.ini\`."
             echo
-            echo "\`winmm.dll\` (Chamber of Secrets, next to \`Game.exe\` in the \`system\` folder): Options and Share open the menu and the map, an Xbox controller uses the same buttons as a PlayStation one, and Alt+Enter no longer breaks the menu. Every other function goes to Windows' own winmm.dll. Settings in \`winmm.ini\`."
+            echo "\`winmm.dll\` (Philosopher's Stone and Chamber of Secrets, next to the exe in the \`system\` folder): Options opens the menu, an Xbox controller uses the same buttons as a PlayStation one, the window fills the screen; Philosopher's Stone starts without its setup wizard, and in Chamber of Secrets Alt+Enter no longer breaks the menu. Every other function goes to Windows' own winmm.dll. Settings in \`winmm.ini\`."
+            echo
+            echo "\`dinput8.dll\` (Prisoner of Azkaban, next to \`hppoa.exe\` in the \`system\` folder): both sticks get a dead zone, Options opens and closes the menu, and an Xbox controller uses the same layout as a PlayStation one. Every other function goes to Windows' own dinput8.dll. Settings in \`dinput8.ini\`."
           } > release-notes.md
 
           cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
@@ -183,7 +196,8 @@ jobs:
     name: Draft release
     if: ${{ inputs.create_release }}
     needs: [version, package]
-    runs-on: ubuntu-latest
+    # Pinned like the launcher's: the 'latest' label moves under our feet.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write # create the draft release

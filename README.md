@@ -23,8 +23,9 @@ Un correctif PC pour les trois jeux Harry Potter qu'Electronic Arts a bâtis sur
 | *Harry Potter et le Prince de sang-mêlé* | 2009 | `hp6.exe` | [`data/HP6/d3d9.ini`](data/HP6/d3d9.ini) | `HP6-Half-Blood-Prince.zip` |
 | *Harry Potter à l'école des sorciers* | 2001 | `System\HP.exe` | [`data/HP1/winmm.ini`](data/HP1/winmm.ini) | `HP1-Philosophers-Stone.zip` |
 | *Harry Potter et la Chambre des secrets* | 2002 | `system\Game.exe` | [`data/HP2/winmm.ini`](data/HP2/winmm.ini) | `HP2-Chamber-of-Secrets.zip` |
+| *Harry Potter et le Prisonnier d'Azkaban* | 2004 | `system\hppoa.exe` | [`data/HP3/dinput8.ini`](data/HP3/dinput8.ini) | `HP3-Prisoner-of-Azkaban.zip` |
 
-*L'École des sorciers* et *la Chambre des secrets* ne sont pas de cette famille et n'utilisent pas Direct3D 9 : elles reçoivent un `winmm.dll` à elles, pour l'image à la taille de l'écran, la manette et Alt+Entrée ([plus bas](#dans-les-jeux-unreal-engine-1-winmmdll-winmmini)).
+*L'École des sorciers* et *la Chambre des secrets* ne sont pas de cette famille et n'utilisent pas Direct3D 9 : elles reçoivent un `winmm.dll` à elles, pour l'image à la taille de l'écran, la manette et Alt+Entrée ([plus bas](#dans-les-jeux-unreal-engine-1-winmmdll-winmmini)). *Le Prisonnier d'Azkaban* reçoit un `dinput8.dll`, pour sa manette ([plus bas](#dans-le-prisonnier-dazkaban-dinput8dll-dinput8ini)).
 
 Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab, le clavier et la souris répondent dès le retour dans le jeu, chaque touche se change, et la résolution, le format d'image, le champ de vision et les images/s du moteur se règlent. Des effets d'image facultatifs affinent et étalonnent le rendu. Tout se règle dans `d3d9.ini`, lu une fois au lancement du jeu.
 
@@ -132,17 +133,29 @@ La *Coupe de feu* lit ses manettes par DirectInput et n'est pas concernée : ses
 
 ### Dans les jeux Unreal Engine 1 (`winmm.dll`, `winmm.ini`)
 
-*L'École des sorciers* et *la Chambre des secrets* n'utilisent pas Direct3D 9 : `d3d9.dll` ne les atteint pas. Leur moteur charge WinMM, d'où un `winmm.dll` à poser dans leur dossier `system`, à côté de l'exécutable. Les 193 fonctions de WinMM y sont : trois, celles de la manette, sont réécrites ; toutes les autres passent telles quelles au `winmm.dll` de Windows. Le même `winmm.dll` sert aux deux jeux ; leurs `winmm.ini` diffèrent (*l'École des sorciers* n'a pas de liaisons de manette, et son Alt+Entrée se passe bien : ces réglages y sont à `0`).
+*L'École des sorciers* et *la Chambre des secrets* n'utilisent pas Direct3D 9 : `d3d9.dll` ne les atteint pas. Leur moteur charge WinMM, d'où un `winmm.dll` à poser dans leur dossier `system`, à côté de l'exécutable. Les 193 fonctions de WinMM y sont : trois, celles de la manette, sont réécrites ; toutes les autres passent telles quelles au `winmm.dll` de Windows. Le même `winmm.dll` sert aux deux jeux ; leurs `winmm.ini` diffèrent (*l'École des sorciers* n'a pas de carte, donc Share y reste un bouton, et son Alt+Entrée se passe bien : ces réglages y sont à `0`).
 
 | | Réglage | |
 |---|---|---|
 | Image à la taille de l'écran | `FillScreen` | La fenêtre du jeu a une barre de titre et une bordure, et son moteur de rendu n'a pas de mode sans bordure : avec une image aussi grande que l'écran, le bas de l'image passait sous la barre des tâches. `1`, le défaut, retire le cadre d'une image aussi grande que l'écran et pose la fenêtre sur l'écran entier, barre des tâches cachée, sans changer de mode d'affichage. Une image plus petite reste une fenêtre ordinaire. |
 | Configuration au démarrage (*École des sorciers*) | `SkipSetup` | À chaque lancement, le jeu ouvre son assistant de première configuration (une liste de cartes 3D vide) ou, sans `Running.ini`, teste un moteur de rendu qu'il n'a pas et l'écrit dans `HP.ini`, ce qui fait planter Alt+Entrée. `1` saute les deux : le jeu démarre directement avec le moteur de rendu que nomme `HP.ini`. Seulement dans le `winmm.ini` de *l'École des sorciers* ; ailleurs, rien n'est touché. |
-| Carte et menu à la manette | `ShareKey`, `OptionsKey` | Le jeu n'ouvre son menu qu'avec Échap et ne referme sa carte qu'au relâchement de Tab, deux touches qu'il teste par leur code : aucun bouton de manette lié dans `User.ini` ne peut les remplacer. Share (Back sur une manette Xbox) appuie sur Tab et Options (Start) sur Échap, aussi longtemps que le bouton est tenu, et seulement quand le jeu est au premier plan. Codes de touche de Windows ; `0` laisse le bouton tel quel. |
+| Menu à la manette | `ShareKey`, `OptionsKey` | Le jeu n'ouvre son menu qu'avec Échap, une touche qu'il teste par son code : aucun bouton de manette lié dans `User.ini` ne peut la remplacer. Options (Start sur une manette Xbox) appuie sur Échap (`OptionsKey=27`) aussi longtemps que le bouton est tenu, et seulement quand le jeu est au premier plan. `ShareKey` ferait de même pour Share (Back) ; il est à `0` dans les deux jeux : dans *la Chambre des secrets*, Tab ainsi envoyé ouvrait la carte et la refermait aussitôt. Codes de touche de Windows ; `0` laisse le bouton tel quel. |
 | Manettes Xbox | `XboxLayout` | Le jeu connaît les boutons par leur numéro, et ceux de la manette Xbox ne sont pas ceux de la manette PlayStation. `1`, le défaut, présente une manette Xbox avec les numéros d'une manette PlayStation (A = croix, B = rond, X = carré, Y = triangle, gâchettes = L2 et R2, stick droit au même endroit) : les mêmes liaisons servent aux deux. D'après la disposition que Windows donne à toute manette XInput ; pas encore vu avec une manette Xbox. |
 | Alt+Entrée | `BlockAltEnter` | Alt+Entrée bascule le jeu entre fenêtre et plein écran : son menu reste calculé pour l'ancienne taille (trop grand, coupé) et la nouvelle taille est écrite dans `Game.ini`. `1`, le défaut, rend Alt+Entrée sans effet. |
 
 Le journal `winmm_accio.log` (`Log=0` le désactive) nomme chaque manette trouvée et ce qui en est fait.
+
+### Dans *le Prisonnier d'Azkaban* (`dinput8.dll`, `dinput8.ini`)
+
+*Le Prisonnier d'Azkaban* lit sa manette par DirectInput 8, que rien d'autre du correctif n'atteint : un `dinput8.dll` à poser dans son dossier `system`, à côté de `hppoa.exe`. Ses six fonctions sont celles du `dinput8.dll` de Windows, appelé tel quel ; seules deux méthodes sont détournées, pour reconnaître la manette parmi les périphériques du jeu et changer son état au passage. La souris et le clavier passent sans changement.
+
+| | Réglage | |
+|---|---|---|
+| Zone morte | `DeadZone` | Le jeu n'en a aucune : il n'en demande pas à DirectInput, et ses liaisons n'appliquent `DeadZone=` qu'à une forme qui ignore la position du stick. Un stick au repos n'est jamais exactement au milieu : le personnage avançait seul. En pourcentage de la course, de chaque côté du milieu (`15` par défaut) ; au-delà, le stick atteint toujours son bord. Les deux sticks, pas les gâchettes. `0` = comme livré. |
+| Menu à la manette | `ShareKey`, `OptionsKey` | Le menu du jeu s'ouvre sur Échap et n'écoute aucun bouton de manette : ouvert par une liaison, rien sur la manette ne le refermait. Options (Start sur une manette Xbox) appuie sur Échap (`OptionsKey=27`) aussi longtemps que le bouton est tenu, et seulement quand le jeu est au premier plan : le menu s'ouvre et se ferme. `ShareKey` à `0` : pas de carte sur Share. Codes de touche de Windows ; `0` laisse le bouton tel quel. |
+| Manettes Xbox | `XboxLayout` | Le jeu connaît les boutons par leur numéro, et la manette Xbox n'a pas ceux de la manette PlayStation, ni son stick droit au même endroit. `1`, le défaut, présente une manette Xbox comme une manette PlayStation (A = croix, B = rond, X = carré, Y = triangle, gâchettes = L2 et R2) : les mêmes liaisons servent aux deux. D'après la disposition que Windows donne à toute manette XInput ; pas encore vu avec une manette Xbox. |
+
+Le journal `dinput8_accio.log` (`Log=0` le désactive) nomme chaque manette trouvée, la disposition choisie et les plages de ses axes.
 
 ---
 
@@ -150,11 +163,11 @@ Le journal `winmm_accio.log` (`Log=0` le désactive) nomme chaque manette trouv�
 
 **Avec [Accio Launcher](https://acciolauncher.be/)** : rien à faire, chaque jeu arrive avec son correctif.
 
-**À la main** : prenez le zip de votre jeu dans une [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) et copiez ses fichiers (`d3d9.dll`, `d3d9.ini`, et `xinput1_3.dll` pour les jeux qui l'utilisent ; `winmm.dll` et `winmm.ini` pour *l'École des sorciers* et *la Chambre des secrets*) à côté de l'exécutable du jeu. Les fichiers laissés par d'anciens correctifs (`d3d9_original.dll`, `fps.dll`) peuvent être supprimés : plus rien ne les charge.
+**À la main** : prenez le zip de votre jeu dans une [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) et copiez ses fichiers (`d3d9.dll`, `d3d9.ini`, et `xinput1_3.dll` pour les jeux qui l'utilisent ; `winmm.dll` et `winmm.ini` pour *l'École des sorciers* et *la Chambre des secrets* ; `dinput8.dll` et `dinput8.ini` pour *le Prisonnier d'Azkaban*) à côté de l'exécutable du jeu. Les fichiers laissés par d'anciens correctifs (`d3d9_original.dll`, `fps.dll`) peuvent être supprimés : plus rien ne les charge.
 
 Le correctif ne contient aucun fichier de jeu : il s'installe sur **votre** copie, que vous devez posséder (CD, DVD ou achat numérique).
 
-**Sous Linux** (Wine ou Proton), Wine utilise son propre `d3d9` sauf indication contraire : `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher le fait pour vous. Pas `xinput1_3` : le XInput de Wine reconnaît déjà les manettes PlayStation. Pour *l'École des sorciers* et *la Chambre des secrets* : `WINEDLLOVERRIDES="winmm=n,b"`.
+**Sous Linux** (Wine ou Proton), Wine utilise son propre `d3d9` sauf indication contraire : `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher le fait pour vous. Pas `xinput1_3` : le XInput de Wine reconnaît déjà les manettes PlayStation. Pour *l'École des sorciers* et *la Chambre des secrets* : `WINEDLLOVERRIDES="winmm=n,b"` ; pour *le Prisonnier d'Azkaban* : `WINEDLLOVERRIDES="dinput8=n,b"`.
 
 Les réglages sont lus au lancement : modifiez `d3d9.ini`, puis relancez le jeu. Chaque ligne du fichier est commentée. Un `d3d9.ini` écrit pour un ancien correctif fonctionne encore : les clés absentes des sections `[Accio.*]` sont lues là où les anciennes versions les rangeaient.
 
@@ -175,7 +188,7 @@ Visual Studio 2022 (charge de travail C++ Desktop), Win32 uniquement : les jeux 
     build\accio-fix.sln /p:Configuration=Release /p:Platform=Win32 /v:minimal
 ```
 
-Sortie : `data\d3d9.dll` et `data\xinput1_3.dll`. Sans aucun jeu, `tests\run_keys_test.bat` vérifie la réassignation des touches, `tests\run_settings_test.bat` relit chaque `d3d9.ini` (et un fichier à l'ancien format) avec le lecteur de la DLL, `tests\run_mipmaps_test.bat` le filtre des mipmaps et les formats de texture, `tests\run_xinput_test.bat` la lecture des manettes PlayStation. Les ini sont générés par `python tools\make_ini.py` ; le build échoue s'ils ne correspondent plus.
+Sortie : `data\d3d9.dll`, `data\xinput1_3.dll`, `data\winmm.dll` et `data\dinput8.dll`. Sans aucun jeu, `tests\run_keys_test.bat` vérifie la réassignation des touches, `tests\run_settings_test.bat` relit chaque `d3d9.ini` (et un fichier à l'ancien format) avec le lecteur de la DLL, `tests\run_mipmaps_test.bat` le filtre des mipmaps et les formats de texture, `tests\run_xinput_test.bat` la lecture des manettes PlayStation, `tests\run_winmm_test.bat` et `tests\run_dinput8_test.bat` les manettes de *l'École des sorciers*, de *la Chambre des secrets* et du *Prisonnier d'Azkaban* (la DLL compilée chargée par le test). Les ini sont générés par `python tools\make_ini.py` ; le build échoue s'ils ne correspondent plus.
 
 | Chemin | Rôle |
 |---|---|
@@ -192,6 +205,8 @@ Sortie : `data\d3d9.dll` et `data\xinput1_3.dll`. Sans aucun jeu, `tests\run_key
 | `source/effects.cpp`, `source/shaders/*.hlsl` | Effets d'image (shaders compilés au build) |
 | `source/mipmaps.cpp` | Mipmaps et formats de texture, sans D3DX |
 | `source/xinput/` | `xinput1_3.dll` : manettes Xbox et PlayStation |
+| `source/winmm/` | `winmm.dll` : *l'École des sorciers* et *la Chambre des secrets* |
+| `source/dinput8/` | `dinput8.dll` : manette du *Prisonnier d'Azkaban* |
 | `source/version.h` | Version inscrite dans la DLL (doit correspondre à `VERSION`) |
 | `data/HP4`, `data/HP5`, `data/HP6` | Le `d3d9.ini` de chaque jeu |
 | `tools/make_ini.py` | Génère ces trois fichiers |

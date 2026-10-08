@@ -1,0 +1,8 @@
+LIBRARY dinput8
+EXPORTS
+	DirectInput8Create = Accio_DirectInput8Create
+	DllCanUnloadNow = Accio_DllCanUnloadNow PRIVATE
+	DllGetClassObject = Accio_DllGetClassObject PRIVATE
+	DllRegisterServer = Accio_DllRegisterServer PRIVATE
+	DllUnregisterServer = Accio_DllUnregisterServer PRIVATE
+	GetdfDIJoystick = Accio_GetdfDIJoystick

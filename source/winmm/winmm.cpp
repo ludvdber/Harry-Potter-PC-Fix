@@ -26,6 +26,7 @@
 #include "fill.h"
 #include "remap.h"
 #include "setup.h"
+#include "../version.h"
 #include <cstdarg>
 #include <cstdio>
 #include <cwchar>
@@ -385,7 +386,7 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 		g_log = _wfsopen(path, L"w", _SH_DENYWR);
 	}
 	GetModuleFileNameW(nullptr, path, MAX_PATH);
-	Log("Accio Launcher PC fix (winmm.dll), %ls\n", path);
+	Log("Accio Launcher PC fix " ACCIO_VERSION_STR " (winmm.dll), %ls\n", path);
 	Log("Settings: XboxLayout=%d ShareKey=%u OptionsKey=%u BlockAltEnter=%d FillScreen=%d SkipSetup=%d\n",
 		g_cfg.xboxLayout, g_cfg.shareKey, g_cfg.optionsKey, g_cfg.blockAltEnter, g_cfg.fillScreen,
 		g_cfg.skipSetup);

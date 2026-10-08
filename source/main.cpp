@@ -6,6 +6,7 @@
 // later, and jumps straight to the system Direct3D 9.
 
 #include "accio.h"
+#include "version.h"
 #include <cstring>
 
 HMODULE g_self = nullptr;
@@ -158,7 +159,8 @@ BOOL WINAPI DllMain(HMODULE self, DWORD reason, LPVOID)
 
 	char exe[MAX_PATH];
 	GetModuleFileNameA(nullptr, exe, MAX_PATH);
-	Log("Accio Launcher PC fix, %s\n", exe);
+	// The version first: a log sent by a player says which build wrote it.
+	Log("Accio Launcher PC fix " ACCIO_VERSION_STR ", %s\n", exe);
 
 	if (!LoadSystemDirect3D())
 		return TRUE; // the game will say Direct3D is missing, which is the truth

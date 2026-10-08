@@ -26,6 +26,7 @@
 #include <cwchar>
 #include <share.h>
 #include "pad.h"
+#include "../version.h"
 
 #pragma comment(lib, "setupapi.lib")
 #pragma comment(lib, "hid.lib")
@@ -513,7 +514,8 @@ BOOL CALLBACK Start(INIT_ONCE*, void*, void**)
 	g_sys.waitGuide = Proc<WaitGuideFn>(sys, MAKEINTRESOURCEA(101));
 	g_sys.cancelGuide = Proc<UserFn>(sys, MAKEINTRESOURCEA(102));
 	g_sys.powerOff = Proc<UserFn>(sys, MAKEINTRESOURCEA(103));
-	Log("Accio xinput1_3: Xbox pads through %ls%s\n", used, sys ? "" : " (NOT FOUND)");
+	Log("Accio xinput1_3 " ACCIO_VERSION_STR ": Xbox pads through %ls%s\n", used,
+		sys ? "" : " (NOT FOUND)");
 
 	if (g_playstation)
 	{

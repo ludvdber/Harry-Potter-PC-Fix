@@ -1,7 +1,7 @@
-"""Generates data/<game>/d3d9.ini (HP4, HP5, HP6, HP7a, HP7b) and data/<game>/winmm.ini (HP1,
-HP2): the shipped settings of each game.
+"""Generates data/<game>/d3d9.ini (HP4, HP5, HP6, HP7a, HP7b), data/<game>/winmm.ini (HP1,
+HP2) and data/HP3/dinput8.ini: the shipped settings of each game.
 
-    python tools/make_ini.py          writes the three files
+    python tools/make_ini.py          writes every file
     python tools/make_ini.py --check  fails if a committed file differs (run by the Build workflow)
 
 The files are written by this one script so that a setting added to the DLL reaches every game
@@ -459,12 +459,14 @@ def ini(jeu, graphismes=None):
 
 
 # The Unreal Engine 1 games: no Direct3D 9 (no d3d9.dll, no d3d9.ini), winmm.dll instead.
-# HP1 has no pad bindings (notes/HP1.md) and its Alt+Enter was SEEN fine (2026-10-01): its pad keys
-# and the Alt+Enter block are off.
+# HP1's Alt+Enter was SEEN fine (2026-10-01): its Alt+Enter block is off. Its pad bindings (ACT-060,
+# 2026-10-08, notes/HP1.md) use PlayStation numbers like HP2's, so an Xbox pad is renumbered too, and
+# Options presses Escape as the keyboard does (SEEN in both games, 2026-10-08). Share opens no map:
+# HP1 has none, and HP2's opened and closed at once (SEEN, 2026-10-08), so Ludo had it taken off.
 UE1 = {
-    "HP1": dict(titre="Harry Potter and the Philosopher's Stone", ini_jeu="HP.ini", pads=False,
+    "HP1": dict(titre="Harry Potter and the Philosopher's Stone", ini_jeu="HP.ini", pads=True, map=False,
                 alt_enter=False, setup=True),
-    "HP2": dict(titre="Harry Potter and the Chamber of Secrets", ini_jeu="Game.ini", pads=True,
+    "HP2": dict(titre="Harry Potter and the Chamber of Secrets", ini_jeu="Game.ini", pads=True, map=False,
                 alt_enter=True, setup=False),
 }
 
@@ -529,8 +531,57 @@ def winmm_ini(jeu):
     a("; as the button: the game opens its map and its menu only from the keyboard.")
     a("; Windows key codes: 9 = Tab (map), 27 = Escape (menu). 0 = the button stays")
     a("; a button, for a binding in User.ini.")
-    a(f"ShareKey={9 if c['pads'] else 0}")
+    a(f"ShareKey={9 if c['pads'] and c['map'] else 0}")
     a(f"OptionsKey={27 if c['pads'] else 0}")
+    a("")
+    return "\r\n".join(L)
+
+
+# HP3 reads its pad through DirectInput 8: dinput8.dll, not winmm.dll (notes/HP3.md).
+def dinput8_ini():
+    """data/HP3/dinput8.ini, read by dinput8.dll."""
+    L = []
+    a = L.append
+    a("; ============================================================================")
+    a(";  Harry Potter and the Prisoner of Azkaban - PC fix")
+    a(";  Accio Launcher - https://acciolauncher.be/")
+    a(";  (c) 2026 Accio Launcher. PolyForm Strict 1.0.0 - see license.")
+    a("; ============================================================================")
+    a(";")
+    a(";  Read by dinput8.dll, next to the game's exe, once when the game starts.")
+    a(";  1 = on, 0 = off. A line you delete falls back to its default; a missing")
+    a(";  file means all defaults.")
+    a("; ============================================================================")
+    a("")
+    a("")
+    a("; ----------------------------------------------------------------------------")
+    a(";  Controller")
+    a("; ----------------------------------------------------------------------------")
+    a("[Accio.Controller]")
+    a("")
+    a("; Writes dinput8_accio.log next to the game: the controllers found, and what")
+    a("; was done with them.")
+    a("Log=1")
+    a("")
+    a("; The game has no dead zone: a stick at rest is never exactly in the middle,")
+    a("; and the character crept. Percent of the travel, each side of the middle,")
+    a("; read as the middle; beyond it, the stick still reaches its edge. Both")
+    a("; sticks, not the triggers. 0 = as shipped.")
+    a("DeadZone=15")
+    a("")
+    a("; The game knows buttons by their number, and the numbers Accio Launcher binds")
+    a("; are a PlayStation controller's. 1 = an Xbox controller is shown to the game")
+    a("; with that layout (A = cross, B = circle, X = square, Y = triangle, Back =")
+    a("; Share, Start = Options, right stick and triggers where a PlayStation")
+    a("; controller has them). 0 = as it is.")
+    a("XboxLayout=1")
+    a("")
+    a("; The key pressed by Share (Back on Xbox) and by Options (Start), held as long")
+    a("; as the button. The game's menu opens on Escape and listens to no controller")
+    a("; button: 27 = Escape opens it and closes it. Windows key codes; 0 = the")
+    a("; button stays a button, for a binding in User.ini.")
+    a("ShareKey=0")
+    a("OptionsKey=27")
     a("")
     return "\r\n".join(L)
 
@@ -539,6 +590,7 @@ def winmm_ini(jeu):
 def fichiers():
     out = {f"{game}/d3d9.ini": ini(game) for game in JEUX}
     out.update({f"{jeu}/winmm.ini": winmm_ini(jeu) for jeu in UE1})
+    out["HP3/dinput8.ini"] = dinput8_ini()
     return out
 
 
@@ -560,4 +612,4 @@ if __name__ == "__main__":
         print("Out of date (run python tools/make_ini.py and commit):", ", ".join(stale))
         sys.exit(1)
     if check:
-        print("data/*/d3d9.ini and data/*/winmm.ini up to date")
+        print("data/*/*.ini up to date")

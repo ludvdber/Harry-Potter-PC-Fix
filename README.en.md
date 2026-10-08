@@ -23,8 +23,9 @@ A PC fix for the three Harry Potter games Electronic Arts built on the same engi
 | *Harry Potter and the Half-Blood Prince* | 2009 | `hp6.exe` | [`data/HP6/d3d9.ini`](data/HP6/d3d9.ini) | `HP6-Half-Blood-Prince.zip` |
 | *Harry Potter and the Philosopher's Stone* | 2001 | `System\HP.exe` | [`data/HP1/winmm.ini`](data/HP1/winmm.ini) | `HP1-Philosophers-Stone.zip` |
 | *Harry Potter and the Chamber of Secrets* | 2002 | `system\Game.exe` | [`data/HP2/winmm.ini`](data/HP2/winmm.ini) | `HP2-Chamber-of-Secrets.zip` |
+| *Harry Potter and the Prisoner of Azkaban* | 2004 | `system\hppoa.exe` | [`data/HP3/dinput8.ini`](data/HP3/dinput8.ini) | `HP3-Prisoner-of-Azkaban.zip` |
 
-*Philosopher's Stone* and *Chamber of Secrets* are not of that family and do not use Direct3D 9: they get a `winmm.dll` of their own, for a screen-sized picture, the controller and Alt+Enter ([below](#inside-the-unreal-engine-1-games-winmmdll-winmmini)).
+*Philosopher's Stone* and *Chamber of Secrets* are not of that family and do not use Direct3D 9: they get a `winmm.dll` of their own, for a screen-sized picture, the controller and Alt+Enter ([below](#inside-the-unreal-engine-1-games-winmmdll-winmmini)). *Prisoner of Azkaban* gets a `dinput8.dll`, for its controller ([below](#inside-prisoner-of-azkaban-dinput8dll-dinput8ini)).
 
 It turns the game's exclusive full screen into a borderless window that survives Alt+Tab, gives keyboard and mouse back the moment you return, lets you choose your own keys, and patches the resolution, aspect ratio, field of view and frame rate the engine starts with. Optional post-processing sharpens and grades the image. Every setting lives in `d3d9.ini`, read once when the game starts.
 
@@ -132,17 +133,29 @@ Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screensho
 
 ### Inside the Unreal Engine 1 games (`winmm.dll`, `winmm.ini`)
 
-*Philosopher's Stone* and *Chamber of Secrets* do not use Direct3D 9: `d3d9.dll` cannot reach them. Their engine loads WinMM, hence a `winmm.dll` to place in their `system` folder, next to the executable. All 193 WinMM functions are there: three, the controller's, are rewritten; every other one goes as it is to Windows' own `winmm.dll`. The same `winmm.dll` serves both games; their `winmm.ini` differ (*Philosopher's Stone* has no controller bindings and its Alt+Enter works fine: those settings are `0` there).
+*Philosopher's Stone* and *Chamber of Secrets* do not use Direct3D 9: `d3d9.dll` cannot reach them. Their engine loads WinMM, hence a `winmm.dll` to place in their `system` folder, next to the executable. All 193 WinMM functions are there: three, the controller's, are rewritten; every other one goes as it is to Windows' own `winmm.dll`. The same `winmm.dll` serves both games; their `winmm.ini` differ (*Philosopher's Stone* has no map, so Share stays a button there, and its Alt+Enter works fine: those settings are `0` there).
 
 | | Setting | |
 |---|---|---|
 | Screen-sized picture | `FillScreen` | The game's window has a title bar and a border, and its renderer has no borderless mode: with a picture as large as the screen, the bottom of the picture went under the taskbar. `1`, the default, takes the frame off a picture as large as the screen and puts the window on the whole screen, taskbar hidden, without switching the display mode. A smaller picture stays a normal window. |
 | Setup at start (*Philosopher's Stone*) | `SkipSetup` | At every start the game opens its first-run setup wizard (an empty list of 3D cards) or, without `Running.ini`, tests a renderer it does not have and writes it into `HP.ini`, which makes Alt+Enter crash. `1` skips both: the game starts straight away with the renderer `HP.ini` names. Only in *Philosopher's Stone*'s `winmm.ini`; elsewhere nothing is touched. |
-| Map and menu from the controller | `ShareKey`, `OptionsKey` | The game opens its menu only on Escape and closes its map only when Tab is released, two keys it tests by their code: no controller button bound in `User.ini` can stand in for them. Share (Back on an Xbox controller) presses Tab and Options (Start) presses Escape, for as long as the button is held, and only while the game is in front. Windows key codes; `0` leaves the button as it is. |
+| Menu from the controller | `ShareKey`, `OptionsKey` | The game opens its menu only on Escape, a key it tests by its code: no controller button bound in `User.ini` can stand in for it. Options (Start on an Xbox controller) presses Escape (`OptionsKey=27`) for as long as the button is held, and only while the game is in front. `ShareKey` would do the same for Share (Back); it is `0` in both games: in *Chamber of Secrets*, Tab sent this way opened the map and closed it at once. Windows key codes; `0` leaves the button as it is. |
 | Xbox controllers | `XboxLayout` | The game knows buttons by their number, and an Xbox controller's are not a PlayStation controller's. `1`, the default, shows an Xbox controller with a PlayStation controller's numbers (A = cross, B = circle, X = square, Y = triangle, triggers = L2 and R2, right stick in the same place): the same bindings serve both. Based on the layout Windows gives every XInput controller; not yet seen with an Xbox controller. |
 | Alt+Enter | `BlockAltEnter` | Alt+Enter switches the game between window and full screen: its menu stays sized for the old size (too large, cut off) and the new size is written into `Game.ini`. `1`, the default, makes Alt+Enter do nothing. |
 
 The log, `winmm_accio.log` (`Log=0` turns it off), names each controller found and what was done with it.
+
+### Inside *Prisoner of Azkaban* (`dinput8.dll`, `dinput8.ini`)
+
+*Prisoner of Azkaban* reads its controller through DirectInput 8, which nothing else of the fix reaches: a `dinput8.dll` to place in its `system` folder, next to `hppoa.exe`. Its six functions are those of Windows' own `dinput8.dll`, called as they are; only two methods are redirected, to tell the controller from the game's other devices and change its state on the way. The mouse and the keyboard go through unchanged.
+
+| | Setting | |
+|---|---|---|
+| Dead zone | `DeadZone` | The game has none: it asks DirectInput for none, and its bindings apply `DeadZone=` only to a form that ignores where the stick is. A stick at rest is never exactly in the middle: the character walked on its own. Percent of the travel, each side of the middle (`15` by default); beyond it, the stick still reaches its edge. Both sticks, not the triggers. `0` = as shipped. |
+| Menu from the controller | `ShareKey`, `OptionsKey` | The game's menu opens on Escape and listens to no controller button: opened by a binding, nothing on the controller closed it. Options (Start on an Xbox controller) presses Escape (`OptionsKey=27`) for as long as the button is held, and only while the game is in front: the menu opens and closes. `ShareKey` at `0`: no map on Share. Windows key codes; `0` leaves the button as it is. |
+| Xbox controllers | `XboxLayout` | The game knows buttons by their number, and an Xbox controller has neither a PlayStation controller's numbers nor its right stick in the same place. `1`, the default, shows an Xbox controller as a PlayStation one (A = cross, B = circle, X = square, Y = triangle, triggers = L2 and R2): the same bindings serve both. Based on the layout Windows gives every XInput controller; not yet seen with an Xbox controller. |
+
+The log, `dinput8_accio.log` (`Log=0` turns it off), names each controller found, the layout chosen and the ranges of its axes.
 
 ---
 
@@ -150,11 +163,11 @@ The log, `winmm_accio.log` (`Log=0` turns it off), names each controller found a
 
 **With [Accio Launcher](https://acciolauncher.be/)**: nothing to do, each game comes with its fix.
 
-**By hand**: take your game's zip from a [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) and copy its files (`d3d9.dll`, `d3d9.ini`, and `xinput1_3.dll` for the games that use it; `winmm.dll` and `winmm.ini` for *Philosopher's Stone* and *Chamber of Secrets*) next to the game's executable. Files left by earlier fixes (`d3d9_original.dll`, `fps.dll`) can be deleted: nothing loads them any more.
+**By hand**: take your game's zip from a [release](https://github.com/ludvdber/Harry-Potter-PC-Fix/releases) and copy its files (`d3d9.dll`, `d3d9.ini`, and `xinput1_3.dll` for the games that use it; `winmm.dll` and `winmm.ini` for *Philosopher's Stone* and *Chamber of Secrets*; `dinput8.dll` and `dinput8.ini` for *Prisoner of Azkaban*) next to the game's executable. Files left by earlier fixes (`d3d9_original.dll`, `fps.dll`) can be deleted: nothing loads them any more.
 
 The fix contains no game files: it goes on top of **your** copy, which you must own (CD, DVD or digital purchase).
 
-**On Linux** (Wine or Proton), Wine uses its own `d3d9` unless told otherwise: `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher does it for you. Not `xinput1_3`: Wine's XInput already knows PlayStation controllers. For *Philosopher's Stone* and *Chamber of Secrets*: `WINEDLLOVERRIDES="winmm=n,b"`.
+**On Linux** (Wine or Proton), Wine uses its own `d3d9` unless told otherwise: `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher does it for you. Not `xinput1_3`: Wine's XInput already knows PlayStation controllers. For *Philosopher's Stone* and *Chamber of Secrets*: `WINEDLLOVERRIDES="winmm=n,b"`; for *Prisoner of Azkaban*: `WINEDLLOVERRIDES="dinput8=n,b"`.
 
 Settings are read when the game starts: change `d3d9.ini`, then restart the game. Every line of the file is commented. A `d3d9.ini` written for an earlier fix still works: keys missing from the `[Accio.*]` sections are read where earlier versions kept them.
 
@@ -175,7 +188,7 @@ Visual Studio 2022 (C++ desktop workload), Win32 only: the games are 32-bit.
     build\accio-fix.sln /p:Configuration=Release /p:Platform=Win32 /v:minimal
 ```
 
-Output: `data\d3d9.dll` and `data\xinput1_3.dll`. Without a game, `tests\run_keys_test.bat` checks the key remapping, `tests\run_settings_test.bat` reads every `d3d9.ini` (and one in the earlier format) with the DLL's own reader, `tests\run_mipmaps_test.bat` the mipmap filter and texture formats, `tests\run_xinput_test.bat` the reading of PlayStation controllers. The ini files are generated by `python tools\make_ini.py`; the build fails when they drift.
+Output: `data\d3d9.dll`, `data\xinput1_3.dll`, `data\winmm.dll` and `data\dinput8.dll`. Without a game, `tests\run_keys_test.bat` checks the key remapping, `tests\run_settings_test.bat` reads every `d3d9.ini` (and one in the earlier format) with the DLL's own reader, `tests\run_mipmaps_test.bat` the mipmap filter and texture formats, `tests\run_xinput_test.bat` the reading of PlayStation controllers, `tests\run_winmm_test.bat` and `tests\run_dinput8_test.bat` the controllers of *Philosopher's Stone*, *Chamber of Secrets* and *Prisoner of Azkaban* (the built DLL loaded by the test). The ini files are generated by `python tools\make_ini.py`; the build fails when they drift.
 
 **From GitHub, nothing to install.** Every push runs **Build** (compile, tests, PE32 check, ini files, version). **Actions** → **Release** → **Run workflow** builds the release files; with **Créer la release** ticked it creates a draft release, published by hand. Every release file carries a signed build provenance attestation: `gh attestation verify d3d9.dll --repo ludvdber/Harry-Potter-PC-Fix`.
 
