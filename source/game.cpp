@@ -3,8 +3,9 @@
 //
 // What is changed inside each game executable. Every address and byte sequence below was read
 // in the retail executables (gof_f.exe, hp.exe, hp6.exe, hp7.exe; no ASLR, base 0x400000) and each
-// sequence occurs exactly once in its file. A change whose bytes are not found is skipped and
-// logged: a different build of the game then runs as it always did.
+// sequence occurs exactly once in its file (hp8.exe: in its code once decrypted). That is checked
+// again at run time (FindUniquePattern): a change whose bytes are not found, or are found twice,
+// is skipped and logged, and a different build of the game then runs as it always did.
 
 #include "hooks.h"
 #include <cstring>
@@ -199,9 +200,10 @@ const Profile* g_profile = nullptr;
 
 BYTE* Locate(const Bytes& b, const char* what)
 {
-	BYTE* at = b.data ? FindPattern(g_exe, b.data, b.size) : nullptr;
+	bool twice = false;
+	BYTE* at = b.data ? FindUniquePattern(g_exe, b.data, b.size, &twice) : nullptr;
 	if (!at && b.data)
-		Log("Game: %s code not found, left unchanged\n", what);
+		Log("Game: %s code %s, left unchanged\n", what, twice ? "found twice" : "not found");
 	return at;
 }
 
@@ -226,6 +228,8 @@ void PatchAspect(const Profile& p)
 		ratio = p.oldAspects[g_cfg.legacyAspectIndex - 1];
 	if (p.aspect <= 0 || ratio <= 0 || ratio == p.aspect)
 		return; // p.aspect 0: the constant has not been found in this game
+	// The FIRST copy, on purpose: the value is there several times (HP4: 5) and the engine reads
+	// the first, where FindUniquePattern would refuse them all.
 	BYTE* at = FindPattern(g_exe, reinterpret_cast<const BYTE*>(&p.aspect), sizeof(float));
 	if (!at)
 	{
@@ -325,7 +329,14 @@ bool PatchFrameWait(const Profile& p, bool last)
 {
 	if (!p.frameWait.data || g_cfg.unlockFrameRate == 0)
 		return true;
-	BYTE* at = FindPattern(g_exe, p.frameWait.data, p.frameWait.size);
+	bool twice = false;
+	BYTE* at = FindUniquePattern(g_exe, p.frameWait.data, p.frameWait.size, &twice);
+	if (twice)
+	{
+		// Decrypting more of the code cannot make it unique again: no use trying later frames.
+		Log("Game: 30 fps wait code found twice, left unchanged\n");
+		return true;
+	}
 	if (!at)
 	{
 		if (last)

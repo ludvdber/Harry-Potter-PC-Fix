@@ -1,3 +1,5 @@
+// Accio Launcher - PC fix for the EA Harry Potter games.
+// Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 // Reads each game's shipped d3d9.ini with the DLL's own reader (settings.cpp) and checks the
 // values that matter, so a misspelt key (read as its default, silently) fails the build. Then
 // reads a file in the format used before 2026-09-26, the one players kept their tuning in.
@@ -277,6 +279,25 @@ int main(int argc, char** argv)
 		EXPECT(Near(FitSupersampling(3840, 2160, 2.0f, 0, 0, 0), 2.0f));           // card not known
 		EXPECT(Near(FitSupersampling(2880, 2880, 1.5f, 2880, 16384, 16384), 1.0f)); // nothing left: off
 		EXPECT(Near(FitSupersampling(1920, 1080, 1.0f, 2880, 16384, 16384), 1.0f));
+	}
+	{
+		// RenderWidth x RenderHeight: kept when the card takes it, otherwise lowered with the same
+		// shape (audit P3-009: a size typed past the card made CreateDevice fail).
+		const char* game = "render size limit";
+		int w = 2560, h = 1440;
+		EXPECT(FitRenderSize(w, h, 16384, 16384) && w == 2560 && h == 1440);
+		w = 8192, h = 4608;
+		EXPECT(FitRenderSize(w, h, 4096, 4096) && w == 4096 && h == 2304);   // the card's, same 16:9
+		w = 3000, h = 9000;
+		EXPECT(FitRenderSize(w, h, 4096, 4096) && w == 1365 && h == 4096);   // height is what binds
+		w = 40000, h = 22500;
+		EXPECT(FitRenderSize(w, h, 0, 0) && w == 16384 && h == 9216);        // card not known: 16384
+		w = 99999, h = 99999;
+		EXPECT(FitRenderSize(w, h, 65536, 65536) && w == 16384 && h == 16384); // never past 16384
+		w = 0, h = 1080;
+		EXPECT(!FitRenderSize(w, h, 16384, 16384));                           // 0: the game's size
+		w = -5, h = -5;
+		EXPECT(!FitRenderSize(w, h, 16384, 16384));
 	}
 
 	printf("%d failure(s)\n", failures);

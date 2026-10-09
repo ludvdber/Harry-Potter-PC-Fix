@@ -1,3 +1,5 @@
+// Accio Launcher - PC fix for the EA Harry Potter games.
+// Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 // Checks [Accio.Keys] parsing and the rewritten keyboard state, without a game.
 #define DIRECTINPUT_VERSION 0x0800
 #include "../source/accio.h"

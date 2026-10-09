@@ -135,7 +135,8 @@ void* RedirectImport(HMODULE module, const char* dll, const char* function, void
 
 // ---------------------------------------------------------------------------------------------
 
-BYTE* FindPattern(HMODULE module, const BYTE* pattern, size_t size, const char* mask)
+// The first occurrence other than `skip` (null: none skipped).
+static BYTE* Scan(HMODULE module, const BYTE* pattern, size_t size, const char* mask, const BYTE* skip)
 {
 	IMAGE_NT_HEADERS* nt = NtHeaders(module);
 	if (!nt || !size)
@@ -152,6 +153,8 @@ BYTE* FindPattern(HMODULE module, const BYTE* pattern, size_t size, const char* 
 			continue;
 		for (size_t i = 0; i + size <= length; i++)
 		{
+			if (start + i == skip)
+				continue;
 			size_t k = 0;
 			while (k < size && ((mask && mask[k] == '?') || start[i + k] == pattern[k]))
 				k++;
@@ -159,5 +162,26 @@ BYTE* FindPattern(HMODULE module, const BYTE* pattern, size_t size, const char* 
 				return start + i;
 		}
 	}
+	return nullptr;
+}
+
+BYTE* FindPattern(HMODULE module, const BYTE* pattern, size_t size, const char* mask)
+{
+	return Scan(module, pattern, size, mask, nullptr);
+}
+
+BYTE* FindUniquePattern(HMODULE module, const BYTE* pattern, size_t size, bool* twice)
+{
+	if (twice)
+		*twice = false;
+	BYTE* first = Scan(module, pattern, size, nullptr, nullptr);
+	if (!first)
+		return nullptr;
+	BYTE* second = Scan(module, pattern, size, nullptr, first);
+	if (!second)
+		return first;
+	if (twice)
+		*twice = true;
+	Log("Pattern: %u bytes found at %p and %p, not unique\n", static_cast<unsigned>(size), first, second);
 	return nullptr;
 }

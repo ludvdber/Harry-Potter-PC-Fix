@@ -91,6 +91,9 @@ bool NativeSize(HWND hwnd, int& w, int& h)
 // that stopped answering with the mouse held in its window).
 UINT g_askedW = 0, g_askedH = 0, g_givenW = 0, g_givenH = 0;
 UINT g_plainW = 0, g_plainH = 0; // the image before supersampling, for WithFallbacks
+// RenderWidth / RenderHeight refused by the card even within its largest texture: left aside
+// until the game closes, rather than failing again at every Reset.
+bool g_renderSizeRefused = false;
 
 void AdjustPresentation(D3DPRESENT_PARAMETERS* pp)
 {
@@ -110,8 +113,11 @@ void AdjustPresentation(D3DPRESENT_PARAMETERS* pp)
 	int w = g_cfg.renderWidth, h = g_cfg.renderHeight;
 	if ((w == -1 || h == -1) && !NativeSize(pp->hDeviceWindow ? pp->hDeviceWindow : g_gameWindow, w, h))
 		w = h = 0;
-	if (w > 0 && h > 0)
+	const int typedW = w, typedH = h;
+	if (!g_renderSizeRefused && FitRenderSize(w, h, g_cardMaxW, g_cardMaxH))
 	{
+		if (w != typedW || h != typedH)
+			Log("Direct3D: render size %dx%d lowered to %dx%d, the largest the card draws into\n", typedW, typedH, w, h);
 		pp->BackBufferWidth = static_cast<UINT>(w);
 		pp->BackBufferHeight = static_cast<UINT>(h);
 	}
@@ -180,8 +186,8 @@ void FitMultisampling(IDirect3D9* d3d, UINT adapter, D3DDEVTYPE type, D3DPRESENT
 	pp->MultiSampleQuality = 0;
 }
 
-// Creation or reset, with two fallbacks: the game's own depth format if INTZ is refused, then
-// no multisampling.
+// Creation or reset, with fallbacks: the game's own depth format if INTZ is refused, then no
+// multisampling, then no supersampling, then the size the game asked instead of RenderWidth.
 template <class Call>
 HRESULT WithFallbacks(D3DPRESENT_PARAMETERS* pp, D3DFORMAT gameDepth, Call call)
 {
@@ -211,6 +217,26 @@ HRESULT WithFallbacks(D3DPRESENT_PARAMETERS* pp, D3DFORMAT gameDepth, Call call)
 		g_givenW = g_plainW;
 		g_givenH = g_plainH;
 		hr = call();
+	}
+	// RenderWidth / RenderHeight: the image before supersampling was not the game's size, and it
+	// is still refused. Undone like the rest, or the game would not start at all (audit P3-009).
+	if (FAILED(hr) && pp && (g_plainW != g_askedW || g_plainH != g_askedH)
+		&& (pp->BackBufferWidth != g_askedW || pp->BackBufferHeight != g_askedH))
+	{
+		Log("Direct3D: refused at %ux%u (0x%lX), again at the size the game asked, %ux%u\n", pp->BackBufferWidth,
+			pp->BackBufferHeight, static_cast<unsigned long>(hr), g_askedW, g_askedH);
+		pp->BackBufferWidth = g_askedW;
+		pp->BackBufferHeight = g_askedH;
+		g_backBufferWidth = static_cast<int>(g_askedW);
+		g_backBufferHeight = static_cast<int>(g_askedH);
+		g_givenW = g_askedW;
+		g_givenH = g_askedH;
+		hr = call();
+		if (SUCCEEDED(hr))
+		{
+			g_renderSizeRefused = true;
+			Log("Direct3D: RenderWidth/RenderHeight left aside until the game closes\n");
+		}
 	}
 	return hr;
 }

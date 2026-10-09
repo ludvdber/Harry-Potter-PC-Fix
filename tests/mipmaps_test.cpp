@@ -1,3 +1,5 @@
+// Accio Launcher - PC fix for the EA Harry Potter games.
+// Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 // Checks the mipmap filter and the pixel formats of mipmaps.cpp without a game or a GPU: each
 // format round trip, the DXT encoders against their decoders, and the filter's light averaging
 // (a black and white checker must fade to the grey of half the light, 188, not to 128).

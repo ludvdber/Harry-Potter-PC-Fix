@@ -14,18 +14,20 @@ Avant à gauche, avec le correctif à droite ; en bas, le même détail agrandi 
 
 <img src="docs/avant-apres/hp6-cercle-de-pierres.jpg" width="860" alt="Prince de sang-mêlé, le cercle de pierres : avant / après">
 
-Un correctif PC pour les trois jeux Harry Potter qu'Electronic Arts a bâtis sur la même famille de moteur, conçu pour [Accio Launcher](https://acciolauncher.be/). C'est une seule `d3d9.dll` posée à côté de l'exécutable du jeu : le jeu la charge à la place du Direct3D 9 du système, et elle transmet tout au vrai. La même DLL sert les trois jeux et reconnaît celui qui la charge ; chaque jeu a son propre `d3d9.ini`.
+Un correctif PC pour les cinq jeux Harry Potter qu'Electronic Arts a bâtis sur Direct3D 9, de *la Coupe de feu* aux *Reliques de la Mort*, conçu pour [Accio Launcher](https://acciolauncher.be/). C'est une seule `d3d9.dll` posée à côté de l'exécutable du jeu : le jeu la charge à la place du Direct3D 9 du système, et elle transmet tout au vrai. La même DLL sert les cinq jeux et reconnaît celui qui la charge ; chaque jeu a son propre `d3d9.ini`.
 
 | Jeu | Année | Exécutable | Réglages | Fichier de release |
 |---|---|---|---|---|
 | *Harry Potter et la Coupe de feu* | 2005 | `gof_f.exe` | [`data/HP4/d3d9.ini`](data/HP4/d3d9.ini) | `HP4-Goblet-of-Fire.zip` |
 | *Harry Potter et l'Ordre du Phénix* | 2007 | `hp.exe` | [`data/HP5/d3d9.ini`](data/HP5/d3d9.ini) | `HP5-Order-of-the-Phoenix.zip` |
 | *Harry Potter et le Prince de sang-mêlé* | 2009 | `hp6.exe` | [`data/HP6/d3d9.ini`](data/HP6/d3d9.ini) | `HP6-Half-Blood-Prince.zip` |
+| *Harry Potter et les Reliques de la Mort, 1re partie* | 2010 | `pc\hp7.exe` | [`data/HP7a/d3d9.ini`](data/HP7a/d3d9.ini) | `HP7a-Deathly-Hallows-Part-1.zip` |
+| *Harry Potter et les Reliques de la Mort, 2e partie* | 2011 | `pc\hp8.exe` | [`data/HP7b/d3d9.ini`](data/HP7b/d3d9.ini) | `HP7b-Deathly-Hallows-Part-2.zip` |
 | *Harry Potter à l'école des sorciers* | 2001 | `System\HP.exe` | [`data/HP1/winmm.ini`](data/HP1/winmm.ini) | `HP1-Philosophers-Stone.zip` |
 | *Harry Potter et la Chambre des secrets* | 2002 | `system\Game.exe` | [`data/HP2/winmm.ini`](data/HP2/winmm.ini) | `HP2-Chamber-of-Secrets.zip` |
 | *Harry Potter et le Prisonnier d'Azkaban* | 2004 | `system\hppoa.exe` | [`data/HP3/dinput8.ini`](data/HP3/dinput8.ini) | `HP3-Prisoner-of-Azkaban.zip` |
 
-*L'École des sorciers* et *la Chambre des secrets* ne sont pas de cette famille et n'utilisent pas Direct3D 9 : elles reçoivent un `winmm.dll` à elles, pour l'image à la taille de l'écran, la manette et Alt+Entrée ([plus bas](#dans-les-jeux-unreal-engine-1-winmmdll-winmmini)). *Le Prisonnier d'Azkaban* reçoit un `dinput8.dll`, pour sa manette ([plus bas](#dans-le-prisonnier-dazkaban-dinput8dll-dinput8ini)).
+*L'École des sorciers* et *la Chambre des secrets* n'utilisent pas Direct3D 9 : elles reçoivent un `winmm.dll` à elles, pour l'image à la taille de l'écran, la manette et Alt+Entrée ([plus bas](#dans-les-jeux-unreal-engine-1-winmmdll-winmmini)). *Le Prisonnier d'Azkaban* reçoit un `dinput8.dll`, pour sa manette ([plus bas](#dans-le-prisonnier-dazkaban-dinput8dll-dinput8ini)).
 
 Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab, le clavier et la souris répondent dès le retour dans le jeu, chaque touche se change, et la résolution, le format d'image, le champ de vision et les images/s du moteur se règlent. Des effets d'image facultatifs affinent et étalonnent le rendu. Tout se règle dans `d3d9.ini`, lu une fois au lancement du jeu.
 
@@ -35,7 +37,7 @@ Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab
 
 ## Ce que ça corrige
 
-### Fenêtre, premier plan et commandes (les trois jeux)
+### Fenêtre, premier plan et commandes (les jeux en Direct3D 9)
 
 | | Réglage | |
 |---|---|---|
@@ -129,6 +131,8 @@ Et aussi : une touche de capture d'écran (`ScreenshotKey`, F12 par défaut, PNG
 | Vibrations | `Rumble` | Renvoyées à la manette PlayStation (USB). |
 | Barre lumineuse | `LightBar` | Une couleur `rouge,vert,bleu` posée sur la manette PlayStation (USB), à chaque fois qu'elle est branchée ; vide, elle n'est pas touchée. Accio Launcher y met la couleur de votre maison. |
 
+Le journal, `xinput_accio.log` (`Log=0` dans `[Accio.Controller]` le désactive), nomme chaque manette trouvée et ce qui en a été fait.
+
 La *Coupe de feu* lit ses manettes par DirectInput et n'est pas concernée : ses manettes PlayStation passent par `PlayStationController`, plus haut.
 
 ### Dans les jeux Unreal Engine 1 (`winmm.dll`, `winmm.ini`)
@@ -208,14 +212,16 @@ Sortie : `data\d3d9.dll`, `data\xinput1_3.dll`, `data\winmm.dll` et `data\dinput
 | `source/winmm/` | `winmm.dll` : *l'École des sorciers* et *la Chambre des secrets* |
 | `source/dinput8/` | `dinput8.dll` : manette du *Prisonnier d'Azkaban* |
 | `source/version.h` | Version inscrite dans la DLL (doit correspondre à `VERSION`) |
-| `data/HP4`, `data/HP5`, `data/HP6` | Le `d3d9.ini` de chaque jeu |
-| `tools/make_ini.py` | Génère ces trois fichiers |
+| `data/HP1` … `data/HP7b` | Les réglages de chaque jeu : `d3d9.ini` (HP4 à HP7b), `winmm.ini` (HP1, HP2), `dinput8.ini` (HP3) |
+| `tools/make_ini.py` | Génère ces huit fichiers |
+| `tools/make_winmm_exports.py` | Génère `source/winmm/winmm.def` et `exports.inc` depuis le `winmm.dll` de Windows |
+| `tools/check_readme_parity.py` | Vérifie que ce README et sa version anglaise disent la même chose |
 
 ### Depuis GitHub, sans rien installer
 
-**Build automatique.** Chaque push et chaque pull request lance le workflow **Build** : compilation, tests, vérification que la DLL est bien une DLL 32 bits, que les trois ini sont à jour et que la version est la même dans `VERSION` et `source/version.h`. La DLL : **Actions** → **Build** → le run → **Artifacts** → `d3d9-win32`.
+**Build automatique.** Chaque push et chaque pull request lance le workflow **Build** : compilation, tests, vérification que les quatre DLL sont bien des DLL 32 bits, que les ini sont à jour, que les deux README disent la même chose et que la version est la même dans `VERSION` et `source/version.h`. La DLL : **Actions** → **Build** → le run → **Artifacts** → `d3d9-win32` (les quatre DLL).
 
-**Build d'essai (rien n'est publié).** **Actions** → **Release** → **Run workflow**, case **Créer la release** décochée. Une fois le run vert : **Artifacts** → `release-v<VERSION>` (la DLL et un zip par jeu).
+**Build d'essai (rien n'est publié).** **Actions** → **Release** → **Run workflow**, case **Créer la release** décochée. Une fois le run vert : **Artifacts** → `release-v<VERSION>` (les DLL et un zip par jeu).
 
 **Créer une release.**
 

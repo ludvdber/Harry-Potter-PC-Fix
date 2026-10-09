@@ -14,18 +14,20 @@ Before on the left, with the fix on the right; below, the same detail enlarged t
 
 <img src="docs/avant-apres/hp6-cercle-de-pierres.jpg" width="860" alt="Half-Blood Prince, the stone circle: before / after">
 
-A PC fix for the three Harry Potter games Electronic Arts built on the same engine family, made for [Accio Launcher](https://acciolauncher.be/). It is a single `d3d9.dll` placed next to the game's executable: the game loads it instead of the system Direct3D 9, and it hands everything on to the real one. The same DLL serves the three games and recognises the one it is loaded into; each game has its own `d3d9.ini`.
+A PC fix for the five Harry Potter games Electronic Arts built on Direct3D 9, from *Goblet of Fire* to *Deathly Hallows*, made for [Accio Launcher](https://acciolauncher.be/). It is a single `d3d9.dll` placed next to the game's executable: the game loads it instead of the system Direct3D 9, and it hands everything on to the real one. The same DLL serves the five games and recognises the one it is loaded into; each game has its own `d3d9.ini`.
 
 | Game | Year | Executable | Settings | Release file |
 |---|---|---|---|---|
 | *Harry Potter and the Goblet of Fire* | 2005 | `gof_f.exe` | [`data/HP4/d3d9.ini`](data/HP4/d3d9.ini) | `HP4-Goblet-of-Fire.zip` |
 | *Harry Potter and the Order of the Phoenix* | 2007 | `hp.exe` | [`data/HP5/d3d9.ini`](data/HP5/d3d9.ini) | `HP5-Order-of-the-Phoenix.zip` |
 | *Harry Potter and the Half-Blood Prince* | 2009 | `hp6.exe` | [`data/HP6/d3d9.ini`](data/HP6/d3d9.ini) | `HP6-Half-Blood-Prince.zip` |
+| *Harry Potter and the Deathly Hallows – Part 1* | 2010 | `pc\hp7.exe` | [`data/HP7a/d3d9.ini`](data/HP7a/d3d9.ini) | `HP7a-Deathly-Hallows-Part-1.zip` |
+| *Harry Potter and the Deathly Hallows – Part 2* | 2011 | `pc\hp8.exe` | [`data/HP7b/d3d9.ini`](data/HP7b/d3d9.ini) | `HP7b-Deathly-Hallows-Part-2.zip` |
 | *Harry Potter and the Philosopher's Stone* | 2001 | `System\HP.exe` | [`data/HP1/winmm.ini`](data/HP1/winmm.ini) | `HP1-Philosophers-Stone.zip` |
 | *Harry Potter and the Chamber of Secrets* | 2002 | `system\Game.exe` | [`data/HP2/winmm.ini`](data/HP2/winmm.ini) | `HP2-Chamber-of-Secrets.zip` |
 | *Harry Potter and the Prisoner of Azkaban* | 2004 | `system\hppoa.exe` | [`data/HP3/dinput8.ini`](data/HP3/dinput8.ini) | `HP3-Prisoner-of-Azkaban.zip` |
 
-*Philosopher's Stone* and *Chamber of Secrets* are not of that family and do not use Direct3D 9: they get a `winmm.dll` of their own, for a screen-sized picture, the controller and Alt+Enter ([below](#inside-the-unreal-engine-1-games-winmmdll-winmmini)). *Prisoner of Azkaban* gets a `dinput8.dll`, for its controller ([below](#inside-prisoner-of-azkaban-dinput8dll-dinput8ini)).
+*Philosopher's Stone* and *Chamber of Secrets* do not use Direct3D 9: they get a `winmm.dll` of their own, for a screen-sized picture, the controller and Alt+Enter ([below](#inside-the-unreal-engine-1-games-winmmdll-winmmini)). *Prisoner of Azkaban* gets a `dinput8.dll`, for its controller ([below](#inside-prisoner-of-azkaban-dinput8dll-dinput8ini)).
 
 It turns the game's exclusive full screen into a borderless window that survives Alt+Tab, gives keyboard and mouse back the moment you return, lets you choose your own keys, and patches the resolution, aspect ratio, field of view and frame rate the engine starts with. Optional post-processing sharpens and grades the image. Every setting lives in `d3d9.ini`, read once when the game starts.
 
@@ -35,7 +37,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 
 ## What it fixes
 
-### Window, focus and input (all three games)
+### Window, focus and input (the Direct3D 9 games)
 
 | | Setting | |
 |---|---|---|
@@ -129,6 +131,8 @@ Also: a screenshot key (`ScreenshotKey`, F12 by default, PNG files in `screensho
 | Vibration | `Rumble` | Sent back to the PlayStation controller (USB). |
 | Light bar | `LightBar` | A `red,green,blue` colour set on the PlayStation controller (USB) each time it is plugged in; empty leaves it alone. Accio Launcher puts your house colours there. |
 
+The log, `xinput_accio.log` (`Log=0` in `[Accio.Controller]` turns it off), names each controller found and what was done with it.
+
 *Goblet of Fire* reads its controllers through DirectInput and is not concerned: its PlayStation controllers go through `PlayStationController`, above.
 
 ### Inside the Unreal Engine 1 games (`winmm.dll`, `winmm.ini`)
@@ -190,7 +194,42 @@ Visual Studio 2022 (C++ desktop workload), Win32 only: the games are 32-bit.
 
 Output: `data\d3d9.dll`, `data\xinput1_3.dll`, `data\winmm.dll` and `data\dinput8.dll`. Without a game, `tests\run_keys_test.bat` checks the key remapping, `tests\run_settings_test.bat` reads every `d3d9.ini` (and one in the earlier format) with the DLL's own reader, `tests\run_mipmaps_test.bat` the mipmap filter and texture formats, `tests\run_xinput_test.bat` the reading of PlayStation controllers, `tests\run_winmm_test.bat` and `tests\run_dinput8_test.bat` the controllers of *Philosopher's Stone*, *Chamber of Secrets* and *Prisoner of Azkaban* (the built DLL loaded by the test). The ini files are generated by `python tools\make_ini.py`; the build fails when they drift.
 
-**From GitHub, nothing to install.** Every push runs **Build** (compile, tests, PE32 check, ini files, version). **Actions** → **Release** → **Run workflow** builds the release files; with **Créer la release** ticked it creates a draft release, published by hand. Every release file carries a signed build provenance attestation: `gh attestation verify d3d9.dll --repo ludvdber/Harry-Potter-PC-Fix`.
+| Path | Role |
+|---|---|
+| `source/main.cpp` | Entry point, exports, loading the system Direct3D 9 |
+| `source/settings.cpp` | Reading `d3d9.ini` |
+| `source/hooks.cpp` | Method tables, import tables, bytes of the executable |
+| `source/game.cpp` | What is changed in each game, and where |
+| `source/window.cpp` | Window style and position, focus |
+| `source/input.cpp` | DirectInput: coming back to the front, stuck keys |
+| `source/keys.cpp` | `[Accio.Keys]` |
+| `source/direct3d.cpp` | Device creation and reset, textures, depth, samplers |
+| `source/present.cpp` | Every frame: effects, screenshots, performance overlay, frame-rate limit |
+| `source/overlay.cpp` | `[Accio.Overlay]`: measures, graph, benchmark |
+| `source/effects.cpp`, `source/shaders/*.hlsl` | Image effects (shaders compiled at build time) |
+| `source/mipmaps.cpp` | Mipmaps and texture formats, without D3DX |
+| `source/xinput/` | `xinput1_3.dll`: Xbox and PlayStation controllers |
+| `source/winmm/` | `winmm.dll`: *Philosopher's Stone* and *Chamber of Secrets* |
+| `source/dinput8/` | `dinput8.dll`: *Prisoner of Azkaban*'s controller |
+| `source/version.h` | Version written into the DLL (must match `VERSION`) |
+| `data/HP1` … `data/HP7b` | Each game's settings: `d3d9.ini` (HP4 to HP7b), `winmm.ini` (HP1, HP2), `dinput8.ini` (HP3) |
+| `tools/make_ini.py` | Generates these eight files |
+| `tools/make_winmm_exports.py` | Generates `source/winmm/winmm.def` and `exports.inc` from Windows' `winmm.dll` |
+| `tools/check_readme_parity.py` | Checks that this README and its French version say the same thing |
+
+### From GitHub, nothing to install
+
+**Automatic build.** Every push and every pull request runs the **Build** workflow: compile, tests, a check that the four DLLs are 32-bit DLLs, that the ini files are up to date, that the two READMEs say the same thing and that the version is the same in `VERSION` and `source/version.h`. The DLLs: **Actions** → **Build** → the run → **Artifacts** → `d3d9-win32` (the four DLLs).
+
+**Trial build (nothing is published).** **Actions** → **Release** → **Run workflow**, box **Créer la release** unticked. Once the run is green: **Artifacts** → `release-v<VERSION>` (the DLLs and one zip per game).
+
+**Making a release.**
+
+1. Change the number in `VERSION` **and** in `source/version.h` (`ACCIO_VERSION_NUM` and `ACCIO_VERSION_STR`), in the same commit.
+2. **Actions** → **Release** → **Run workflow** → tick **Créer la release** → **Run workflow**.
+3. Once the run is green: **Releases** → the `v<VERSION>` draft → read it over → **Edit** → **Publish release**. Nothing is public before that click.
+
+Every release file carries a signed build provenance attestation: `gh attestation verify d3d9.dll --repo ludvdber/Harry-Potter-PC-Fix`.
 
 ---
 

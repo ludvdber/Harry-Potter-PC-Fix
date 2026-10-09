@@ -85,6 +85,18 @@ jobs:
             exit 1
           }
 
+      # The two READMEs are kept by hand, together; they had drifted apart (audit 2026-10-07).
+      # Headings, code tokens, links and table rows must match; translated tokens are listed
+      # in the script.
+      - name: Check the two READMEs
+        shell: pwsh
+        run: |
+          python tools/check_readme_parity.py
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output '::error::README.md and README.en.md differ. Change both, or list a translated token in tools/check_readme_parity.py.'
+            exit 1
+          }
+
       # The project uses the v143 toolset (Visual Studio 2022): prefer a VS 2022
       # instance, otherwise take the newest one.
       - name: Locate Visual Studio
@@ -175,6 +187,8 @@ jobs:
           out\winmm_test.exe "%CD%\..\data\winmm.dll" || exit /b 1
           cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source dinput8_test.cpp ..\source\dinput8\pad.cpp /Feout\dinput8_test.exe /Foout\ user32.lib ole32.lib || exit /b 1
           out\dinput8_test.exe "%CD%\..\data\dinput8.dll" || exit /b 1
+          cl /nologo /std:c++20 /EHsc /W4 /WX /I..\source hooks_test.cpp ..\source\hooks.cpp /Feout\hooks_test.exe /Foout\ || exit /b 1
+          out\hooks_test.exe || exit /b 1
 
       # Fails unless data/d3d9.dll, data/xinput1_3.dll, data/winmm.dll and data/dinput8.dll are PE32
       # DLLs for x86 (the games are 32-bit), xinput1_3.dll keeps the ordinals the games import it by,

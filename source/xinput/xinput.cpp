@@ -491,8 +491,14 @@ BOOL CALLBACK Start(INIT_ONCE*, void*, void**)
 {
 	InitializeCriticalSection(&g_logLock);
 	wchar_t path[MAX_PATH];
-	Beside(L"xinput_accio.log", path);
-	g_log = _wfsopen(path, L"w", _SH_DENYWR);
+	// The same switch as the journals of d3d9.dll, winmm.dll and dinput8.dll: this one was
+	// written whatever the ini said (audit 2026-10-07, ACT-027). Read before anything logs.
+	Beside(L"d3d9.ini", path);
+	if (GetPrivateProfileIntW(L"Accio.Controller", L"Log", 1, path) != 0)
+	{
+		Beside(L"xinput_accio.log", path);
+		g_log = _wfsopen(path, L"w", _SH_DENYWR);
+	}
 	ReadSettings();
 
 	// Windows' own, never a copy in the game folder.

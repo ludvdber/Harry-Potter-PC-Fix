@@ -1,3 +1,5 @@
+// Accio Launcher - PC fix for the EA Harry Potter games.
+// Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 // Checks winmm.dll without a game or a pad:
 //   - remap.cpp: an Xbox pad read in a PlayStation pad's numbers (buttons, right stick, triggers),
 //     and which pads are recognised;

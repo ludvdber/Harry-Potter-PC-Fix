@@ -64,5 +64,12 @@ void* RedirectImport(HMODULE module, const char* dll, const char* function, void
 bool WriteMemory(void* address, const void* data, size_t size);
 
 // First occurrence of `pattern` in the readable sections of `module`. `mask` may be null; when
-// given, '?' marks a byte that matches anything.
+// given, '?' marks a byte that matches anything. Only for a value the engine is known to read at
+// its first copy (the aspect ratio); code to change goes through FindUniquePattern.
 BYTE* FindPattern(HMODULE module, const BYTE* pattern, size_t size, const char* mask = nullptr);
+
+// The one occurrence of `pattern`, or nullptr when it is absent or there twice. Every sequence of
+// game.cpp occurs once in the retail executable it was read in: on another build that holds it
+// twice, the first copy may not be the code we read, and changing it could break the game where
+// skipping it only leaves the game as it was. `twice`, when given, says which case it was.
+BYTE* FindUniquePattern(HMODULE module, const BYTE* pattern, size_t size, bool* twice = nullptr);

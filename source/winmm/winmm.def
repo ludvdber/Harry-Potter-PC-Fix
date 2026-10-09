@@ -1,3 +1,5 @@
+; Accio Launcher - PC fix for the EA Harry Potter games.
+; Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 LIBRARY winmm
 EXPORTS
 	Accio_ordinal2 @2 NONAME

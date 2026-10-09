@@ -12,6 +12,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <d3d9.h>
+#include <algorithm>
 
 // The supersampling factor actually used for an image of w x h: the one asked, lowered so the
 // enlarged image stays within maxHeight (0 = no limit) and within what the card draws into
@@ -28,6 +29,24 @@ inline float FitSupersampling(UINT w, UINT h, float factor, int maxHeight, UINT 
 	lower(cardW, w);
 	lower(cardH, h);
 	return factor < 1.01f ? 1.0f : factor;
+}
+
+// RenderWidth x RenderHeight as the image is drawn: kept when the card draws into it, otherwise
+// brought down, same shape, within the card's largest texture (cardW x cardH, 0 = unknown) and
+// never past 16384, the most any Direct3D 9 card takes. A size typed by hand past it made
+// CreateDevice fail and the game never started (audit P3-009). False: no size to set (0 or less).
+inline bool FitRenderSize(int& w, int& h, UINT cardW, UINT cardH)
+{
+	if (w <= 0 || h <= 0)
+		return false;
+	const auto limit = [](UINT card) { return static_cast<int>(card && card < 16384 ? card : 16384); };
+	const int maxW = limit(cardW), maxH = limit(cardH);
+	if (w <= maxW && h <= maxH)
+		return true;
+	const double scale = (std::min)(static_cast<double>(maxW) / w, static_cast<double>(maxH) / h);
+	w = (std::max)(1, (std::min)(maxW, static_cast<int>(w * scale + 0.5)));
+	h = (std::max)(1, (std::min)(maxH, static_cast<int>(h * scale + 0.5)));
+	return true;
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -1,3 +1,6 @@
+# Accio Launcher - PC fix for the EA Harry Potter games.
+# Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
+#
 """Generates data/<game>/d3d9.ini (HP4, HP5, HP6, HP7a, HP7b), data/<game>/winmm.ini (HP1,
 HP2) and data/HP3/dinput8.ini: the shipped settings of each game.
 
@@ -377,6 +380,10 @@ def ini(jeu, graphismes=None):
         a("; to 255, e.g. 255,110,0. Empty = left as it is. Accio Launcher sets it to")
         a("; your house colours.")
         a("LightBar=")
+        a("")
+        a("; Writes xinput_accio.log next to the game: the controllers found, and what")
+        a("; was done with them.")
+        a("Log=1")
         a("")
         a("")
     a("; ----------------------------------------------------------------------------")

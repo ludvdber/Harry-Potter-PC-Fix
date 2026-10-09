@@ -1,3 +1,5 @@
+// Accio Launcher - PC fix for the EA Harry Potter games.
+// Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 // Checks pad.cpp without a controller: DualShock 4 and DualSense input reports read as an Xbox
 // pad (USB and Bluetooth layouts), and the output report that carries rumble and light bar.
 // The DS4 USB layout was also checked on a real pad (054C:09CC) on 2026-09-27.
