@@ -4,10 +4,12 @@
 // winmm.dll for HP2 (Chamber of Secrets) and HP1 (Philosopher's Stone), next to the game's exe in
 // its system folder. Both are Unreal Engine 1 games with no Direct3D 9 of their own (their
 // renderer is Direct3D 11), so d3d9.dll cannot reach them; winmm.dll is the one Windows file their
-// Core.dll and WinDrv.dll load, and it holds the pad. Five jobs, each one switched in winmm.ini
+// Core.dll and WinDrv.dll load, and it holds the pad. Six jobs, each one switched in winmm.ini
 // (HP1's turns the pad keys and Alt+Enter off: no pad bindings there, Alt+Enter SEEN fine):
 //   - HP1 only: its setup, run at EVERY start (a wizard, or a renderer test that writes D3DDrv into
 //     HP.ini), is skipped (setup.h, which says why).
+//   - HP2 only, under Wine only: its launcher window, black under Wine, loses the two SetWindowPos
+//     calls that blacken it (launcher.h, which says why).
 //   - A picture as large as the screen fills it: the window loses its title bar and border and
 //     takes the screen's rectangle (fill.h, which says why).
 //   - Options and Share (Start and Back on an Xbox pad) press Escape and Tab. The game opens its
@@ -24,6 +26,7 @@
 // not in front (no focus: GetFocus answers nothing).
 
 #include "fill.h"
+#include "launcher.h"
 #include "remap.h"
 #include "setup.h"
 #include "../version.h"
@@ -55,6 +58,7 @@ struct Settings
 	bool log = true;
 	bool fillScreen = true;
 	bool skipSetup = false;
+	bool wineLauncherFix = false;
 	bool blockAltEnter = true;
 	bool xboxLayout = true;
 	UINT shareKey = VK_TAB;
@@ -102,6 +106,7 @@ void LoadSettings(const wchar_t* ini)
 	g_cfg.log = flag(L"Accio.Window", L"Log", g_cfg.log);
 	g_cfg.fillScreen = flag(L"Accio.Window", L"FillScreen", g_cfg.fillScreen);
 	g_cfg.skipSetup = flag(L"Accio.Window", L"SkipSetup", g_cfg.skipSetup);
+	g_cfg.wineLauncherFix = flag(L"Accio.Window", L"WineLauncherFix", g_cfg.wineLauncherFix);
 	g_cfg.blockAltEnter = flag(L"Accio.Window", L"BlockAltEnter", g_cfg.blockAltEnter);
 	g_cfg.xboxLayout = flag(L"Accio.Controller", L"XboxLayout", g_cfg.xboxLayout);
 	g_cfg.shareKey = GetPrivateProfileIntW(L"Accio.Controller", L"ShareKey", g_cfg.shareKey, ini) & 0xFF;
@@ -232,6 +237,55 @@ void SkipSetup()
 		return;
 	}
 	Log("Setup: not found in this exe, left as it is\n");
+}
+
+// Wine's ntdll exports wine_get_version; Windows' does not.
+bool UnderWine()
+{
+	HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+	return ntdll && GetProcAddress(ntdll, "wine_get_version");
+}
+
+// Same moment as SkipSetup: the exe's imports are bound, its code has not run. The pair is taken
+// only if its import slot lies in the exe and holds SetWindowPos itself.
+void FixLauncher()
+{
+	auto* image = reinterpret_cast<uint8_t*>(GetModuleHandleW(nullptr));
+	const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(image);
+	const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(image + dos->e_lfanew);
+	const uintptr_t first = reinterpret_cast<uintptr_t>(image);
+	const uintptr_t last = first + nt->OptionalHeader.SizeOfImage;
+	HMODULE user32 = GetModuleHandleW(L"user32.dll");
+	void* setWindowPos = user32 ? reinterpret_cast<void*>(GetProcAddress(user32, "SetWindowPos")) : nullptr;
+	const IMAGE_SECTION_HEADER* section = IMAGE_FIRST_SECTION(nt);
+	for (WORD n = 0; n < nt->FileHeader.NumberOfSections; ++n, ++section)
+	{
+		if (!(section->Characteristics & IMAGE_SCN_MEM_EXECUTE))
+			continue;
+		uint8_t* code = image + section->VirtualAddress;
+		uint32_t slot = 0;
+		const ptrdiff_t at = launcher::Find(code, section->Misc.VirtualSize, &slot);
+		if (at < 0)
+			continue;
+		if (slot < first || slot + sizeof(void*) > last
+			|| *reinterpret_cast<void* const*>(static_cast<uintptr_t>(slot)) != setWindowPos)
+		{
+			Log("Launcher: pair found at %p, but its slot is not SetWindowPos: left as it is\n", code + at);
+			return;
+		}
+		DWORD old;
+		if (!VirtualProtect(code + at, launcher::kLength, PAGE_EXECUTE_READWRITE, &old))
+		{
+			Log("Launcher: found at %p, but not writable (error %lu)\n", code + at, GetLastError());
+			return;
+		}
+		launcher::Remove(code + at);
+		VirtualProtect(code + at, launcher::kLength, old, &old);
+		FlushInstructionCache(GetCurrentProcess(), code + at, launcher::kLength);
+		Log("Launcher: two SetWindowPos taken out at %p (WineLauncherFix, under Wine)\n", code + at);
+		return;
+	}
+	Log("Launcher: not found in this exe, left as it is\n");
 }
 
 // ---- Pad -----------------------------------------------------------------------------------
@@ -387,9 +441,10 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 	}
 	GetModuleFileNameW(nullptr, path, MAX_PATH);
 	Log("Accio Launcher PC fix " ACCIO_VERSION_STR " (winmm.dll), %ls\n", path);
-	Log("Settings: XboxLayout=%d ShareKey=%u OptionsKey=%u BlockAltEnter=%d FillScreen=%d SkipSetup=%d\n",
+	Log("Settings: XboxLayout=%d ShareKey=%u OptionsKey=%u BlockAltEnter=%d FillScreen=%d SkipSetup=%d"
+		" WineLauncherFix=%d\n",
 		g_cfg.xboxLayout, g_cfg.shareKey, g_cfg.optionsKey, g_cfg.blockAltEnter, g_cfg.fillScreen,
-		g_cfg.skipSetup);
+		g_cfg.skipSetup, g_cfg.wineLauncherFix);
 
 	// Every Windows has one. Without it the stubs would have nowhere to go: refuse to load, and
 	// Windows says winmm.dll is broken, which is the truth.
@@ -400,6 +455,8 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 	// will make the window and read its messages.
 	if (g_cfg.skipSetup)
 		SkipSetup();
+	if (g_cfg.wineLauncherFix && UnderWine())
+		FixLauncher();
 	if (g_cfg.blockAltEnter)
 	{
 		if (SetWindowsHookExW(WH_GETMESSAGE, OnMessage, nullptr, GetCurrentThreadId()))
