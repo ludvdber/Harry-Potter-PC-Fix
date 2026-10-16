@@ -61,7 +61,8 @@ def codes(lines: list[str], translate: dict[str, str]) -> list[str]:
 def links(lines: list[str]) -> list[str]:
     found = []
     for line in lines:
-        if line.startswith("[![") or "img.shields.io" in line:
+        # Badges: one per line, each starting with "[![".
+        if line.startswith("[!["):
             continue
         # An anchor is a translated heading: only where it stands is compared.
         found.extend("#anchor" if u.startswith("#") else u
