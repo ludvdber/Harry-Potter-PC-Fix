@@ -6,5 +6,5 @@
 
 #pragma once
 
-#define ACCIO_VERSION_NUM 2,0,1,0
-#define ACCIO_VERSION_STR "2.0.1"
+#define ACCIO_VERSION_NUM 2,1,0,0
+#define ACCIO_VERSION_STR "2.1.0"
