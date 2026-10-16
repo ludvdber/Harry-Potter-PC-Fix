@@ -470,11 +470,12 @@ def ini(jeu, graphismes=None):
 # 2026-10-08, notes/HP1.md) use PlayStation numbers like HP2's, so an Xbox pad is renumbered too, and
 # Options presses Escape as the keyboard does (SEEN in both games, 2026-10-08). Share opens no map:
 # HP1 has none, and HP2's opened and closed at once (SEEN, 2026-10-08), so Ludo had it taken off.
+# WineLauncherFix: HP2's launcher is black under Wine; HP1 has the same pair of calls, left as is.
 UE1 = {
     "HP1": dict(titre="Harry Potter and the Philosopher's Stone", ini_jeu="HP.ini", pads=True, map=False,
-                alt_enter=False, setup=True),
+                alt_enter=False, setup=True, wine=False),
     "HP2": dict(titre="Harry Potter and the Chamber of Secrets", ini_jeu="Game.ini", pads=True, map=False,
-                alt_enter=True, setup=False),
+                alt_enter=True, setup=False, wine=True),
 }
 
 
@@ -515,6 +516,13 @@ def winmm_ini(jeu):
     a(f"; into {c['ini_jeu']}. 1 = Alt+Enter does nothing.")
     a(f"BlockAltEnter={1 if c['alt_enter'] else 0}")
     a("")
+    if c["wine"]:
+        a("; Under Wine (Linux, Steam Deck) the launcher window that opens first is")
+        a("; black, with only \"Quitter\" showing. 1 = the two calls that blacken it are")
+        a("; taken out, in memory: the exe on disk is not changed. Does nothing under")
+        a("; Windows. 0 = as shipped.")
+        a("WineLauncherFix=1")
+        a("")
     if c["setup"]:
         a("; At every start the game opens its first-run setup (an empty list of 3D")
         a("; cards) or, without Running.ini, tests a renderer it does not have and")
