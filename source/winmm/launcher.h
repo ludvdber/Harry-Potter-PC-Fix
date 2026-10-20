@@ -1,73 +1,76 @@
 // Accio Launcher - PC fix for the EA Harry Potter games.
 // Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 //
-// HP2's launcher window under Wine: black, with only "Quitter" showing. Pure byte work: testable
-// without the game (tests/winmm_test.cpp).
+// HP2's launcher window under Wine: black, with only "Quitter" showing. The decision and the
+// import-table reading are here, pure: testable without the game (tests/winmm_test.cpp).
 //
-// Reported by Federico Dossena ("Fixing Harry Potter 2 on Linux (Wine)"): the launcher's two
-// SetWindowPos calls in Game.exe are the cause, and the window stays centred without them
-// (WINDOW.DLL has already centred and shown it). He ships a changed Game.exe; we change nothing on
-// disk: this DLL rewrites the two calls in memory, under Wine only (notes/HP2.md, 2026-10-15).
-// Read in OUR Game.exe at 0x1090258C and 0x109025A5:
-//     push -1 (HWND_TOPMOST)    / mov ecx, [launcher] / push ecx / call [SetWindowPos]
-//     push 3 / push 0 x4 / push -2 (HWND_NOTOPMOST) / mov edx, [launcher] / push edx / call [SetWindowPos]
-// The same handle and the same import slot in both: a look-alike elsewhere is not taken (Game.exe
-// has a second pair, on another window, with the handle read from a frame).
-// HP1's HP.exe has the same pair (once, at file offset 0x2813): off by default, switched on by
-// HP2's winmm.ini only, since nobody has seen HP1's launcher black under Wine.
-//
-// Each call [SetWindowPos] (FF 15 + slot, 6 bytes) becomes add esp, 28 + 3 nops (83 C4 1C 90 90 90):
-// SetWindowPos is stdcall and would have taken its seven arguments off the stack; eax is not read
-// after either call.
+// Reported by Federico Dossena ("Fixing Harry Potter 2 on Linux (Wine)"); read on Bazzite with a
+// SetWindowPos relay (notes/HP2.md, 2026-10-20). The menu page ("MainMenu", a child dialog inside
+// the launcher's frame) is created in place; then Game.exe centres it ON THE SCREEN:
+//     SetWindowPos(page, HWND_TOPMOST, 717, 257, 486, 566, SWP_FRAMECHANGED)
+// 717,257 is (screen - 486x566) / 2. On a CHILD window those coordinates are parent-relative: the
+// page lands outside the launcher's window, and only "Quitter" (a button of the parent) is left.
+// Windows shows the launcher fine, so there the call cannot land the page outside (its window or
+// coordinates differ; not read yet). Game.exe holds TWO such pairs of calls through its one
+// SetWindowPos import slot - 0x1090258C/0x109025A5 on the launcher's own window (a global handle)
+// and 0x1091301D/0x10913036 on the page (the pair that runs; a fix of 2026-10-15 removed the
+// FIRST pair's bytes and changed nothing). So no more byte patterns: the import slot itself is
+// pointed at a relay (winmm.cpp) that drops a screen-centring SetWindowPos on a child window and
+// passes every other call through. That covers both pairs, on any edition of the exe.
 
 #pragma once
 
-#include <cstddef>
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
 #include <cstdint>
 #include <cstring>
 
 namespace launcher
 {
-constexpr size_t kLength = 40;           // the bytes Find matches, from the first push -1
-constexpr size_t kCalls[2] = {9, 34};    // where the two calls are, in them
-
-inline uint32_t U32(const uint8_t* p)
+// Where (sw - cx) / 2, (sh - cy) / 2 would put a cx by cy window: the screen centring the
+// launcher computes with GetSystemMetrics(0/1).
+inline bool Centred(int x, int y, int cx, int cy, int sw, int sh)
 {
-	uint32_t v;
-	std::memcpy(&v, p, sizeof(v));
-	return v;
+	return cx > 0 && cy > 0 && x == (sw - cx) / 2 && y == (sh - cy) / 2;
 }
 
-// The offset of the pair in code, or -1. *slot gets the address of the import slot both calls
-// go through, for the caller to check it really is SetWindowPos.
-inline ptrdiff_t Find(const uint8_t* code, size_t size, uint32_t* slot)
+// The one call the relay drops: a SetWindowPos with real coordinates (no SWP_NOMOVE/NOSIZE) that
+// centres a CHILD window on the screen - coordinates the window will read as parent-relative.
+inline bool Ignored(LONG style, UINT flags, int x, int y, int cx, int cy, int sw, int sh)
 {
-	static const uint8_t pushes[] = {0x6A, 0x03, 0x6A, 0x00, 0x6A, 0x00, 0x6A, 0x00, 0x6A, 0x00,
-		0x6A, 0xFE};
-	if (size < kLength)
-		return -1;
-	for (size_t i = 0; i + kLength <= size; ++i)
+	return (style & WS_CHILD) && !(flags & (SWP_NOMOVE | SWP_NOSIZE))
+		&& Centred(x, y, cx, cy, sw, sh);
+}
+
+// The mapped image's import slot for dll!name - the IAT entry its call [slot] instructions read -
+// or nullptr. Only imports by name are looked at (Game.exe imports SetWindowPos by name).
+inline void** ImportSlot(uint8_t* image, const char* dll, const char* name)
+{
+	const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(image);
+	const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(image + dos->e_lfanew);
+	const IMAGE_DATA_DIRECTORY& dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+	if (!dir.VirtualAddress)
+		return nullptr;
+	for (const auto* imp = reinterpret_cast<const IMAGE_IMPORT_DESCRIPTOR*>(image + dir.VirtualAddress);
+		imp->Name; ++imp)
 	{
-		const uint8_t* p = code + i;
-		if (p[0] != 0x6A || p[1] != 0xFF || p[2] != 0x8B || p[3] != 0x0D || p[8] != 0x51
-			|| p[9] != 0xFF || p[10] != 0x15
-			|| std::memcmp(p + 15, pushes, sizeof(pushes)) != 0
-			|| p[27] != 0x8B || p[28] != 0x15 || p[33] != 0x52 || p[34] != 0xFF || p[35] != 0x15)
+		if (_stricmp(reinterpret_cast<const char*>(image + imp->Name), dll) != 0)
 			continue;
-		if (U32(p + 4) != U32(p + 29) || U32(p + 11) != U32(p + 36))
-			continue;
-		if (slot)
-			*slot = U32(p + 11);
-		return static_cast<ptrdiff_t>(i);
+		// The names live in the original thunks; the slots the code calls through, in the first.
+		const auto* names = reinterpret_cast<const IMAGE_THUNK_DATA*>(
+			image + (imp->OriginalFirstThunk ? imp->OriginalFirstThunk : imp->FirstThunk));
+		auto* slots = reinterpret_cast<IMAGE_THUNK_DATA*>(image + imp->FirstThunk);
+		for (; names->u1.AddressOfData; ++names, ++slots)
+		{
+			if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal))
+				continue;
+			const auto* entry = reinterpret_cast<const IMAGE_IMPORT_BY_NAME*>(image + names->u1.AddressOfData);
+			if (std::strcmp(reinterpret_cast<const char*>(entry->Name), name) == 0)
+				return reinterpret_cast<void**>(&slots->u1.Function);
+		}
 	}
-	return -1;
-}
-
-// at: what Find returned, in code.
-inline void Remove(uint8_t* at)
-{
-	static const uint8_t pop[] = {0x83, 0xC4, 0x1C, 0x90, 0x90, 0x90};
-	for (size_t call : kCalls)
-		std::memcpy(at + call, pop, sizeof(pop));
+	return nullptr;
 }
 }

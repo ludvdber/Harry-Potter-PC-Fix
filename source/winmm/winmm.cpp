@@ -8,8 +8,9 @@
 // (HP1's turns the pad keys and Alt+Enter off: no pad bindings there, Alt+Enter SEEN fine):
 //   - HP1 only: its setup, run at EVERY start (a wizard, or a renderer test that writes D3DDrv into
 //     HP.ini), is skipped (setup.h, which says why).
-//   - HP2 only, under Wine only: its launcher window, black under Wine, loses the two SetWindowPos
-//     calls that blacken it (launcher.h, which says why).
+//   - HP2 only, under Wine only: its launcher window, black under Wine, keeps its menu page. The
+//     exe's SetWindowPos import slot is pointed at a relay that drops the screen-centring call
+//     that threw the page out of the window (launcher.h, which says why).
 //   - A picture as large as the screen fills it: the window loses its title bar and border and
 //     takes the screen's rectangle (fill.h, which says why).
 //   - Options and Share (Start and Back on an Xbox pad) press Escape and Tab. The game opens its
@@ -246,46 +247,51 @@ bool UnderWine()
 	return ntdll && GetProcAddress(ntdll, "wine_get_version");
 }
 
-// Same moment as SkipSetup: the exe's imports are bound, its code has not run. The pair is taken
-// only if its import slot lies in the exe and holds SetWindowPos itself.
+// What the exe's one SetWindowPos import slot now points at: the screen-centring call on a child
+// window (the one that threw HP2's menu page out of the launcher's window) is dropped, everything
+// else goes to SetWindowPos itself. The relay is live from before the exe's code runs.
+decltype(&SetWindowPos) g_realSetWindowPos;
+
+BOOL WINAPI RelaySetWindowPos(HWND hwnd, HWND after, int x, int y, int cx, int cy, UINT flags)
+{
+	if (launcher::Ignored(GetWindowLongW(hwnd, GWL_STYLE), flags, x, y, cx, cy,
+			GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)))
+	{
+		Log("Launcher: SetWindowPos %d,%d %dx%d centring a child window on the screen ignored"
+			" (WineLauncherFix)\n", x, y, cx, cy);
+		return TRUE;
+	}
+	return g_realSetWindowPos(hwnd, after, x, y, cx, cy, flags);
+}
+
+// Same moment as SkipSetup: the exe's imports are bound, its code has not run. The slot is taken
+// only if it holds SetWindowPos itself.
 void FixLauncher()
 {
 	auto* image = reinterpret_cast<uint8_t*>(GetModuleHandleW(nullptr));
-	const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(image);
-	const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(image + dos->e_lfanew);
-	const uintptr_t first = reinterpret_cast<uintptr_t>(image);
-	const uintptr_t last = first + nt->OptionalHeader.SizeOfImage;
 	HMODULE user32 = GetModuleHandleW(L"user32.dll");
 	void* setWindowPos = user32 ? reinterpret_cast<void*>(GetProcAddress(user32, "SetWindowPos")) : nullptr;
-	const IMAGE_SECTION_HEADER* section = IMAGE_FIRST_SECTION(nt);
-	for (WORD n = 0; n < nt->FileHeader.NumberOfSections; ++n, ++section)
+	void** slot = launcher::ImportSlot(image, "user32.dll", "SetWindowPos");
+	if (!slot || !setWindowPos)
 	{
-		if (!(section->Characteristics & IMAGE_SCN_MEM_EXECUTE))
-			continue;
-		uint8_t* code = image + section->VirtualAddress;
-		uint32_t slot = 0;
-		const ptrdiff_t at = launcher::Find(code, section->Misc.VirtualSize, &slot);
-		if (at < 0)
-			continue;
-		if (slot < first || slot + sizeof(void*) > last
-			|| *reinterpret_cast<void* const*>(static_cast<uintptr_t>(slot)) != setWindowPos)
-		{
-			Log("Launcher: pair found at %p, but its slot is not SetWindowPos: left as it is\n", code + at);
-			return;
-		}
-		DWORD old;
-		if (!VirtualProtect(code + at, launcher::kLength, PAGE_EXECUTE_READWRITE, &old))
-		{
-			Log("Launcher: found at %p, but not writable (error %lu)\n", code + at, GetLastError());
-			return;
-		}
-		launcher::Remove(code + at);
-		VirtualProtect(code + at, launcher::kLength, old, &old);
-		FlushInstructionCache(GetCurrentProcess(), code + at, launcher::kLength);
-		Log("Launcher: two SetWindowPos taken out at %p (WineLauncherFix, under Wine)\n", code + at);
+		Log("Launcher: no SetWindowPos import in this exe, left as it is\n");
 		return;
 	}
-	Log("Launcher: not found in this exe, left as it is\n");
+	if (*slot != setWindowPos)
+	{
+		Log("Launcher: the exe's SetWindowPos slot holds something else, left as it is\n");
+		return;
+	}
+	DWORD old;
+	if (!VirtualProtect(slot, sizeof(*slot), PAGE_READWRITE, &old))
+	{
+		Log("Launcher: the slot at %p is not writable (error %lu)\n", slot, GetLastError());
+		return;
+	}
+	g_realSetWindowPos = reinterpret_cast<decltype(&SetWindowPos)>(setWindowPos);
+	*slot = reinterpret_cast<void*>(&RelaySetWindowPos);
+	VirtualProtect(slot, sizeof(*slot), old, &old);
+	Log("Launcher: the exe's SetWindowPos calls go through the fix (WineLauncherFix, under Wine)\n");
 }
 
 // ---- Pad -----------------------------------------------------------------------------------

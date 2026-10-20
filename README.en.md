@@ -175,7 +175,7 @@ The log, `dinput8_accio.log` (`Log=0` turns it off), names each controller found
 
 The fix contains no game files: it goes on top of **your** copy, which you must own (CD, DVD or digital purchase).
 
-**On Linux** (Wine or Proton), Wine uses its own `d3d9` unless told otherwise: `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher does it for you. Not `xinput1_3`: Wine's XInput already knows PlayStation controllers. For *Philosopher's Stone* and *Chamber of Secrets*: `WINEDLLOVERRIDES="winmm=n,b"`; for *Prisoner of Azkaban*: `WINEDLLOVERRIDES="dinput8=n,b"`.
+**On Linux** (Wine or Proton), Wine uses its own DLLs unless told otherwise: `WINEDLLOVERRIDES="d3d9=n,b;xinput1_3=n,b"`. Accio Launcher does it for you. The controller works there too: our `xinput1_3.dll` reads PlayStation controllers under Wine (through hidraw). For *Philosopher's Stone* and *Chamber of Secrets*: `WINEDLLOVERRIDES="winmm=n,b"`; for *Prisoner of Azkaban*: `WINEDLLOVERRIDES="dinput8=n,b"`.
 
 Settings are read when the game starts: change `d3d9.ini`, then restart the game. Every line of the file is commented. A `d3d9.ini` written for an earlier fix still works: keys missing from the `[Accio.*]` sections are read where earlier versions kept them.
 

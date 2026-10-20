@@ -175,7 +175,7 @@ Le journal `dinput8_accio.log` (`Log=0` le désactive) nomme chaque manette trou
 
 Le correctif ne contient aucun fichier de jeu : il s'installe sur **votre** copie, que vous devez posséder (CD, DVD ou achat numérique).
 
-**Sous Linux** (Wine ou Proton), Wine utilise son propre `d3d9` sauf indication contraire : `WINEDLLOVERRIDES="d3d9=n,b"`. Accio Launcher le fait pour vous. Pas `xinput1_3` : le XInput de Wine reconnaît déjà les manettes PlayStation. Pour *l'École des sorciers* et *la Chambre des secrets* : `WINEDLLOVERRIDES="winmm=n,b"` ; pour *le Prisonnier d'Azkaban* : `WINEDLLOVERRIDES="dinput8=n,b"`.
+**Sous Linux** (Wine ou Proton), Wine utilise ses propres DLL sauf indication contraire : `WINEDLLOVERRIDES="d3d9=n,b;xinput1_3=n,b"`. Accio Launcher le fait pour vous. La manette marche là aussi : notre `xinput1_3.dll` lit les manettes PlayStation sous Wine (par hidraw). Pour *l'École des sorciers* et *la Chambre des secrets* : `WINEDLLOVERRIDES="winmm=n,b"` ; pour *le Prisonnier d'Azkaban* : `WINEDLLOVERRIDES="dinput8=n,b"`.
 
 Les réglages sont lus au lancement : modifiez `d3d9.ini`, puis relancez le jeu. Chaque ligne du fichier est commentée. Un `d3d9.ini` écrit pour un ancien correctif fonctionne encore : les clés absentes des sections `[Accio.*]` sont lues là où les anciennes versions les rangeaient.
 

@@ -150,34 +150,59 @@ static void Setup()
 
 // ---- launcher.h ----------------------------------------------------------------------------
 
+static int g_relayed = 0;
+static BOOL WINAPI CountingSetWindowPos(HWND, HWND, int x, int, int, int, UINT)
+{
+	++g_relayed;
+	return x == 42;
+}
+
 static void Launcher()
 {
-	// HP2's Game.exe at 0x10902583 (read 2026-10-15): the launcher's handle at 0x109807A4, the
-	// SetWindowPos import slot at 0x1099007C.
-	const uint8_t hp2[] = {
-		0x6A, 0xFF, 0x8B, 0x0D, 0xA4, 0x07, 0x98, 0x10, 0x51, 0xFF, 0x15, 0x7C, 0x00, 0x99, 0x10,
-		0x6A, 0x03, 0x6A, 0x00, 0x6A, 0x00, 0x6A, 0x00, 0x6A, 0x00, 0x6A, 0xFE,
-		0x8B, 0x15, 0xA4, 0x07, 0x98, 0x10, 0x52, 0xFF, 0x15, 0x7C, 0x00, 0x99, 0x10};
-	static_assert(sizeof(hp2) == launcher::kLength, "the pair as read");
-	uint8_t code[64] = {0xCC, 0xCC, 0xCC};
-	memcpy(code + 3, hp2, sizeof(hp2));
-	uint32_t slot = 0;
-	Expect(launcher::Find(code, sizeof(code), &slot) == 3, "HP2's pair found");
-	Expect(slot == 0x1099007C, "through SetWindowPos' slot");
-	Expect(launcher::Find(code, 3 + launcher::kLength - 1, &slot) == -1, "cut short: not found");
-	uint8_t other[sizeof(code)];
-	memcpy(other, code, sizeof(code));
-	other[3 + 29] = 0xA8;   // another handle in the second call: not the launcher's pair
-	Expect(launcher::Find(other, sizeof(other), &slot) == -1, "two windows: not taken");
-	memcpy(other, code, sizeof(code));
-	other[3 + 37] = 0x01;   // another import in the second call
-	Expect(launcher::Find(other, sizeof(other), &slot) == -1, "two functions: not taken");
-	launcher::Remove(code + 3);
-	const uint8_t pop[] = {0x83, 0xC4, 0x1C, 0x90, 0x90, 0x90};
-	Expect(memcmp(code + 3 + 9, pop, sizeof(pop)) == 0 && memcmp(code + 3 + 34, pop, sizeof(pop)) == 0,
-		"both calls made add esp, 28");
-	Expect(code[3 + 15] == 0x6A && code[3 + 33] == 0x52, "the pushes around them untouched");
-	Expect(launcher::Find(code, sizeof(code), &slot) == -1, "taken out once: not found again");
+	// The call read on Bazzite (2026-10-20): SetWindowPos(page, HWND_TOPMOST, 717, 257, 486, 566,
+	// SWP_FRAMECHANGED), the page a child dialog, the screen 1920x1080.
+	const LONG child = WS_CHILD | WS_VISIBLE;
+	const LONG topLevel = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+	Expect(launcher::Ignored(child, SWP_FRAMECHANGED, 717, 257, 486, 566, 1920, 1080),
+		"the centring call on the child page dropped");
+	Expect(!launcher::Ignored(topLevel, SWP_FRAMECHANGED, 717, 257, 486, 566, 1920, 1080),
+		"the same call on a top-level window kept (the launcher's own pair)");
+	Expect(!launcher::Ignored(child, SWP_NOSIZE | SWP_NOMOVE, 0, 0, 0, 0, 1920, 1080),
+		"the NOTOPMOST call of the pair, which moves nothing, kept");
+	Expect(!launcher::Ignored(child, SWP_FRAMECHANGED, 718, 257, 486, 566, 1920, 1080),
+		"one pixel off centre: kept");
+	Expect(!launcher::Ignored(child, SWP_FRAMECHANGED, 717, 257, 486, 566, 2560, 1440),
+		"centred for another screen: kept");
+	Expect(!launcher::Ignored(child, SWP_FRAMECHANGED, 0, 0, 0, 0, 1920, 1080),
+		"an empty rectangle at 0,0 is not a centring");
+	Expect(launcher::Ignored(child, 0, (1920 - 480) / 2, (1080 - 557) / 2, 480, 557, 1920, 1080),
+		"an odd leftover: the same truncation on both sides");
+
+	// The import slot: this exe's own, whose SetWindowPos import the call below guarantees.
+	SetWindowPos(nullptr, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+	auto* image = reinterpret_cast<uint8_t*>(GetModuleHandleW(nullptr));
+	void** slot = launcher::ImportSlot(image, "user32.dll", "SetWindowPos");
+	Expect(slot != nullptr, "this exe's SetWindowPos slot found");
+	void* real = reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetWindowPos"));
+	Expect(slot && *slot == real, "the slot holds SetWindowPos itself");
+	Expect(launcher::ImportSlot(image, "user32.dll", "AccioNoSuchFunction") == nullptr,
+		"an unknown name: no slot");
+	Expect(launcher::ImportSlot(image, "accio_nosuch.dll", "SetWindowPos") == nullptr,
+		"an unknown dll: no slot");
+	if (!slot || *slot != real)
+		return;
+
+	// The slot is live: pointed at a counter, this file's own SetWindowPos call lands there, with
+	// its arguments and its answer intact; put back, the call reaches Windows again.
+	DWORD old;
+	Expect(VirtualProtect(slot, sizeof(*slot), PAGE_READWRITE, &old) != 0, "the slot made writable");
+	*slot = reinterpret_cast<void*>(&CountingSetWindowPos);
+	const BOOL answered = SetWindowPos(nullptr, nullptr, 42, 0, 0, 0, SWP_NOZORDER);
+	*slot = real;
+	VirtualProtect(slot, sizeof(*slot), old, &old);
+	Expect(g_relayed == 1 && answered, "a call through the slot reaches the relay");
+	Expect(!SetWindowPos(nullptr, nullptr, 42, 0, 0, 0, SWP_NOZORDER) && g_relayed == 1,
+		"put back: Windows answers again");
 }
 
 // ---- The built DLL -------------------------------------------------------------------------

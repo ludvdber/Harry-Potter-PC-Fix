@@ -534,9 +534,10 @@ def winmm_ini(jeu):
     a("")
     if c["wine"]:
         a("; Under Wine (Linux, Steam Deck) the launcher window that opens first is")
-        a("; black, with only \"Quitter\" showing. 1 = the two calls that blacken it are")
-        a("; taken out, in memory: the exe on disk is not changed. Does nothing under")
-        a("; Windows. 0 = as shipped.")
+        a("; black, with only \"Quitter\" showing: a call centring its menu page on the")
+        a("; screen throws the page out of the window. 1 = that call is ignored, in")
+        a("; memory: the exe on disk is not changed. Does nothing under Windows.")
+        a("; 0 = as shipped.")
         a("WineLauncherFix=1")
         a("")
     if c["setup"]:

@@ -7,8 +7,9 @@
 //     so the June 2010 DirectX runtime is no longer needed for them.
 //   - DualShock 4 and DualSense: read from their HID reports (pad.cpp) and shown to the game as an
 //     Xbox pad, on the first slot no Xbox pad holds. Rumble and the light bar go back to the pad.
-// Wine maps PlayStation pads itself and keeps its own xinput1_3 (the launcher does not override
-// it), so none of this runs on Linux.
+// Under Wine the same DLL runs, once xinput1_3 is overridden (the launcher does it since
+// catalogue 0.37): the pads' HID reports come through Wine's hidraw. SEEN on Bazzite, 2026-10-20:
+// "pad 09CC: opened ... slot 0: PlayStation pad 09CC given to the game".
 //
 // Threads: the game's own calls read a snapshot under one lock. A monitor thread looks for pads
 // every 2 s; each pad has a thread that reads its reports and writes rumble when told to.
