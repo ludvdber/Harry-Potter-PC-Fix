@@ -52,6 +52,7 @@ int main(int argc, char** argv)
 			EXPECT(c.mipmapFilter == 0 && !c.mipmapCoverage);
 		EXPECT(c.shaderReplace && !c.shaderDump); // replacement armed, nothing changes without a file
 		EXPECT(c.shadowTextureSize == 0); // engine shadow size untouched until seen in game
+		EXPECT(c.particleCullDistance == 0); // particle radius untouched until seen in game
 		EXPECT(c.legacyAspectIndex == 0 && c.legacyFov == 0);
 	}
 
@@ -268,6 +269,33 @@ int main(int argc, char** argv)
 			Load(path);
 			EXPECT(c.shadowTextureSize == 0);
 		}
+	}
+	{
+		// The particle radius: any value, bounded to 0..100000.
+		const char* game = "particle radius";
+		const std::string path = scratch + "\\particles.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nParticleCullDistance=120\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.particleCullDistance == 120);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nParticleCullDistance=999999\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.particleCullDistance == 10000);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nParticleCullDistance=-5\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.particleCullDistance == 0);
 	}
 	{
 		// Supersampling takes any factor (1.5 costs about half of 2), bounded to 1..4.

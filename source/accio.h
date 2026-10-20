@@ -101,6 +101,7 @@ struct Settings
 	int   ssaaMaxHeight = 2880;     // the enlarged image never taller than this, 0 = no limit
 	int   shadowScale = 1;
 	int   shadowTextureSize = 0;    // HP6: the engine's own shadow texture size (128 as shipped), 0 = untouched
+	int   particleCullDistance = 0; // HP6: radius inside which particle effects are drawn (3500 as shipped), 0 = untouched
 	bool  vsync = false;
 	bool  grading = false;
 	float vibrance = 0.15f, vignette = 0.0f, lift = 0.0f, gamma = 1.0f, gain = 1.0f;

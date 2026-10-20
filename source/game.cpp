@@ -482,26 +482,58 @@ void DefaultTextureDetail(const char* exeName)
 	Log("Game: detail level %d when the game has none saved %s\n", g_cfg.textureDetail, ok ? "set" : "NOT set");
 }
 
-// HP6 sizes its shadow textures from one global (0x8663E0, 128 as shipped): the shadow drawer
-// takes it as width and height when it is set up (read at 0x5F7BD6). The game itself only
-// writes that global when HKCU\...\GameSettings holds a MaxShadowTextureSize (0x64A11C), which
+// HP5 and HP6 size their shadow textures from one global (128 as shipped in both): the shadow
+// drawer takes it as width and height when it is set up (hp6.exe: 0x8663E0, read at 0x5F7BD6;
+// hp.exe: 0x8AE208, read at 0x62EF66). The game itself only writes that global when
+// HKCU\...\GameSettings holds a MaxShadowTextureSize (hp6.exe 0x64A11C, hp.exe 0x67CA74), which
 // runs after this: a size the player has in the registry still wins, and the registry is never
 // written. The engine path has none of ShadowMapScale's side effects (reflections, the x4 dark
 // patches of 2026-10-01). Nothing is written unless the global still reads its shipped 128: on
-// another build of hp6.exe that address could hold anything, and then it is left alone.
+// another build of the exe that address could hold anything, and then it is left alone.
 void SizeShadowTextures(const char* exeName)
 {
-	if (g_cfg.shadowTextureSize == 0 || _stricmp(exeName, "hp6.exe") != 0)
+	if (g_cfg.shadowTextureSize == 0)
 		return;
-	const LONG current = *reinterpret_cast<const LONG*>(0x008663E0);
+	void* address;
+	if (_stricmp(exeName, "hp6.exe") == 0)
+		address = reinterpret_cast<void*>(0x008663E0);
+	else if (_stricmp(exeName, "hp.exe") == 0)
+		address = reinterpret_cast<void*>(0x008AE208);
+	else
+		return;
+	const LONG current = *static_cast<const LONG*>(address);
 	if (current != 128)
 	{
-		Log("Game: shadow textures NOT set: unexpected value %ld (other hp6.exe build?)\n", current);
+		Log("Game: shadow textures NOT set: unexpected value %ld (other %s build?)\n", current, exeName);
 		return;
 	}
 	const LONG size = g_cfg.shadowTextureSize;
-	const bool ok = WriteMemory(reinterpret_cast<void*>(0x008663E0), &size, sizeof(size));
+	const bool ok = WriteMemory(address, &size, sizeof(size));
 	Log("Game: shadow textures %ld pixels a side (128 as shipped) %s\n", size, ok ? "set" : "NOT set");
+}
+
+// HP6 draws a particle effect (torches, fountains, fires) only inside a radius held in one
+// global (0x866A74): past it the effect vanishes while its object stays. The engine compares
+// the SQUARED camera distance to that global (read at 0x6117xx), so the shipped 3500.0 is a
+// radius of about 59 units; the ini key is in plain units and squared here. The game only
+// rewrites the global on 16-bit displays or when HKCU\...\GameSettings holds a
+// ParticleCullDistance (also squared units), applied after this: a value the player has in the
+// registry still wins, and the registry is never written. Nothing is written unless the global
+// still reads its shipped 3500.0: on another build of hp6.exe that address could hold anything.
+void CullParticlesFarther(const char* exeName)
+{
+	if (g_cfg.particleCullDistance == 0 || _stricmp(exeName, "hp6.exe") != 0)
+		return;
+	const float current = *reinterpret_cast<const float*>(0x00866A74);
+	if (current != 3500.0f)
+	{
+		Log("Game: particle radius NOT set: unexpected value %g (other hp6.exe build?)\n", current);
+		return;
+	}
+	const float radius = static_cast<float>(g_cfg.particleCullDistance);
+	const float squared = radius * radius;
+	const bool ok = WriteMemory(reinterpret_cast<void*>(0x00866A74), &squared, sizeof(squared));
+	Log("Game: particles drawn to %d units (59 as shipped) %s\n", g_cfg.particleCullDistance, ok ? "set" : "NOT set");
 }
 
 // Counted for the log (ReportHaze): whether the haze is drawn at all, and how wide it asked.
@@ -851,6 +883,7 @@ void ApplyGamePatches()
 	RemoveDistanceFog(p->exe);
 	DefaultTextureDetail(p->exe);
 	SizeShadowTextures(p->exe);
+	CullParticlesFarther(p->exe);
 	DescribePlayStationPads(p->exe);
 	GuardAudioStream(p->exe);
 }

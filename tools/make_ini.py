@@ -102,7 +102,7 @@ JEUX = {
 }
 
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
-                    SSAAFactor=1, ShadowMapScale=1, ShadowTextureSize=0, VSync=0, ColorGrading=0, Vibrance="0.25",
+                    SSAAFactor=1, ShadowMapScale=1, ShadowTextureSize=0, ParticleCullDistance=0, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
                     Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", GreenRestraint="0.00", ContrastPivot="0.50", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
@@ -424,10 +424,14 @@ def ini(jeu, graphismes=None):
     a("")
     a("; Sharper shadows (1, 2 or 4). Experimental: also enlarges reflections.")
     a(f"ShadowMapScale={g['ShadowMapScale']}")
-    a("; HP6 only: the size of the engine's own shadow textures (128 as shipped; try 512).")
+    a("; HP5 and HP6 only: the size of the engine's own shadow textures (128 as shipped; try 512).")
     a("; Sharpens every shadow, nothing else changes. Powers of two only, 128 to 2048;")
     a("; any other value is left as shipped. 0 = as shipped.")
     a(f"ShadowTextureSize={g['ShadowTextureSize']}")
+    a("; HP6 only: the radius in game units inside which particle effects are drawn (about 59")
+    a("; as shipped; try 120). Torches, fires and fountains stay visible farther away.")
+    a("; 0 = as shipped.")
+    a(f"ParticleCullDistance={g['ParticleCullDistance']}")
     a("")
     a(f"VSync={g['VSync']}")
     a("")
