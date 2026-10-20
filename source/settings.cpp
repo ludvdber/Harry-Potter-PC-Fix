@@ -175,7 +175,15 @@ void LoadSettings(const char* iniPath)
 	c.ssaa = Clamp(Float(graphics, "SSAAFactor", 1.0f), 1.0f, 4.0f);
 	c.ssaaMaxHeight = Clamp(Int(graphics, "SSAAMaxHeight", 2880), 0, 16384);
 	c.shadowScale = Clamp(Int(graphics, "ShadowMapScale", 1), 1, 8);
-	c.shadowTextureSize = Clamp(Int(graphics, "ShadowTextureSize", 0), 0, 4096);
+	c.shadowTextureSize = Int(graphics, "ShadowTextureSize", 0);
+	switch (c.shadowTextureSize)
+	{
+	case 0: case 128: case 256: case 512: case 1024: case 2048:
+		break;
+	default:
+		Log("Settings: ShadowTextureSize %d is not 128, 256, 512, 1024 or 2048: left as shipped\n", c.shadowTextureSize);
+		c.shadowTextureSize = 0;
+	}
 	c.vsync = Bool(graphics, "VSync", false);
 	c.grading = Bool(graphics, "ColorGrading", false);
 	c.vibrance = Float(graphics, "Vibrance", 0.15f);

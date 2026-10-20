@@ -487,11 +487,18 @@ void DefaultTextureDetail(const char* exeName)
 // writes that global when HKCU\...\GameSettings holds a MaxShadowTextureSize (0x64A11C), which
 // runs after this: a size the player has in the registry still wins, and the registry is never
 // written. The engine path has none of ShadowMapScale's side effects (reflections, the x4 dark
-// patches of 2026-10-01).
+// patches of 2026-10-01). Nothing is written unless the global still reads its shipped 128: on
+// another build of hp6.exe that address could hold anything, and then it is left alone.
 void SizeShadowTextures(const char* exeName)
 {
 	if (g_cfg.shadowTextureSize == 0 || _stricmp(exeName, "hp6.exe") != 0)
 		return;
+	const LONG current = *reinterpret_cast<const LONG*>(0x008663E0);
+	if (current != 128)
+	{
+		Log("Game: shadow textures NOT set: unexpected value %ld (other hp6.exe build?)\n", current);
+		return;
+	}
 	const LONG size = g_cfg.shadowTextureSize;
 	const bool ok = WriteMemory(reinterpret_cast<void*>(0x008663E0), &size, sizeof(size));
 	Log("Game: shadow textures %ld pixels a side (128 as shipped) %s\n", size, ok ? "set" : "NOT set");

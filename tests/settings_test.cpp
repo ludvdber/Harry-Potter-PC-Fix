@@ -241,6 +241,35 @@ int main(int argc, char** argv)
 		EXPECT(!c.shaderReplace && c.shaderDump);
 	}
 	{
+		// The engine's shadow texture size: powers of two from 128 to 2048, anything else as shipped.
+		const char* game = "shadow texture size";
+		const std::string path = scratch + "\\shadowsize.ini";
+		const int accepted[] = { 0, 128, 256, 512, 1024, 2048 };
+		for (const int value : accepted)
+		{
+			FILE* f = nullptr;
+			fopen_s(&f, path.c_str(), "wb");
+			if (!f)
+				return 3;
+			fprintf(f, "[Accio.Graphics]\r\nShadowTextureSize=%d\r\n", value);
+			fclose(f);
+			Load(path);
+			EXPECT(c.shadowTextureSize == value);
+		}
+		const int refused[] = { 300, 64, 4096, -512, 127 };
+		for (const int value : refused)
+		{
+			FILE* f = nullptr;
+			fopen_s(&f, path.c_str(), "wb");
+			if (!f)
+				return 3;
+			fprintf(f, "[Accio.Graphics]\r\nShadowTextureSize=%d\r\n", value);
+			fclose(f);
+			Load(path);
+			EXPECT(c.shadowTextureSize == 0);
+		}
+	}
+	{
 		// Supersampling takes any factor (1.5 costs about half of 2), bounded to 1..4.
 		const char* game = "supersampling";
 		const std::string path = scratch + "\\ssaa.ini";
