@@ -11,6 +11,9 @@
 
 #include "hooks.h"
 #include "render_state.h"
+// Pipeline=1: the drawing without Direct3D's fixed pixel pipeline (compiled with the DLL, ps_3_0).
+#include "overlay_text.h"
+#include "overlay_flat.h"
 #include <dxgi1_4.h>
 #include <psapi.h>
 #include <algorithm>
@@ -435,6 +438,31 @@ private:
 
 GlyphFont g_font;
 
+// Pipeline=1: our two pixel shaders, made once per device. Shaders are not tied to a pool and
+// live through a Reset; a new device gets new ones.
+IDirect3DPixelShader9* g_flatPS = nullptr;
+IDirect3DPixelShader9* g_textPS = nullptr;
+IDirect3DDevice9* g_shaderDev = nullptr;
+
+bool ShadersReady(IDirect3DDevice9* dev)
+{
+	if (g_shaderDev == dev && g_flatPS && g_textPS)
+		return true;
+	if (g_flatPS) g_flatPS->Release();
+	if (g_textPS) g_textPS->Release();
+	g_flatPS = g_textPS = nullptr;
+	g_shaderDev = nullptr;
+	if (FAILED(dev->CreatePixelShader(reinterpret_cast<const DWORD*>(g_overlay_flatPS), &g_flatPS))
+		|| FAILED(dev->CreatePixelShader(reinterpret_cast<const DWORD*>(g_overlay_textPS), &g_textPS)))
+	{
+		if (g_flatPS) g_flatPS->Release();
+		g_flatPS = g_textPS = nullptr;
+		return false;
+	}
+	g_shaderDev = dev;
+	return true;
+}
+
 void Once(const char* why)
 {
 	static const char* last = nullptr;
@@ -538,8 +566,11 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 		bb->Release();
 		return;
 	}
+	// DrawText=0 / DrawPanel=0: that part of the drawing left out, to find which one a driver
+	// cannot take. The lines still size the panel so the picture keeps its place.
+	const bool text = n && g_cfg.overlayText;
 	// The glyphs only once there is text: the shipped ini shows nothing.
-	if (n && !g_font.Ready(dev, fontHeight) && !g_font.Create(dev, fontHeight))
+	if (text && !g_font.Ready(dev, fontHeight) && !g_font.Create(dev, fontHeight))
 	{
 		static bool logged = false;
 		if (!logged)
@@ -548,11 +579,18 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 		bb->Release();
 		return;
 	}
+	const bool shaders = g_cfg.overlayPipeline == 1;
+	if (shaders && !ShadersReady(dev))
+	{
+		Once("pixel shaders refused");
+		bb->Release();
+		return;
+	}
 
 	// Panel size and corner.
 	const float pad = 8 * scale, lineH = fontHeight * 1.2f, graphH = 70 * scale;
 	float width = 300 * scale;
-	for (int i = 0; i < n; ++i)
+	for (int i = 0; text && i < n; ++i)
 		width = std::max(width, static_cast<float>(g_font.Width(lines[i])) + 2 * pad);
 	const float height = pad * 2 + n * lineH + (graph ? graphH + (n ? pad : 0) : 0);
 	const float margin = 12 * scale;
@@ -599,10 +637,13 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 	IDirect3DSurface9 *oldTarget = nullptr, *oldDepth = nullptr;
 	dev->GetRenderTarget(0, &oldTarget);
 	dev->GetDepthStencilSurface(&oldDepth);
-	const bool ownScene = SUCCEEDED(dev->BeginScene());   // fails if the game is still inside its own
+	// OwnScene=0: drawn outside any scene, as the game left things (Direct3D allows it; a driver
+	// may not care for it).
+	const bool ownScene = g_cfg.overlayOwnScene && SUCCEEDED(dev->BeginScene());   // fails if the game is still inside its own
 
 	dev->SetRenderTarget(0, bb);
-	dev->SetDepthStencilSurface(nullptr);
+	if (g_cfg.overlayUnbindDepth)
+		dev->SetDepthStencilSurface(nullptr);   // UnbindDepth=0: the game's depth stays bound, Z off below
 	D3DVIEWPORT9 vp = { 0, 0, desc.Width, desc.Height, 0.0f, 1.0f };
 	dev->SetViewport(&vp);
 	const DWORD states[][2] = {
@@ -616,7 +657,7 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 	for (const auto& s : states)
 		dev->SetRenderState(static_cast<D3DRENDERSTATETYPE>(s[0]), s[1]);
 	dev->SetVertexShader(nullptr);
-	dev->SetPixelShader(nullptr);
+	dev->SetPixelShader(shaders ? g_flatPS : nullptr);
 	dev->SetTexture(0, nullptr);
 	dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
 	dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE);
@@ -625,12 +666,13 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 	dev->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE);
 	dev->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
 	dev->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
-	dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, static_cast<UINT>(v.size() / 3), v.data(), sizeof(Vertex));
+	if (g_cfg.overlayPanel)
+		dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, static_cast<UINT>(v.size() / 3), v.data(), sizeof(Vertex));
 
-	if (n)
+	if (text)
 	{
 		// Every shadow first, then every face: two quads per glyph, one draw.
-		std::vector<GlyphVertex> text;
+		std::vector<GlyphVertex> glyphs;
 		for (int pass = 0; pass < 2; pass++)
 			for (int i = 0; i < n; ++i)
 			{
@@ -639,12 +681,13 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 				const D3DCOLOR face = rec ? D3DCOLOR_ARGB(255, 230, 70, 60)
 					: i == 0 && (g_cfg.showFps || !chosen) && g_visible ? D3DCOLOR_ARGB(255, 214, 167, 44) : D3DCOLOR_ARGB(255, 240, 240, 244);
 				if (pass == 0)
-					g_font.Add(text, x + 1, y + 1, lines[i], D3DCOLOR_ARGB(200, 0, 0, 0));
+					g_font.Add(glyphs, x + 1, y + 1, lines[i], D3DCOLOR_ARGB(200, 0, 0, 0));
 				else
-					g_font.Add(text, x, y, lines[i], face);
+					g_font.Add(glyphs, x, y, lines[i], face);
 			}
-		if (!text.empty())
+		if (!glyphs.empty())
 		{
+			dev->SetPixelShader(shaders ? g_textPS : nullptr);
 			dev->SetTexture(0, g_font.Texture());
 			dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
 			dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -661,7 +704,7 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 			dev->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
 			dev->SetSamplerState(0, D3DSAMP_SRGBTEXTURE, FALSE);
 			dev->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
-			dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, static_cast<UINT>(text.size() / 3), text.data(), sizeof(GlyphVertex));
+			dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, static_cast<UINT>(glyphs.size() / 3), glyphs.data(), sizeof(GlyphVertex));
 			dev->SetTexture(0, nullptr);
 		}
 	}
@@ -680,7 +723,8 @@ void Draw(IDirect3DDevice9* dev, LONGLONG now)
 
 	static bool logged = false;
 	if (!logged)
-		Log("Overlay: first drawn (%u x %u, own scene %d)\n", desc.Width, desc.Height, ownScene);
+		Log("Overlay: first drawn (%u x %u, own scene %d, pipeline %d, panel %d, text %d, depth unbound %d)\n",
+			desc.Width, desc.Height, ownScene, g_cfg.overlayPipeline, g_cfg.overlayPanel, text, g_cfg.overlayUnbindDepth);
 	logged = true;
 }
 }
@@ -737,6 +781,19 @@ void DrawOverlay(IDirect3DDevice9* dev)
 			Log("Benchmark started\n");
 		}
 	}
+	// Under Wine the first panel drawn hung an Intel GPU and froze the game for good (Bazzite,
+	// Mesa ANV, DXVK, 2026-10-20, 4 times out of 4). Until the cause is found, nothing is drawn
+	// there unless DrawUnderWine=1: the keys still work, a benchmark still goes to the log and to
+	// benchmarks\*.csv, only the picture is missing.
+	static int wine = -1;
+	if (wine < 0)
+	{
+		wine = UnderWine() ? 1 : 0;
+		if (wine && !g_cfg.overlayUnderWine)
+			Log("Overlay: not drawn under Wine (DrawUnderWine=0); benchmarks still written\n");
+	}
+	if (wine && !g_cfg.overlayUnderWine)
+		return;
 	Draw(dev, now);
 }
 

@@ -118,6 +118,12 @@ void LoadSettings(const char* iniPath)
 	c.compareKey = Clamp(Int(overlay, "CompareKey", 0), 0, 255);
 	c.overlayPosition = Clamp(Int(overlay, "Position", 1), 1, 4);
 	c.overlaySize = Clamp(Int(overlay, "Size", 100), 50, 300);
+	c.overlayUnderWine = Bool(overlay, "DrawUnderWine", false);
+	c.overlayPipeline = Clamp(Int(overlay, "Pipeline", 0), 0, 1);
+	c.overlayPanel = Bool(overlay, "DrawPanel", true);
+	c.overlayText = Bool(overlay, "DrawText", true);
+	c.overlayOwnScene = Bool(overlay, "OwnScene", true);
+	c.overlayUnbindDepth = Bool(overlay, "UnbindDepth", true);
 	c.screenshotKey = Clamp(Int(windowOld, "ScreenshotKey", VK_F12), 0, 255);
 	{
 		// Written by Accio Launcher in UTF-8 (a user name can hold any letter); a path typed in
@@ -240,5 +246,7 @@ void LoadSettings(const char* iniPath)
 	Log("  mipmaps=%d (filter %d, coverage %d) trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,
 		c.mipmapFilter, c.mipmapCoverage, c.forceTrilinear, c.maxFrameLatency, c.retakeInput, c.releaseStaleKeys);
 	Log("  shaders: replace=%d dump=%d\n", c.shaderReplace, c.shaderDump);
+	Log("  overlay: wine=%d pipeline=%d panel=%d text=%d ownScene=%d unbindDepth=%d\n", c.overlayUnderWine,
+		c.overlayPipeline, c.overlayPanel, c.overlayText, c.overlayOwnScene, c.overlayUnbindDepth);
 	Log("  screenshots: key=%d folder=%s\n", c.screenshotKey, c.screenshotFolder[0] ? "set" : "next to the game");
 }

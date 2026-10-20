@@ -135,7 +135,22 @@ struct Settings
 	int   compareKey = 0;           // 0 = none; else switches our image effects off and on, for before/after
 	int   overlayPosition = 1;      // 1 top left, 2 top right, 3 bottom left, 4 bottom right
 	int   overlaySize = 100;        // percent
+	// Under Wine the first drawn panel hung an Intel GPU (Bazzite, 2026-10-20): not drawn there
+	// unless asked. The switches below isolate the part of the drawing that does it.
+	bool  overlayUnderWine = false; // DrawUnderWine: 1 = drawn under Wine too
+	int   overlayPipeline = 0;      // Pipeline: 0 = Direct3D's fixed pipeline, 1 = our own pixel shaders
+	bool  overlayPanel = true;      // DrawPanel: the translucent panel and the graph
+	bool  overlayText = true;       // DrawText: the lines of text (glyph texture)
+	bool  overlayOwnScene = true;   // OwnScene: BeginScene/EndScene of our own around the drawing
+	bool  overlayUnbindDepth = true;// UnbindDepth: the depth buffer unbound while we draw
 };
+
+// Wine's ntdll exports wine_get_version; Windows' does not.
+inline bool UnderWine()
+{
+	HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+	return ntdll && GetProcAddress(ntdll, "wine_get_version");
+}
 
 extern Settings g_cfg;
 void LoadSettings(const char* iniPath);

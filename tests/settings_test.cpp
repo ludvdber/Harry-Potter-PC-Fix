@@ -209,6 +209,30 @@ int main(int argc, char** argv)
 	}
 
 	{
+		// The Wine guard and the switches that isolate the part of the drawing a driver refuses:
+		// shipped, nothing is drawn under Wine and everything is drawn the usual way elsewhere.
+		const char* game = "overlay under Wine";
+		const std::string path = scratch + "\\overlay_wine.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Overlay]\r\nShowFPS=1\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(!c.overlayUnderWine && c.overlayPipeline == 0 && c.overlayPanel && c.overlayText && c.overlayOwnScene
+			&& c.overlayUnbindDepth);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Overlay]\r\nDrawUnderWine=1\r\nPipeline=7\r\nDrawPanel=0\r\nDrawText=0\r\nOwnScene=0\r\nUnbindDepth=0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.overlayUnderWine && c.overlayPipeline == 1 && !c.overlayPanel && !c.overlayText && !c.overlayOwnScene
+			&& !c.overlayUnbindDepth);
+	}
+
+	{
 		// How mipmaps are made: the sharp filter and kept coverage, a filter out of range capped.
 		const char* game = "mipmap filter";
 		const std::string path = scratch + "\\mipmaps.ini";

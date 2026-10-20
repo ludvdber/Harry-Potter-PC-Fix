@@ -132,6 +132,8 @@
     <FxCompile Include="..\source\shaders\bright.hlsl" />
     <FxCompile Include="..\source\shaders\blur.hlsl" />
     <FxCompile Include="..\source\shaders\ray.hlsl" />
+    <FxCompile Include="..\source\shaders\overlay_text.hlsl" />
+    <FxCompile Include="..\source\shaders\overlay_flat.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\source\exports.def" />
