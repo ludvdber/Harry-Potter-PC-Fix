@@ -111,6 +111,7 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 | Halo et rayons de lumière | `Bloom`, `GodRays` | En demi-résolution, estompés sur les menus et les écrans blancs. |
 | Suréchantillonnage | `SSAAFactor`, `SSAAMaxHeight` | L'image est calculée plus grande puis réduite : tous les contours lissés, sans flou. `1` = éteint, `1.5`, `2`… jusqu'à `4`. Très gourmand : `2` calcule quatre fois plus de points, `1.5` un peu plus de deux fois. L'image agrandie ne dépasse jamais `SSAAMaxHeight` lignes (2880 : un écran 4K passe de 1,5 à 1,33), ni ce que la carte graphique accepte ; si la carte refuse quand même, le jeu démarre sans suréchantillonnage. |
 | Taille de rendu | `RenderWidth`, `RenderHeight` | 0 = la taille choisie dans le jeu ; -1 = celle de l'écran. |
+| Ombres plus nettes (HP6) | `ShadowTextureSize` | Le moteur dessine toutes ses ombres dans des textures de 128×128, quelle que soit la résolution : bords en escalier. Cette valeur remplace ce 128 (`512` conseillé : toutes les ombres plus nettes, rien d'autre ne change). Une taille que le jeu tient déjà du registre garde le dernier mot, et le registre n'est jamais écrit. `0`, le défaut, laisse le jeu tel que livré. |
 
 ### Shaders du jeu (`[Accio.Shaders]`, avancé)
 

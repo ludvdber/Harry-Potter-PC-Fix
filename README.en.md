@@ -111,6 +111,7 @@ Each change is made in the executable once it is loaded, never on disk, and only
 | Bloom and light shafts | `Bloom`, `GodRays` | Half resolution, faded out on menus and white screens. |
 | Supersampling | `SSAAFactor`, `SSAAMaxHeight` | The image is drawn larger, then scaled down: every edge smoothed, without blur. `1` = off, `1.5`, `2`… up to `4`. Very demanding: `2` draws four times the pixels, `1.5` a little over twice. The enlarged image is never taller than `SSAAMaxHeight` lines (2880: a 4K screen goes from 1.5 to 1.33), nor larger than the graphics card takes; should the card still refuse, the game starts without supersampling. |
 | Render size | `RenderWidth`, `RenderHeight` | 0 = the size chosen in the game; -1 = the monitor's own. |
+| Sharper shadows (HP6) | `ShadowTextureSize` | The engine draws all its shadows into 128×128 textures whatever the resolution: stair-stepped edges. This value replaces that 128 (`512` recommended: every shadow sharper, nothing else changes). A size the game already holds in the registry still wins, and the registry is never written. `0`, the default, leaves the game as shipped. |
 
 ### Shaders of the game (`[Accio.Shaders]`, advanced)
 

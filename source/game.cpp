@@ -482,6 +482,21 @@ void DefaultTextureDetail(const char* exeName)
 	Log("Game: detail level %d when the game has none saved %s\n", g_cfg.textureDetail, ok ? "set" : "NOT set");
 }
 
+// HP6 sizes its shadow textures from one global (0x8663E0, 128 as shipped): the shadow drawer
+// takes it as width and height when it is set up (read at 0x5F7BD6). The game itself only
+// writes that global when HKCU\...\GameSettings holds a MaxShadowTextureSize (0x64A11C), which
+// runs after this: a size the player has in the registry still wins, and the registry is never
+// written. The engine path has none of ShadowMapScale's side effects (reflections, the x4 dark
+// patches of 2026-10-01).
+void SizeShadowTextures(const char* exeName)
+{
+	if (g_cfg.shadowTextureSize == 0 || _stricmp(exeName, "hp6.exe") != 0)
+		return;
+	const LONG size = g_cfg.shadowTextureSize;
+	const bool ok = WriteMemory(reinterpret_cast<void*>(0x008663E0), &size, sizeof(size));
+	Log("Game: shadow textures %ld pixels a side (128 as shipped) %s\n", size, ok ? "set" : "NOT set");
+}
+
 // Counted for the log (ReportHaze): whether the haze is drawn at all, and how wide it asked.
 LONG g_hazeCalls = 0;
 LONG g_hazeWidest = 0;
@@ -828,6 +843,7 @@ void ApplyGamePatches()
 	ChooseLanguage(p->exe);
 	RemoveDistanceFog(p->exe);
 	DefaultTextureDetail(p->exe);
+	SizeShadowTextures(p->exe);
 	DescribePlayStationPads(p->exe);
 	GuardAudioStream(p->exe);
 }
