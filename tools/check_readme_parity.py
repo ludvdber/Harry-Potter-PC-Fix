@@ -28,6 +28,8 @@ ROOT = Path(__file__).resolve().parent.parent
 EXCEPTIONS = {
     "Images\\Accio Launcher\\<jeu>": "Pictures\\Accio Launcher\\<game>",
     "rouge,vert,bleu": "red,green,blue",
+    "vs_<empreinte>.bin": "vs_<fingerprint>.bin",
+    "ps_<empreinte>.bin": "ps_<fingerprint>.bin",
 }
 LANGUAGE_SWITCH = {"README.md", "README.en.md"}
 

@@ -50,6 +50,7 @@ int main(int argc, char** argv)
 		EXPECT(c.generateMipmaps && c.forceTrilinear && c.maxFrameLatency == 1);
 		if (strcmp(game, "HP4") != 0) // HP4 ships sharp mipmaps that keep their density (below)
 			EXPECT(c.mipmapFilter == 0 && !c.mipmapCoverage);
+		EXPECT(c.shaderReplace && !c.shaderDump); // replacement armed, nothing changes without a file
 		EXPECT(c.legacyAspectIndex == 0 && c.legacyFov == 0);
 	}
 
@@ -224,6 +225,19 @@ int main(int argc, char** argv)
 		fclose(f);
 		Load(path);
 		EXPECT(c.mipmapFilter == 1 && !c.mipmapCoverage);
+	}
+	{
+		// Shaders of the game: the dump armed, the replacement cut.
+		const char* game = "shaders";
+		const std::string path = scratch + "\\shaders.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Shaders]\r\nReplace=0\r\nDump=1\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(!c.shaderReplace && c.shaderDump);
 	}
 	{
 		// Supersampling takes any factor (1.5 costs about half of 2), bounded to 1..4.

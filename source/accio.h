@@ -121,6 +121,10 @@ struct Settings
 	bool  mipmapCoverage = false;   // cut-outs (leaves, hair) keep their density in the distance
 	int   maxFrameLatency = 1;      // frames the driver may queue; 0 = its own choice
 
+	// [Accio.Shaders] - shaderswap.cpp, direct3d.cpp
+	bool  shaderReplace = true;     // a file in shaders\ with a created shader's fingerprint is used in its place
+	bool  shaderDump = false;       // every shader the game creates written to shaders_dump\, for study
+
 	// [Accio.Overlay] - overlay.cpp
 	bool  showFps = false, showFrameTime = false, showGraph = false, showCpu = false, showGpu = false;
 	bool  showVram = false, showRam = false, showLatency = false;

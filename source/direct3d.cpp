@@ -7,6 +7,7 @@
 #include "hooks.h"
 #include "render_state.h"
 #include "mipmaps.h"
+#include "shaderswap.h"
 #include <algorithm>
 #include <set>
 #include <tuple>
@@ -344,6 +345,8 @@ using TargetDataFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, IDirect3DSur
 using StretchRectFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, IDirect3DSurface9*, const RECT*, IDirect3DSurface9*, const RECT*, D3DTEXTUREFILTERTYPE);
 using UnlockFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DTexture9*, UINT);
 using ReleaseFn = ULONG(STDMETHODCALLTYPE*)(IDirect3DTexture9*);
+using CreateVertexShaderFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, const DWORD*, IDirect3DVertexShader9**);
+using CreatePixelShaderFn = HRESULT(STDMETHODCALLTYPE*)(IDirect3DDevice9*, const DWORD*, IDirect3DPixelShader9**);
 
 HRESULT STDMETHODCALLTYPE CreateDevice(IDirect3D9*, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, IDirect3DDevice9**);
 HRESULT STDMETHODCALLTYPE CreateDeviceEx(IDirect3D9Ex*, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS*, D3DDISPLAYMODEEX*, IDirect3DDevice9Ex**);
@@ -364,6 +367,8 @@ HRESULT STDMETHODCALLTYPE SetTexture(IDirect3DDevice9*, DWORD, IDirect3DBaseText
 HRESULT STDMETHODCALLTYPE SetSamplerState(IDirect3DDevice9*, DWORD, D3DSAMPLERSTATETYPE, DWORD);
 HRESULT STDMETHODCALLTYPE UnlockRect(IDirect3DTexture9*, UINT);
 ULONG STDMETHODCALLTYPE ReleaseTexture(IDirect3DTexture9*);
+HRESULT STDMETHODCALLTYPE CreateVertexShader(IDirect3DDevice9*, const DWORD*, IDirect3DVertexShader9**);
+HRESULT STDMETHODCALLTYPE CreatePixelShader(IDirect3DDevice9*, const DWORD*, IDirect3DPixelShader9**);
 
 #define REDIRECT(slot, fn) MethodRedirect g_##fn(slot, reinterpret_cast<void*>(fn))
 REDIRECT(16, CreateDevice);            // IDirect3D9
@@ -380,6 +385,8 @@ REDIRECT(47, SetViewport);
 REDIRECT(57, SetRenderState);
 REDIRECT(65, SetTexture);
 REDIRECT(69, SetSamplerState);
+REDIRECT(91, CreateVertexShader);
+REDIRECT(106, CreatePixelShader);
 REDIRECT(121, PresentEx);              // IDirect3DDevice9Ex
 REDIRECT(132, ResetEx);
 REDIRECT(3, ChainPresent);             // IDirect3DSwapChain9
@@ -693,6 +700,83 @@ void ForgetSceneTwins(IDirect3DDevice9* dev)
 	g_targetMsaa = D3DMULTISAMPLE_NONE;
 }
 
+// ---- Shaders of the game ([Accio.Shaders], shaderswap.h) ------------------------------------
+// Every vertex and pixel shader the game creates is fingerprinted. Dump=1 writes its bytecode to
+// shaders_dump\ next to the game; Replace=1 creates it from shaders\<same name> instead when such
+// a file exists. No file, no change for anyone.
+
+const wchar_t* ShaderFolder(bool dump)
+{
+	static wchar_t replacements[MAX_PATH], dumps[MAX_PATH];
+	if (!replacements[0])
+	{
+		wchar_t dir[MAX_PATH];
+		GetModuleFileNameW(g_self, dir, MAX_PATH);
+		wchar_t* slash = wcsrchr(dir, L'\\');
+		if (slash)
+			*slash = L'\0';
+		swprintf_s(replacements, L"%ls\\shaders", dir);
+		swprintf_s(dumps, L"%ls\\shaders_dump", dir);
+	}
+	return dump ? dumps : replacements;
+}
+
+// The bytecode the shader is created from: the game's own, or the file of the same fingerprint.
+// A stream whose end is not where its tokens say is left untouched (and never replaced).
+const DWORD* SwapShader(bool pixel, const DWORD* code, std::vector<DWORD>& replacement)
+{
+	const size_t bytes = ShaderBytecodeBytes(code, 1 << 22);
+	if (!bytes)
+		return code;
+	const unsigned long long print = ShaderFingerprint(code, bytes);
+	if (g_cfg.shaderDump && DumpShaderFile(ShaderFolder(true), pixel, print, code, bytes))
+		Log("Shaders: %s_%lu_%lu %016llX dumped (%lu bytes)\n", pixel ? "ps" : "vs",
+			static_cast<unsigned long>((code[0] >> 8) & 0xFF), static_cast<unsigned long>(code[0] & 0xFF),
+			print, static_cast<unsigned long>(bytes));
+	if (g_cfg.shaderReplace && LoadShaderReplacement(ShaderFolder(false), pixel, print, replacement))
+	{
+		// Said once per shader: the game creates the same ones again at every Reset.
+		static std::set<unsigned long long> said[2];
+		if (said[pixel ? 1 : 0].insert(print).second)
+			Log("Shaders: %s %016llX replaced (%lu bytes from the shaders folder)\n", pixel ? "ps" : "vs",
+				print, static_cast<unsigned long>(replacement.size() * 4));
+		return replacement.data();
+	}
+	return code;
+}
+
+HRESULT STDMETHODCALLTYPE CreateVertexShader(IDirect3DDevice9* self, const DWORD* code, IDirect3DVertexShader9** out)
+{
+	const auto original = g_CreateVertexShader.Original<CreateVertexShaderFn>(self);
+	if (g_internal || !code || (!g_cfg.shaderDump && !g_cfg.shaderReplace))
+		return original(self, code, out);
+	std::vector<DWORD> replacement;
+	const DWORD* use = SwapShader(false, code, replacement);
+	HRESULT hr = original(self, use, out);
+	if (FAILED(hr) && use != code)
+	{
+		Log("Shaders: vs replacement refused (0x%lX), the game's own used\n", static_cast<unsigned long>(hr));
+		hr = original(self, code, out);
+	}
+	return hr;
+}
+
+HRESULT STDMETHODCALLTYPE CreatePixelShader(IDirect3DDevice9* self, const DWORD* code, IDirect3DPixelShader9** out)
+{
+	const auto original = g_CreatePixelShader.Original<CreatePixelShaderFn>(self);
+	if (g_internal || !code || (!g_cfg.shaderDump && !g_cfg.shaderReplace))
+		return original(self, code, out);
+	std::vector<DWORD> replacement;
+	const DWORD* use = SwapShader(true, code, replacement);
+	HRESULT hr = original(self, use, out);
+	if (FAILED(hr) && use != code)
+	{
+		Log("Shaders: ps replacement refused (0x%lX), the game's own used\n", static_cast<unsigned long>(hr));
+		hr = original(self, code, out);
+	}
+	return hr;
+}
+
 void HookDevice(IDirect3DDevice9* dev)
 {
 	g_Reset.Install(dev);
@@ -707,6 +791,8 @@ void HookDevice(IDirect3DDevice9* dev)
 	g_SetRenderState.Install(dev);
 	g_SetTexture.Install(dev);
 	g_SetSamplerState.Install(dev);
+	g_CreateVertexShader.Install(dev);
+	g_CreatePixelShader.Install(dev);
 
 	IDirect3DDevice9Ex* ex = nullptr;
 	if (SUCCEEDED(dev->QueryInterface(IID_IDirect3DDevice9Ex, reinterpret_cast<void**>(&ex))) && ex)
@@ -731,10 +817,10 @@ void TakeBackRedirects(IDirect3DDevice9* dev)
 {
 	MethodRedirect* const all[] = { &g_Reset, &g_Present, &g_CreateTexture, &g_CreateDepthStencilSurface,
 		&g_GetRenderTargetData, &g_StretchRect, &g_SetRenderTarget, &g_SetDepthStencilSurface, &g_SetViewport, &g_SetRenderState,
-		&g_SetTexture, &g_SetSamplerState };
+		&g_SetTexture, &g_SetSamplerState, &g_CreateVertexShader, &g_CreatePixelShader };
 	static const char* const names[] = { "Reset", "Present", "CreateTexture", "CreateDepthStencilSurface",
 		"GetRenderTargetData", "StretchRect", "SetRenderTarget", "SetDepthStencilSurface", "SetViewport", "SetRenderState",
-		"SetTexture", "SetSamplerState" };
+		"SetTexture", "SetSamplerState", "CreateVertexShader", "CreatePixelShader" };
 	static_assert(_countof(all) == _countof(names));
 	static bool logged[_countof(all)] = {};
 	for (size_t i = 0; i < _countof(all); ++i)

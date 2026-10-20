@@ -116,12 +116,14 @@
     <ClCompile Include="..\source\overlay.cpp" />
     <ClCompile Include="..\source\effects.cpp" />
     <ClCompile Include="..\source\mipmaps.cpp" />
+    <ClCompile Include="..\source\shaderswap.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\source\accio.h" />
     <ClInclude Include="..\source\hooks.h" />
     <ClInclude Include="..\source\mipmaps.h" />
     <ClInclude Include="..\source\render_state.h" />
+    <ClInclude Include="..\source\shaderswap.h" />
     <ClInclude Include="..\source\version.h" />
   </ItemGroup>
   <ItemGroup>

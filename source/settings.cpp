@@ -211,6 +211,11 @@ void LoadSettings(const char* iniPath)
 	c.mipmapCoverage = Bool(renderSize, "MipmapCoverage", false);
 	c.maxFrameLatency = Clamp(Int(renderSize, "MaxFrameLatency", 1), 0, 16);
 
+	// Shaders of the game.
+	static const char* const shaders[] = { "Accio.Shaders", nullptr };
+	c.shaderReplace = Bool(shaders, "Replace", true);
+	c.shaderDump = Bool(shaders, "Dump", false);
+
 	Log("Settings from %s\n", iniPath);
 	Log("  window: windowed=%d style=%d keepRunning=%d center=%d primary=%d onTop=%d fit=%d dpiAware=%d fpsLimit=%d\n",
 		c.windowed, c.windowStyle, c.keepRunning, c.centerWindow, c.primaryMonitor, c.alwaysOnTop, c.fitToScreen, c.dpiAware, c.fpsLimit);
@@ -224,5 +229,6 @@ void LoadSettings(const char* iniPath)
 		c.vibrance, c.skinProtect, c.yellowRestraint, c.greenRestraint);
 	Log("  mipmaps=%d (filter %d, coverage %d) trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,
 		c.mipmapFilter, c.mipmapCoverage, c.forceTrilinear, c.maxFrameLatency, c.retakeInput, c.releaseStaleKeys);
+	Log("  shaders: replace=%d dump=%d\n", c.shaderReplace, c.shaderDump);
 	Log("  screenshots: key=%d folder=%s\n", c.screenshotKey, c.screenshotFolder[0] ? "set" : "next to the game");
 }

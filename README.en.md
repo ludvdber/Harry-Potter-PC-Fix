@@ -112,6 +112,10 @@ Each change is made in the executable once it is loaded, never on disk, and only
 | Supersampling | `SSAAFactor`, `SSAAMaxHeight` | The image is drawn larger, then scaled down: every edge smoothed, without blur. `1` = off, `1.5`, `2`… up to `4`. Very demanding: `2` draws four times the pixels, `1.5` a little over twice. The enlarged image is never taller than `SSAAMaxHeight` lines (2880: a 4K screen goes from 1.5 to 1.33), nor larger than the graphics card takes; should the card still refuse, the game starts without supersampling. |
 | Render size | `RenderWidth`, `RenderHeight` | 0 = the size chosen in the game; -1 = the monitor's own. |
 
+### Shaders of the game (`[Accio.Shaders]`, advanced)
+
+Every vertex and pixel shader the game creates gets a fingerprint of its bytecode. `Dump=1` writes each one to a `shaders_dump` folder next to the game, named by that fingerprint (`vs_<fingerprint>.bin`, `ps_<fingerprint>.bin`), and `d3d9_accio.log` lists them: enough to study them. `Replace=1` (the default) creates a shader from the file of the same name in a `shaders` folder next to the game, when it exists: a rewritten shader (softer shadows, say) takes the game's place without touching the game's files. Without a file, nothing changes; a malformed file, or one the card refuses, is ignored and the game's own shader is used.
+
 ### Performance, like a benchmark tool (`[Accio.Overlay]`)
 
 Each line has its own switch, all off by default: frames per second (`ShowFPS`), frame time and "1% low" (`ShowFrameTime`), a graph of the last 240 frames (`ShowGraph`), processor use of the game and of its main thread (`ShowCPU`), graphics card load (`ShowGPU`), video memory (`ShowVRAM`) and memory (`ShowRAM`), latency from reading a key to sending the frame (`ShowLatency`). F10 shows or hides the panel (`OverlayKey`); F11 starts and stops a benchmark (`BenchmarkKey`): average, 1% and 0.1% low and worst frame on screen, and every frame in the `benchmarks` folder.

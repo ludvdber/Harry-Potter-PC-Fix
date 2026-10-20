@@ -112,6 +112,10 @@ Chaque modification est faite dans l'exécutable une fois chargé, jamais sur le
 | Suréchantillonnage | `SSAAFactor`, `SSAAMaxHeight` | L'image est calculée plus grande puis réduite : tous les contours lissés, sans flou. `1` = éteint, `1.5`, `2`… jusqu'à `4`. Très gourmand : `2` calcule quatre fois plus de points, `1.5` un peu plus de deux fois. L'image agrandie ne dépasse jamais `SSAAMaxHeight` lignes (2880 : un écran 4K passe de 1,5 à 1,33), ni ce que la carte graphique accepte ; si la carte refuse quand même, le jeu démarre sans suréchantillonnage. |
 | Taille de rendu | `RenderWidth`, `RenderHeight` | 0 = la taille choisie dans le jeu ; -1 = celle de l'écran. |
 
+### Shaders du jeu (`[Accio.Shaders]`, avancé)
+
+Chaque vertex et pixel shader que le jeu crée reçoit une empreinte de son bytecode. `Dump=1` écrit chacun dans un dossier `shaders_dump` à côté du jeu, nommé par cette empreinte (`vs_<empreinte>.bin`, `ps_<empreinte>.bin`), et `d3d9_accio.log` les liste : de quoi les étudier. `Replace=1` (le défaut) crée un shader depuis le fichier du même nom dans un dossier `shaders` à côté du jeu, quand il existe : un shader réécrit (des ombres plus douces, par exemple) remplace celui du jeu sans toucher aux fichiers du jeu. Sans fichier, rien ne change ; un fichier mal formé ou refusé par la carte est ignoré et le shader du jeu reprend sa place.
+
 ### Performances, comme un outil de benchmark (`[Accio.Overlay]`)
 
 Chaque ligne s'active séparément, tout est coupé par défaut : images/s (`ShowFPS`), temps par image et « 1 % low » (`ShowFrameTime`), graphe des 240 dernières images (`ShowGraph`), processeur du jeu et de son fil principal (`ShowCPU`), charge de la carte graphique (`ShowGPU`), mémoire vidéo (`ShowVRAM`) et vive (`ShowRAM`), latence entre la lecture d'une touche et l'envoi de l'image (`ShowLatency`). F10 affiche ou cache le panneau (`OverlayKey`) ; F11 démarre puis arrête un benchmark (`BenchmarkKey`) : moyenne, 1 % et 0,1 % low et pire image à l'écran, et chaque image dans le dossier `benchmarks`.
