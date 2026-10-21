@@ -43,7 +43,10 @@ JEUX = {
                 # The image HP5 has shipped with since the fix existed (validated in game), with the grade
                 # of board 53 (2026-09-27): the old one turned stone and grass bright yellow (20 % of the
                 # courtyard). No added warmth, yellows held back, every other hue more vivid.
+                # ShadowTextureSize=512 seen in game 2026-10-21 (courtyard, Harry's shadow: sharp
+                # silhouette against a blurred blob as shipped), no crash on that run.
                 graphics=dict(FXAA=1, Antialiasing=16, AnisotropicFiltering=16, TextureLODBias=-1.5,
+                              ShadowTextureSize=512,
                               VSync=1, ColorGrading=1, Vibrance="0.60", Vignette="0.08", Gain="1.05",
                               Temperature="0.00", Tint="0.00", Contrast="0.30", SplitTone="0.10",
                               SkinProtect="0.70", YellowRestraint="1.00",

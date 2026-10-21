@@ -51,7 +51,8 @@ int main(int argc, char** argv)
 		if (strcmp(game, "HP4") != 0) // HP4 ships sharp mipmaps that keep their density (below)
 			EXPECT(c.mipmapFilter == 0 && !c.mipmapCoverage);
 		EXPECT(c.shaderReplace && !c.shaderDump); // replacement armed, nothing changes without a file
-		EXPECT(c.shadowTextureSize == 0); // engine shadow size untouched until seen in game
+		// Engine shadow size untouched until seen in game: HP5 seen 2026-10-21 (sharper silhouette, no crash).
+		EXPECT(c.shadowTextureSize == (strcmp(game, "HP5") == 0 ? 512 : 0));
 		EXPECT(c.particleCullDistance == 0); // particle radius untouched until seen in game
 		EXPECT(c.legacyAspectIndex == 0 && c.legacyFov == 0);
 	}
