@@ -85,7 +85,7 @@ public:
 	// One frame sent at `now` (seconds). The first call only starts the clock.
 	void Count(double now)
 	{
-		if (m_last > 0)
+		if (m_last >= 0)
 		{
 			const float ms = static_cast<float>((now - m_last) * 1000.0);
 			m_graph[m_graphHead] = ms;
@@ -95,7 +95,7 @@ public:
 			m_windowCount = (std::min)(m_windowCount + 1, kLowWindow);   // macro-proof: winmm.cpp has Windows' min
 		}
 		m_last = now;
-		if (m_from <= 0)
+		if (m_from < 0)
 			m_from = now;
 		++m_frames;
 		const double span = now - m_from;
@@ -133,7 +133,7 @@ private:
 	int m_graphHead = 0;
 	float m_window[kLowWindow] = {};
 	int m_windowHead = 0, m_windowCount = 0;
-	double m_last = 0, m_from = 0;
+	double m_last = -1, m_from = -1;   // -1: no frame yet (a clock may start at 0)
 	int m_frames = 0;
 	float m_fps = 0, m_frameMs = 0, m_low1 = 0;
 };
@@ -153,7 +153,7 @@ public:
 	{
 		m_recording = true;
 		m_start = now;
-		m_lastFrame = 0;
+		m_lastFrame = -1;
 		m_frames.clear();
 		m_frames.reserve(60 * 1000);
 	}
@@ -163,7 +163,7 @@ public:
 	{
 		if (!m_recording)
 			return;
-		if (m_lastFrame > 0)
+		if (m_lastFrame >= 0)
 			m_frames.push_back(static_cast<float>((now - m_lastFrame) * 1000.0));
 		m_lastFrame = now;
 	}
@@ -186,7 +186,7 @@ public:
 
 private:
 	bool m_recording = false;
-	double m_start = 0, m_lastFrame = 0;
+	double m_start = 0, m_lastFrame = -1;
 	std::vector<float> m_frames;
 };
 

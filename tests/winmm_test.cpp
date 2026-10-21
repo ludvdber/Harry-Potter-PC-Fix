@@ -7,6 +7,7 @@
 //     the stubs (named and by ordinal), and Alt+Enter swallowed on the thread that loaded it,
 //     posted to a window that is never shown.
 #include "../source/winmm/fill.h"
+#include "../source/winmm/frame.h"
 #include "../source/winmm/launcher.h"
 #include "../source/winmm/lumos.h"
 #include "../source/winmm/remap.h"
@@ -372,6 +373,62 @@ static void Lumos()
 	Expect(!lumos::render::SitesMatch(image), "another instruction at a site: not recognised");
 }
 
+static void Frame()
+{
+	// The two renderer builds, in buffers laid out like their images: the PE header, the Unlock
+	// slot pointing at Unlock's own code. Recognised by build; anything else left alone.
+	static uint8_t image[frame::kSizeOfImage];
+	for (const frame::Build& b : frame::kBuilds)
+	{
+		std::memset(image, 0xCC, sizeof(image));
+		auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(image);
+		dos->e_magic = IMAGE_DOS_SIGNATURE;
+		dos->e_lfanew = 0x80;
+		auto* nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(image + 0x80);
+		nt->Signature = IMAGE_NT_SIGNATURE;
+		nt->FileHeader.TimeDateStamp = b.timeDateStamp;
+		nt->OptionalHeader.SizeOfImage = frame::kSizeOfImage;
+		uint8_t* unlock = image + 0xCDE0;
+		std::memcpy(unlock, frame::kUnlockHead, sizeof(frame::kUnlockHead));
+		std::memcpy(unlock + 12, frame::kUnlockTail, sizeof(frame::kUnlockTail));
+		*reinterpret_cast<uint8_t**>(image + b.vtable + frame::kUnlockSlot * sizeof(void*)) = unlock;
+		const frame::Build* found = frame::Recognised(image);
+		Expect(found == &b, b.game);
+		unlock[5] = 0x75;   // jne instead of je: another Unlock
+		Expect(frame::Recognised(image) == nullptr, "another Unlock: not recognised");
+		unlock[5] = 0x74;
+		nt->FileHeader.TimeDateStamp ^= 1;
+		Expect(frame::Recognised(image) == nullptr, "another link date: not recognised");
+	}
+
+	frame::Stats stats;
+	for (int i = 0; i <= 120; ++i)
+		stats.Count(i / 60.0);   // two seconds at 60 frames per second
+	Expect(stats.Fps() > 59.5f && stats.Fps() < 60.5f, "60 frames per second counted");
+	Expect(stats.FrameMs() > 16.5f && stats.FrameMs() < 16.8f, "16.7 ms per frame");
+	Expect(stats.Low1() > 59.5f && stats.Low1() < 60.5f, "steady frames: the 1% low is the rate");
+	const float times[10] = { 10, 10, 10, 10, 10, 10, 10, 10, 10, 50 };
+	Expect(frame::Stats::Low(times, 10, 99) == 20.0f, "the slowest frame of ten (50 ms) is the 1% low: 20 FPS");
+	Expect(frame::Stats::Low(times, 0, 99) == 0.0f, "no frames: 0");
+
+	frame::Benchmark bench;
+	char summary[160] = "";
+	Expect(!bench.Stop(1.0, summary, sizeof(summary)), "a benchmark with no frames says nothing");
+	bench.Start(0.0);
+	for (int i = 0; i <= 100; ++i)
+		bench.Count(i * 0.01);   // one second at 100 frames per second
+	Expect(bench.Recording() && bench.Frames().size() == 100, "100 frames recorded");
+	Expect(bench.Stop(1.0, summary, sizeof(summary)) && !bench.Recording(), "stopped with a summary");
+	Expect(std::strstr(summary, "Benchmark 1 s: avg 100 FPS") != nullptr, summary);
+
+	frame::Limiter limiter;
+	Expect(limiter.Due(1000, 100) == 0, "first frame: no wait");
+	limiter.Taken(100);
+	Expect(limiter.Due(1050, 100) == 50, "half a period early: wait the rest");
+	limiter.Taken(100);
+	Expect(limiter.Due(2000, 100) == 0 && limiter.next == 2000, "far behind: the slot is now, no burst");
+}
+
 int main(int argc, char** argv)
 {
 	Remap();
@@ -379,6 +436,7 @@ int main(int argc, char** argv)
 	Setup();
 	Launcher();
 	Lumos();
+	Frame();
 	if (argc > 1)
 		Dll(argv[1]);
 	else

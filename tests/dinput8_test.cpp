@@ -1,6 +1,8 @@
 // Accio Launcher - PC fix for the EA Harry Potter games.
 // Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 // Checks dinput8.dll without a game or a pad:
+//   - perf.cpp: the frame counter's numbers and a benchmark's summary and file, from made-up
+//     frame times;
 //   - pad.cpp: which pads are recognised, the dead zone of both sticks (at rest, at the edge, just
 //     beyond), and an Xbox pad read in a PlayStation pad's layout (buttons, right stick, triggers);
 //   - the built DLL (path in argv[1]), loaded by this program: its six exports, Windows'
@@ -11,7 +13,9 @@
 #include <windows.h>
 #include <initguid.h>   // the GUIDs below, without linking DirectInput
 #include "../source/dinput8/pad.h"
+#include "../source/dinput8/perf.h"
 #include <cstdio>
+#include <cstring>
 
 static int failures = 0;
 static void Expect(bool ok, const char* what)
@@ -182,11 +186,66 @@ static void Dll(const char* path)
 	di->Release();
 }
 
+// perf.cpp: the frame counter's numbers and a benchmark's summary and file, without Direct3D.
+static void Perf()
+{
+	perf::FrameClock clock;
+	double t = 100.0;
+	for (int i = 0; i < 120; ++i, t += 1.0 / 60)
+		clock.Frame(t);
+	Expect(clock.Fps() > 59 && clock.Fps() < 61, "60 frames a second read as 60 FPS");
+	Expect(clock.FrameMs() > 16 && clock.FrameMs() < 17.5f, "16.7 ms a frame");
+	Expect(clock.Low1() > 59 && clock.Low1() < 61, "steady frames: 1% low is the frame rate");
+	Expect(clock.Graph(perf::FrameClock::kGraph - 1) > 16, "the graph holds the last frame");
+
+	perf::Benchmark b;
+	Expect(!b.Recording(), "not recording at first");
+	b.Start(0);
+	Expect(b.Recording(), "recording after Start");
+	double now = 0;
+	for (int i = 0; i < 200; ++i)
+	{
+		now += (i == 150 ? 0.100 : 0.010);   // 100 frames a second, one frame of 100 ms
+		b.Frame(now);
+	}
+	const perf::Summary s = b.Stop(now);
+	Expect(!b.Recording(), "stopped");
+	Expect(s.valid && s.frames == 199, "199 frame times kept (the first frame starts the clock)");
+	Expect(s.worstMs > 99 && s.worstMs < 101, "worst frame 100 ms");
+	Expect(s.avgFps > 90 && s.avgFps < 100, "average below 100 FPS because of the spike");
+	Expect(s.low01Fps > 9 && s.low01Fps < 11, "0.1% low is the spike");
+	Expect(s.low1Fps > 90, "1% low: the spike alone does not make 1% of 199 frames");
+	char text[160];
+	perf::Describe(text, sizeof(text), s);
+	Expect(strncmp(text, "Benchmark 2 s: avg ", 19) == 0, "summary text as the overlay's");
+	Expect(!perf::Summarise({}, 1.0).valid && !perf::Summarise({ 1.0f }, 0).valid, "no frames or no time: no summary");
+
+	FILE* f = nullptr;
+	if (tmpfile_s(&f) == 0 && f)
+	{
+		perf::WriteCsv(f, s, b.Frames());
+		rewind(f);
+		int lines = 0;
+		char line[200];
+		bool header = false;
+		while (fgets(line, sizeof(line), f))
+		{
+			if (lines == 2)
+				header = strcmp(line, "frame,ms\n") == 0;
+			++lines;
+		}
+		fclose(f);
+		Expect(header, "csv: frame,ms after two comment lines");
+		Expect(lines == 3 + 199, "csv: one line a frame");
+	}
+}
+
 int main(int argc, char** argv)
 {
 	Identify();
 	DeadZone();
 	Xbox();
+	Perf();
 	if (argc > 1)
 		Dll(argv[1]);
 	if (failures)
