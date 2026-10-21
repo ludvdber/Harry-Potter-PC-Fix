@@ -99,9 +99,9 @@ int main(int argc, char** argv)
 	EXPECT(soften == expected);
 	EXPECT(ShaderBytecodeBytes(soften.data(), soften.size() * 4) == soften.size() * 4);
 	// Refused: another sampler name, a second sample of s4, c220 in use, not shader model 3.
-	std::vector<DWORD> other = soft;
-	other[2 + 13] = 0x6867694D; // "Might..."
-	EXPECT(!SoftenShadowSampling(other.data(), other.size() * 4, soften) && soften.empty());
+	std::vector<DWORD> misnamed = soft;
+	misnamed[2 + 13] = 0x6867694D; // "Might..."
+	EXPECT(!SoftenShadowSampling(misnamed.data(), misnamed.size() * 4, soften) && soften.empty());
 	std::vector<DWORD> twice = soft;
 	twice.insert(twice.end() - 4, body + 6, body + 10);
 	EXPECT(!SoftenShadowSampling(twice.data(), twice.size() * 4, soften));

@@ -659,7 +659,8 @@ void BoostCameraLod(const char* exeName)
 // eight movss source operands of that one function are redirected to eight floats of ours, the
 // shipped distances times the chosen factor. A control whose zone data carries explicit LOD
 // fields is filled after this initialiser and still wins. Nothing is written unless all eight
-// operands still point at the shipped constants.
+// operands still point at the shipped constants. Key ParticleTypeDistanceFactor (HybridLodFactor
+// until 2026-10-21, a name that promised the mesh pop-in; still read).
 static float s_hybridLod[8];
 void ScaleParticleTypeDistances(const char* exeName)
 {
