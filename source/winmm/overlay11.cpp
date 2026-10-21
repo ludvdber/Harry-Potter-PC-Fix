@@ -1072,7 +1072,19 @@ void Load(const wchar_t* ini)
 	const wchar_t* w = L"Accio.Window";
 	g_cfg.fpsLimit = number(w, L"FPSLimit", 0, 0, 1000);
 	g_cfg.screenshotKey = static_cast<UINT>(number(w, L"ScreenshotKey", VK_F12, 0, 255));
-	GetPrivateProfileStringW(w, L"ScreenshotFolder", L"", g_cfg.screenshotFolder, MAX_PATH, ini);
+	// Written by Accio Launcher in UTF-8 (« à l'école » is in HP1's folder name); the W function would read
+	// this ini, which has no BOM, in the system code page. A path typed in by hand in that code page still
+	// reads as such.
+	char folder[MAX_PATH * 3] = "";
+	char iniA[MAX_PATH * 3];
+	WideCharToMultiByte(CP_ACP, 0, ini, -1, iniA, sizeof(iniA), nullptr, nullptr);
+	if (GetPrivateProfileStringA("Accio.Window", "ScreenshotFolder", "", folder, sizeof(folder), iniA) && folder[0])
+	{
+		for (char* p = folder + strlen(folder); p > folder && (p[-1] == ' ' || p[-1] == '\t'); )
+			*--p = '\0';
+		if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, folder, -1, g_cfg.screenshotFolder, MAX_PATH))
+			MultiByteToWideChar(CP_ACP, 0, folder, -1, g_cfg.screenshotFolder, MAX_PATH);
+	}
 	QueryPerformanceFrequency(&g_qpf);
 }
 
