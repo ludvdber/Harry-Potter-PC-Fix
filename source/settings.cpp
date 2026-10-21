@@ -194,6 +194,9 @@ void LoadSettings(const char* iniPath)
 	c.lodFactor = Float(graphics, "LODFactor", 0.0f);
 	if (c.lodFactor != 0.0f)
 		c.lodFactor = Clamp(c.lodFactor, 0.5f, 4.0f);
+	c.hybridLodFactor = Float(graphics, "HybridLodFactor", 0.0f);
+	if (c.hybridLodFactor != 0.0f)
+		c.hybridLodFactor = Clamp(c.hybridLodFactor, 0.5f, 4.0f);
 	c.maxFarClip = Int(graphics, "MaxFarClip", 0);
 	if (c.maxFarClip != 0)
 		c.maxFarClip = Clamp(c.maxFarClip, 10000, 1000000);
@@ -265,8 +268,8 @@ void LoadSettings(const char* iniPath)
 	Log("  image: FXAA=%d sharp=%.2f MSAA=%d transparency=%d AF=%d LOD=%.2f SSAA=%.2f (max height %d) shadows=%d (engine size %d) particles=%d vsync=%d grading=%d SSAO=%d bloom=%d rays=%d render=%dx%d\n",
 		c.fxaa, c.sharpness, c.msaa, c.transparencyAa, c.anisotropy, c.lodBias, c.ssaa, c.ssaaMaxHeight, c.shadowScale, c.shadowTextureSize, c.particleCullDistance, c.vsync, c.grading,
 		c.ssao, c.bloom, c.godRays, c.renderWidth, c.renderHeight);
-	Log("  engine: lodFactor=%.2f farClip=%d nativeBloom=%d nativeDOF=%d\n",
-		c.lodFactor, c.maxFarClip, c.nativeBloomSize, c.nativeDofSize);
+	Log("  engine: lodFactor=%.2f hybridLod=%.2f farClip=%d nativeBloom=%d nativeDOF=%d\n",
+		c.lodFactor, c.hybridLodFactor, c.maxFarClip, c.nativeBloomSize, c.nativeDofSize);
 	Log("  colour: contrast=%.2f pivot=%.2f vibrance=%.2f skin=%.2f yellow=%.2f green=%.2f\n", c.contrast, c.contrastPivot,
 		c.vibrance, c.skinProtect, c.yellowRestraint, c.greenRestraint);
 	Log("  mipmaps=%d (filter %d, coverage %d) trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,

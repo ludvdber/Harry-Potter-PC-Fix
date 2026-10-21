@@ -15,6 +15,7 @@
 #include "../source/dinput8/d3d8min.h"
 #include <cstdio>
 #include <cstdlib>
+#include <share.h>
 #include <string>
 
 static int failures = 0;
@@ -35,8 +36,9 @@ static bool Inside(HMODULE m, const void* address)
 
 static std::string ReadLog(const std::string& folder)
 {
-	FILE* f = nullptr;
-	if (fopen_s(&f, (folder + "\\dinput8_accio.log").c_str(), "rb") != 0 || !f)
+	// The DLL still holds the file open for writing (it denies other writers, not readers).
+	FILE* f = _fsopen((folder + "\\dinput8_accio.log").c_str(), "rb", _SH_DENYNO);
+	if (!f)
 		return "";
 	std::string text;
 	char buf[4096];
@@ -80,6 +82,16 @@ int main(int argc, char** argv)
 	if (!d3d)
 		return 1;
 	void** d3dTable = *reinterpret_cast<void***>(d3d);
+	{
+		HMODULE owner = nullptr;
+		char name[MAX_PATH] = "?";
+		GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+			static_cast<const char*>(d3dTable[kD3D8SlotCreateDevice]), &owner);
+		if (owner)
+			GetModuleFileNameA(owner, name, MAX_PATH);
+		printf("IDirect3D8 %p table %p slot 15 -> %p in %s\n", static_cast<void*>(d3d), static_cast<void*>(d3dTable),
+			d3dTable[kD3D8SlotCreateDevice], name);
+	}
 	Expect(Inside(dll, d3dTable[kD3D8SlotCreateDevice]), "IDirect3D8::CreateDevice points into dinput8.dll");
 
 	WNDCLASSA wc = {};
@@ -146,7 +158,7 @@ int main(int argc, char** argv)
 	Expect(!log.empty(), "dinput8_accio.log written");
 	Expect(log.find("IDirect3D8::CreateDevice: watched") != std::string::npos, "log: CreateDevice watched");
 	Expect(log.find("IDirect3DDevice8::Present: watched") != std::string::npos, "log: Present watched");
-	Expect(log.find("Present: frame 1\n") != std::string::npos, "log: first frame counted");
+	Expect(log.find("Present: frame 1\r") != std::string::npos, "log: first frame counted");   // text mode: \r\n
 	Expect(log.find("Overlay: first drawn (640 x 480") != std::string::npos, "log: panel drawn at 640 x 480");
 	Expect(log.find("Reset: 800 x 600") != std::string::npos, "log: Reset seen");
 

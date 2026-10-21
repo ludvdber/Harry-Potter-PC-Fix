@@ -103,7 +103,7 @@ JEUX = {
 
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
                     SSAAFactor=1, ShadowMapScale=1, ShadowTextureSize=0, ParticleCullDistance=0,
-                    LODFactor=0, MaxFarClip=0, NativeBloomSize=0, NativeDOFSize=0, VSync=0, ColorGrading=0, Vibrance="0.25",
+                    LODFactor=0, HybridLodFactor=0, MaxFarClip=0, NativeBloomSize=0, NativeDOFSize=0, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
                     Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", GreenRestraint="0.00", ContrastPivot="0.50", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
@@ -453,6 +453,9 @@ def ini(jeu, graphismes=None):
     a("; HP5 and HP6: the camera's level-of-detail factor (1.40 as shipped in Quality; try 2.0).")
     a("; Models should keep their detailed version farther away. 0.5 to 4; 0 = as shipped.")
     a(f"LODFactor={g['LODFactor']}")
+    a("; HP5 and HP6: the default distances where hybrid models change detail level (100 down to 30")
+    a("; as shipped), all scaled by this factor (try 2.0 for less pop-in). 0.5 to 4; 0 = as shipped.")
+    a(f"HybridLodFactor={g['HybridLodFactor']}")
     a("; HP5 only: the far plane (10000 as shipped there, where HP6 ships with 100000; try 100000).")
     a("; Less of the world cut off in the distance. 10000 to 1000000; 0 = as shipped.")
     a(f"MaxFarClip={g['MaxFarClip']}")

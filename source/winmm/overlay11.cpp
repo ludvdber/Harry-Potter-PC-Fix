@@ -2,8 +2,9 @@
 // Copyright (c) 2026 Accio Launcher. PolyForm Strict 1.0.0, see license.
 //
 // The frame of HP1 and HP2 (overlay11.h). The renderer ends each frame with Unlock(Blit), which
-// calls Present: the relay in that slot (frame.h) takes the picture before it goes out, draws the
-// panel on it, waits for the frame's slot when a limit is set, then lets the renderer present.
+// post-processes into the back buffer and calls IDXGISwapChain::Present: the relay in the Unlock
+// slot (frame.h) puts a second relay on Present itself, and that one takes the finished picture,
+// draws the panel on it, waits for the frame's slot when a limit is set, then presents.
 //
 // What d3d9.dll's overlay.cpp does for the Direct3D 9 games, done here in Direct3D 11 with the
 // renderer's own device: the same lines, the same keys, the same ini names, the same benchmark
@@ -995,10 +996,53 @@ void Frame()
 	}
 }
 
+// ---- Present -------------------------------------------------------------------------------
+// Unlock's own Present function runs the renderer's post-processing passes INTO the back buffer
+// first, then calls IDXGISwapChain::Present: a panel drawn at Unlock was painted over (SEEN
+// 2026-10-21: "first drawn" in the log, nothing on screen). So the frame is taken at Present
+// itself: the swap chain's own method table (DXGI's, shared by every swap chain the renderer
+// makes) has its Present slot pointed at the relay, from Unlock, the first time a picture goes
+// out. Without that slot, the frame stays at Unlock: measures, keys, limit and screenshot still
+// work there, only the panel is lost.
+
+using Present = HRESULT(__stdcall*)(IDXGISwapChain* self, UINT sync, UINT flags);
+Present g_realPresent;
+bool g_presentTried;
+
+HRESULT __stdcall RelayPresent(IDXGISwapChain* self, UINT sync, UINT flags)
+{
+	Frame();
+	return g_realPresent(self, sync, flags);
+}
+
+void HookPresent(IDXGISwapChain* chain)
+{
+	g_presentTried = true;
+	void** vtable = *reinterpret_cast<void***>(chain);
+	void** slot = vtable + 8;   // IUnknown 0-2, IDXGIObject 3-6, GetDevice 7, Present 8
+	DWORD old;
+	if (!VirtualProtect(slot, sizeof(*slot), PAGE_READWRITE, &old))
+	{
+		Log("Overlay: the swap chain's Present slot at %p is not writable (error %lu): the frame stays at Unlock,"
+			" no panel\n", slot, GetLastError());
+		return;
+	}
+	g_realPresent = reinterpret_cast<Present>(*slot);
+	*slot = reinterpret_cast<void*>(&RelayPresent);
+	VirtualProtect(slot, sizeof(*slot), old, &old);
+	Log("Overlay: swap chain %p, Present (%p) goes through the frame\n", chain, g_realPresent);
+}
+
 void __fastcall RelayUnlock(void* self, void* edx, int blit)
 {
 	if (blit)
-		Frame();
+	{
+		IDXGISwapChain* chain = SwapChain();
+		if (!g_presentTried && chain)
+			HookPresent(chain);
+		if (!g_realPresent)
+			Frame();
+	}
 	g_realUnlock(self, edx, blit);
 }
 }

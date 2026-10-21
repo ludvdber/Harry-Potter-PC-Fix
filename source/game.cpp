@@ -585,6 +585,52 @@ void BoostCameraLod(const char* exeName)
 	Log("Game: camera detail factor %.2f (1.40 as shipped in Quality) %s\n", g_cfg.lodFactor, ok ? "set" : "NOT set");
 }
 
+// Both Lion games register a reflected class named HybridLionControl whose instances carry the
+// eight LOD switch distances LOD0..LOD7 at +0x60..+0x7C, shipped at 100, 90 .. 30: the ladder a
+// hybrid model climbs down with distance, hence the scale of mesh pop-in. Its default initialiser
+// (HP6 0x45DD80, HP5 0x441FC0) fills them from eight pooled float constants (100.0 alone has many
+// other readers), so the constants are left in peace: the eight movss source operands of that one
+// function are redirected to eight floats of ours, the shipped distances times the chosen factor.
+// Entities whose zone data carries explicit LOD fields are filled after this initialiser and
+// still win. Nothing is written unless all eight operands still point at the shipped constants.
+static float s_hybridLod[8];
+void BoostHybridLod(const char* exeName)
+{
+	if (g_cfg.hybridLodFactor == 0.0f)
+		return;
+	const bool hp6 = _stricmp(exeName, "hp6.exe") == 0;
+	if (!hp6 && _stricmp(exeName, "hp.exe") != 0)
+		return;
+	// Each "movss xmm0, [disp32]" (F3 0F 10 05): its address and its shipped operand.
+	struct Site { DWORD at; DWORD shipped; };
+	static const Site sites6[8] = { { 0x0045DD84, 0x0082CF24 }, { 0x0045DD91, 0x00805E50 },
+		{ 0x0045DD9E, 0x0082CF20 }, { 0x0045DDAB, 0x007BE664 }, { 0x0045DDB8, 0x0082CF1C },
+		{ 0x0045DDC5, 0x008059CC }, { 0x0045DDD2, 0x00805DB0 }, { 0x0045DDDF, 0x00805D68 } };
+	static const Site sites5[8] = { { 0x00441FCB, 0x007B8C64 }, { 0x00441FD8, 0x0088E8AC },
+		{ 0x00441FE5, 0x0086E2FC }, { 0x00441FF2, 0x00845274 }, { 0x00441FFF, 0x0084366C },
+		{ 0x0044200C, 0x007BA620 }, { 0x00442019, 0x0086E3E0 }, { 0x00442026, 0x00845250 } };
+	const Site* const sites = hp6 ? sites6 : sites5;
+	for (int i = 0; i < 8; ++i)
+	{
+		BYTE expect[8] = { 0xF3, 0x0F, 0x10, 0x05 };
+		memcpy(expect + 4, &sites[i].shipped, 4);
+		if (memcmp(reinterpret_cast<const void*>(sites[i].at), expect, sizeof(expect)) != 0)
+		{
+			Log("Game: hybrid detail distances NOT set: unexpected code (other %s build?)\n", exeName);
+			return;
+		}
+	}
+	bool ok = true;
+	for (int i = 0; i < 8; ++i)
+	{
+		s_hybridLod[i] = (100.0f - 10.0f * i) * g_cfg.hybridLodFactor;
+		const float* value = &s_hybridLod[i];
+		ok = WriteMemory(reinterpret_cast<BYTE*>(sites[i].at) + 4, &value, sizeof(value)) && ok;
+	}
+	Log("Game: hybrid detail distances x%.2f (100 down to 30 as shipped) %s\n",
+		g_cfg.hybridLodFactor, ok ? "set" : "NOT set");
+}
+
 // HP5 caps every camera's far plane with one global (0x8AF430), shipped at 10000 where HP6 ships
 // with 100000: past it the world is clipped. The game itself only rewrites that global when
 // HKCU\...\GameSettings holds a MaxFarClip, which runs after this: a cap the player has in the
@@ -1024,6 +1070,7 @@ void ApplyGamePatches()
 	SizeShadowTextures(p->exe);
 	CullParticlesFarther(p->exe);
 	BoostCameraLod(p->exe);
+	BoostHybridLod(p->exe);
 	ExtendFarPlane(p->exe);
 	SharpenNativeBloom(p->exe);
 	SharpenNativeDof(p->exe);

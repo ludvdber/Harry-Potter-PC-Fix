@@ -349,6 +349,33 @@ int main(int argc, char** argv)
 		EXPECT(c.lodFactor == 0.0f);
 	}
 	{
+		// The hybrid models' detail distances: 0 = untouched, anything else bounded to 0.5..4.
+		const char* game = "hybrid detail distances";
+		const std::string path = scratch + "\\hybridlod.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nHybridLodFactor=2.0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.hybridLodFactor == 2.0f);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nHybridLodFactor=0.1\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.hybridLodFactor == 0.5f);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nHybridLodFactor=0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.hybridLodFactor == 0.0f);
+	}
+	{
 		// The far plane cap: 0 = untouched, anything else bounded to 10000..1000000.
 		const char* game = "far plane";
 		const std::string path = scratch + "\\farclip.ini";

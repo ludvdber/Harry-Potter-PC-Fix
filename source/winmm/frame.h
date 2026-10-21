@@ -6,7 +6,9 @@
 // slot 29 of the renderer's virtual table, which calls IDXGISwapChain::Present when Blit is set
 // (READ in both builds: the swap chain is held at the same place, RVA 0x216B4, and the function
 // is "cmp [esp+4],0 / je / call Present / ret 4" in both). A relay in that slot sees every frame
-// before it goes out: the panel, the screenshot and the frame-rate limit of d3d9.dll live there.
+// before it goes out, and from there puts the panel, the screenshot and the frame-rate limit of
+// d3d9.dll on IDXGISwapChain::Present itself (overlay11.cpp says why: the renderer's own Present
+// function post-processes into the back buffer first, over anything drawn at Unlock).
 //
 // Two builds of the renderer are known, same version 1.6.2, linked three minutes apart on
 // 2020-12-29: HP2's (TimeDateStamp 0x5FEB7C4A, table at 0x1B7B0) and HP1's (0x5FEB7D07, table at

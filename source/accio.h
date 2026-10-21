@@ -103,6 +103,7 @@ struct Settings
 	int   shadowTextureSize = 0;    // HP6: the engine's own shadow texture size (128 as shipped), 0 = untouched
 	int   particleCullDistance = 0; // HP6: radius inside which particle effects are drawn (3500 as shipped), 0 = untouched
 	float lodFactor = 0.0f;         // HP6: the camera's level-of-detail factor (1.40 as shipped in Quality), 0 = untouched
+	float hybridLodFactor = 0.0f;   // HP5+HP6: hybrid models' default LOD distances (100..30 as shipped) scaled by this, 0 = untouched
 	int   maxFarClip = 0;           // HP5: the far plane cap (10000 as shipped; HP6 ships with 100000), 0 = untouched
 	int   nativeBloomSize = 0;      // HP6: the game's own bloom targets (512 a side in Quality), 0 = untouched
 	int   nativeDofSize = 0;        // HP6: the game's own depth-of-field targets (256 a side), 0 = untouched
