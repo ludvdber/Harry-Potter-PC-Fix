@@ -4,8 +4,12 @@
 // winmm.dll for HP2 (Chamber of Secrets) and HP1 (Philosopher's Stone), next to the game's exe in
 // its system folder. Both are Unreal Engine 1 games with no Direct3D 9 of their own (their
 // renderer is Direct3D 11), so d3d9.dll cannot reach them; winmm.dll is the one Windows file their
-// Core.dll and WinDrv.dll load, and it holds the pad. Six jobs, each one switched in winmm.ini
+// Core.dll and WinDrv.dll load, and it holds the pad. Seven jobs, each one switched in winmm.ini
 // (HP1's turns the pad keys and Alt+Enter off: no pad bindings there, Alt+Enter SEEN fine):
+//   - HP2 only: Lumos. The walls near the lit wand fade out and show what they hide, as the game
+//     meant: Render.dll's four reads of the wand's switch and radius are moved to where the actor
+//     holds them, and the renderer's DrawComplexSurface goes through a relay that binds the fade
+//     the engine computed (lumos.h, which says why; SEEN on Willow's first Lumos wall, 2026-10-21).
 //   - HP1 only: its setup, run at EVERY start (a wizard, or a renderer test that writes D3DDrv into
 //     HP.ini), is skipped (setup.h, which says why).
 //   - HP2 only, under Wine only: its launcher window, black under Wine, keeps its menu page. The
@@ -28,9 +32,11 @@
 
 #include "fill.h"
 #include "launcher.h"
+#include "lumos.h"
 #include "remap.h"
 #include "setup.h"
 #include "../version.h"
+#include <d3d11.h>
 #include <cstdarg>
 #include <cstdio>
 #include <cwchar>
@@ -61,6 +67,8 @@ struct Settings
 	bool skipSetup = false;
 	bool wineLauncherFix = false;
 	bool blockAltEnter = true;
+	bool lumosFade = false;
+	bool lumosLog = false;
 	bool xboxLayout = true;
 	UINT shareKey = VK_TAB;
 	UINT optionsKey = VK_ESCAPE;
@@ -109,6 +117,8 @@ void LoadSettings(const wchar_t* ini)
 	g_cfg.skipSetup = flag(L"Accio.Window", L"SkipSetup", g_cfg.skipSetup);
 	g_cfg.wineLauncherFix = flag(L"Accio.Window", L"WineLauncherFix", g_cfg.wineLauncherFix);
 	g_cfg.blockAltEnter = flag(L"Accio.Window", L"BlockAltEnter", g_cfg.blockAltEnter);
+	g_cfg.lumosFade = flag(L"Accio.Lumos", L"LumosFade", g_cfg.lumosFade);
+	g_cfg.lumosLog = flag(L"Accio.Lumos", L"LumosLog", g_cfg.lumosLog);
 	g_cfg.xboxLayout = flag(L"Accio.Controller", L"XboxLayout", g_cfg.xboxLayout);
 	g_cfg.shareKey = GetPrivateProfileIntW(L"Accio.Controller", L"ShareKey", g_cfg.shareKey, ini) & 0xFF;
 	g_cfg.optionsKey = GetPrivateProfileIntW(L"Accio.Controller", L"OptionsKey", g_cfg.optionsKey, ini) & 0xFF;
@@ -294,6 +304,221 @@ void FixLauncher()
 	Log("Launcher: the exe's SetWindowPos calls go through the fix (WineLauncherFix, under Wine)\n");
 }
 
+// ---- Lumos ---------------------------------------------------------------------------------
+
+// The renderer's DrawComplexSurface is a thiscall with five arguments; a __fastcall with the same
+// stack arguments takes "this" in ecx, ignores edx, and pops the same 0x14 bytes.
+using DrawComplexSurface = void(__fastcall*)(void* self, void* edx, void* frame, lumos::SurfaceInfo* surface,
+	void* facet, DWORD polyFlags, int alpha);
+
+DrawComplexSurface g_realDrawComplexSurface;
+uint8_t* g_renderer;             // d3d11drv.dll, once hooked
+ID3D11BlendState* g_fadeState;   // SRC = factor, DEST = 1 - factor
+bool g_lumosTried;
+
+struct LumosStats
+{
+	unsigned surfaces, marked, faded, lines;
+	int alphaMin = 255, alphaMax = 0;
+	ULONGLONG lastDump;
+} g_lumos;
+
+ID3D11DeviceContext* RendererContext()
+{
+	return *reinterpret_cast<ID3D11DeviceContext**>(g_renderer + lumos::kContext);
+}
+
+// Made once, from the renderer's own device.
+bool FadeState()
+{
+	if (g_fadeState)
+		return true;
+	ID3D11DeviceContext* context = RendererContext();
+	if (!context)
+		return false;
+	ID3D11Device* device = nullptr;
+	context->GetDevice(&device);
+	if (!device)
+		return false;
+	D3D11_BLEND_DESC desc{};
+	D3D11_RENDER_TARGET_BLEND_DESC& rt = desc.RenderTarget[0];
+	rt.BlendEnable = TRUE;
+	rt.SrcBlend = D3D11_BLEND_BLEND_FACTOR;
+	rt.DestBlend = D3D11_BLEND_INV_BLEND_FACTOR;
+	rt.BlendOp = D3D11_BLEND_OP_ADD;
+	rt.SrcBlendAlpha = D3D11_BLEND_ONE;
+	rt.DestBlendAlpha = D3D11_BLEND_ZERO;
+	rt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	rt.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+	const HRESULT hr = device->CreateBlendState(&desc, &g_fadeState);
+	device->Release();
+	if (FAILED(hr))
+		Log("Lumos: no blend state (error 0x%08lX), surfaces left as the renderer draws them\n", hr);
+	else
+		Log("Lumos: blend state made, context %p (LumosFade)\n", context);
+	return g_fadeState != nullptr;
+}
+
+void LumosProbe(DWORD surfaceFlags, DWORD polyFlags, int alpha)
+{
+	++g_lumos.surfaces;
+	const bool marked = (surfaceFlags & lumos::kMarked) != 0;
+	if (marked)
+	{
+		++g_lumos.marked;
+		if (lumos::Fades(surfaceFlags, alpha))
+		{
+			++g_lumos.faded;
+			if (alpha < g_lumos.alphaMin) g_lumos.alphaMin = alpha;
+			if (alpha > g_lumos.alphaMax) g_lumos.alphaMax = alpha;
+		}
+		if (g_lumos.lines < 400)
+		{
+			++g_lumos.lines;
+			Log("Lumos: surface flags=%08lX arg4=%08lX alpha=%d\n", surfaceFlags, polyFlags, alpha);
+		}
+	}
+	const ULONGLONG now = GetTickCount64();
+	if (now - g_lumos.lastDump >= 2000)
+	{
+		g_lumos.lastDump = now;
+		Log("Lumos: %u surfaces, %u marked, %u with a fade alpha (%d..%d), cache=%08lX\n", g_lumos.surfaces,
+			g_lumos.marked, g_lumos.faded, g_lumos.alphaMin, g_lumos.alphaMax,
+			*reinterpret_cast<DWORD*>(g_renderer + lumos::kFlagsCache));
+	}
+}
+
+// Probe only: what the engine's own Lumos pass reads (Render.dll, notes/HP2_LUMOS.md). Frame->Viewport
+// at +0, Viewport->Actor at +0x30; on the actor, Location at +0x11C, the Lumos switch and radius at
+// +0x94C/+0x950 (the offsets Render.dll reads).
+void LumosActorProbe(void* frame)
+{
+	static ULONGLONG last;
+	const ULONGLONG now = GetTickCount64();
+	if (now - last < 2000 || !frame)
+		return;
+	last = now;
+	void* viewport = *reinterpret_cast<void**>(frame);
+	if (!viewport || IsBadReadPtr(viewport, 0x60))
+		return;
+	auto* actor = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(viewport) + 0x30);
+	if (!actor || IsBadReadPtr(actor, 0x960))
+	{
+		Log("Lumos probe: viewport %p, no actor\n", viewport);
+		return;
+	}
+	const float* loc = reinterpret_cast<const float*>(actor + 0x11C);
+	char hex[3 * 32 + 1] = {};
+	for (int i = 0; i < 32; ++i)
+		sprintf_s(hex + 3 * i, 4, "%02X ", actor[0x940 + i]);
+	HMODULE render = GetModuleHandleW(L"Render.dll");
+	DWORD editor = 0;
+	void* cls = nullptr;
+	if (render)
+	{
+		editor = *reinterpret_cast<DWORD*>(reinterpret_cast<uint8_t*>(render) + 0x75584);
+		cls = *reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(render) + 0x75770);
+	}
+	Log("Lumos probe: actor %p at (%.0f, %.0f, %.0f), [94C]=%08lX [950]=%.1f, bytes 940..95F: %s; Render %p"
+		" GIsEditor=%lu class=%p\n", actor, loc[0], loc[1], loc[2], *reinterpret_cast<DWORD*>(actor + 0x94C),
+		*reinterpret_cast<float*>(actor + 0x950), hex, render, editor, cls);
+}
+
+void __fastcall RelayDrawComplexSurface(void* self, void* edx, void* frame, lumos::SurfaceInfo* surface,
+	void* facet, DWORD polyFlags, int alpha)
+{
+	const DWORD flags = surface ? surface->PolyFlags : 0;
+	if (g_cfg.lumosLog)
+	{
+		LumosProbe(flags, polyFlags, alpha);
+		LumosActorProbe(frame);
+	}
+	const bool fade = g_cfg.lumosFade && lumos::Fades(flags, alpha) && FadeState();
+	DWORD* cache = reinterpret_cast<DWORD*>(g_renderer + lumos::kFlagsCache);
+	if (fade)
+		*cache ^= lumos::kRefresh;   // the renderer flushes what it holds and sets its state
+	g_realDrawComplexSurface(self, edx, frame, surface, facet, polyFlags, alpha);
+	if (fade)
+	{
+		// The surface is buffered, not drawn yet: our state is the one its flush will use, and
+		// the next surface sets the renderer's own state again.
+		const float opacity = lumos::Opacity(alpha);
+		const float factor[4] = { opacity, opacity, opacity, opacity };
+		RendererContext()->OMSetBlendState(g_fadeState, factor, 0xFFFFFFFF);
+		*cache ^= lumos::kRefresh;
+	}
+}
+
+// The engine's Render.dll: its four reads of the Lumos switch and radius moved to where the
+// actor really holds them (lumos.h). Another build: left as it is.
+void FixRenderLumos()
+{
+	HMODULE render = GetModuleHandleW(L"Render.dll");
+	if (!render)
+	{
+		Log("Lumos: no Render.dll in this process, left as it is\n");
+		return;
+	}
+	auto* image = reinterpret_cast<uint8_t*>(render);
+	if (!lumos::render::Recognised(image))
+	{
+		Log("Lumos: this Render.dll is not the build read (2020-06-15), left as it is\n");
+		return;
+	}
+	const uint8_t* first = image + lumos::render::kSites[0].rva;
+	const uint8_t* last = image + lumos::render::kSites[3].rva + 6;
+	DWORD old;
+	if (!VirtualProtect(const_cast<uint8_t*>(first), last - first, PAGE_EXECUTE_READWRITE, &old))
+	{
+		Log("Lumos: Render.dll's code at %p is not writable (error %lu)\n", first, GetLastError());
+		return;
+	}
+	lumos::render::Patch(image);
+	VirtualProtect(const_cast<uint8_t*>(first), last - first, old, &old);
+	FlushInstructionCache(GetCurrentProcess(), first, last - first);
+	Log("Lumos: Render.dll at %p, its four reads of the Lumos switch and radius moved to +0x950/+0x954 (LumosFade)\n",
+		image);
+}
+
+// Once the renderer is loaded (the engine loads it when it opens its window): its virtual table's
+// DrawComplexSurface slot is pointed at the relay. Another build of the DLL: left as it is.
+void HookLumos()
+{
+	HMODULE renderer = GetModuleHandleW(L"d3d11drv.dll");
+	if (!renderer)
+		return;
+	g_lumosTried = true;
+	if (g_cfg.lumosFade)
+		FixRenderLumos();
+	auto* image = reinterpret_cast<uint8_t*>(renderer);
+	if (!lumos::Recognised(image))
+	{
+		Log("Lumos: this d3d11drv.dll is not the build read (1.6.2 of 2020-12-29), left as it is\n");
+		return;
+	}
+	void** slot = reinterpret_cast<void**>(image + lumos::kVtable + lumos::kDrawComplexSurfaceSlot * sizeof(void*));
+	DWORD old;
+	if (!VirtualProtect(slot, sizeof(*slot), PAGE_READWRITE, &old))
+	{
+		Log("Lumos: the slot at %p is not writable (error %lu)\n", slot, GetLastError());
+		return;
+	}
+	g_renderer = image;
+	g_realDrawComplexSurface = reinterpret_cast<DrawComplexSurface>(*slot);
+	*slot = reinterpret_cast<void*>(&RelayDrawComplexSurface);
+	VirtualProtect(slot, sizeof(*slot), old, &old);
+	Log("Lumos: d3d11drv.dll at %p, DrawComplexSurface goes through the fix (LumosFade=%d LumosLog=%d)\n",
+		image, g_cfg.lumosFade, g_cfg.lumosLog);
+}
+
+// Sees the game's thread take its messages: the renderer is looked for until it is there.
+LRESULT CALLBACK OnMessageLumos(int code, WPARAM removal, LPARAM lParam)
+{
+	if (code == HC_ACTION && !g_lumosTried)
+		HookLumos();
+	return CallNextHookEx(nullptr, code, removal, lParam);
+}
+
 // ---- Pad -----------------------------------------------------------------------------------
 
 using DevCapsA = MMRESULT(WINAPI*)(UINT_PTR, JOYCAPSA*, UINT);
@@ -448,9 +673,9 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 	GetModuleFileNameW(nullptr, path, MAX_PATH);
 	Log("Accio Launcher PC fix " ACCIO_VERSION_STR " (winmm.dll), %ls\n", path);
 	Log("Settings: XboxLayout=%d ShareKey=%u OptionsKey=%u BlockAltEnter=%d FillScreen=%d SkipSetup=%d"
-		" WineLauncherFix=%d\n",
+		" WineLauncherFix=%d LumosFade=%d LumosLog=%d\n",
 		g_cfg.xboxLayout, g_cfg.shareKey, g_cfg.optionsKey, g_cfg.blockAltEnter, g_cfg.fillScreen,
-		g_cfg.skipSetup, g_cfg.wineLauncherFix);
+		g_cfg.skipSetup, g_cfg.wineLauncherFix, g_cfg.lumosFade, g_cfg.lumosLog);
 
 	// Every Windows has one. Without it the stubs would have nowhere to go: refuse to load, and
 	// Windows says winmm.dll is broken, which is the truth.
@@ -476,6 +701,13 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 			Log("Fill the screen: watched\n");
 		else
 			Log("Fill the screen: hook refused (error %lu)\n", GetLastError());
+	}
+	if (g_cfg.lumosFade || g_cfg.lumosLog)
+	{
+		if (SetWindowsHookExW(WH_GETMESSAGE, OnMessageLumos, nullptr, GetCurrentThreadId()))
+			Log("Lumos: waiting for d3d11drv.dll\n");
+		else
+			Log("Lumos: hook refused (error %lu)\n", GetLastError());
 	}
 	return TRUE;
 }

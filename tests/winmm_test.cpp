@@ -8,6 +8,7 @@
 //     posted to a window that is never shown.
 #include "../source/winmm/fill.h"
 #include "../source/winmm/launcher.h"
+#include "../source/winmm/lumos.h"
 #include "../source/winmm/remap.h"
 #include "../source/winmm/setup.h"
 #include <cstdio>
@@ -337,12 +338,47 @@ static void Dll(const char* path)
 	UnregisterClassA(framedClass.lpszClassName, framedClass.hInstance);
 }
 
+static void Lumos()
+{
+	Expect(lumos::Fades(0x00800048, 150), "a marked wall with a fade alpha fades");
+	Expect(lumos::Fades(0x00A00048, 100), "marked hidden geometry with a fade alpha fades");
+	Expect(!lumos::Fades(0x00800048, 0), "alpha 0 (a wall far from the wand) is drawn as the renderer does");
+	Expect(!lumos::Fades(0x00800048, 255), "alpha 255 (no fade) is drawn as the renderer does");
+	Expect(!lumos::Fades(0x00000004, 100), "an unmarked translucent surface is left alone");
+	Expect(lumos::Opacity(0) == 1.0f && lumos::Opacity(255) == 0.0f, "opacity: 0 opaque, 255 invisible");
+	Expect(lumos::Opacity(204) > 0.19f && lumos::Opacity(204) < 0.21f, "alpha 204 keeps a fifth");
+
+	// Render.dll's four sites, in a buffer laid out like its image: recognised only when every
+	// instruction and its wrong displacement are there, then moved by 4, nothing else touched.
+	static uint8_t image[lumos::render::kSizeOfImage];
+	std::memset(image, 0xCC, sizeof(image));
+	for (const lumos::render::Site& s : lumos::render::kSites)
+	{
+		image[s.rva] = s.opcode[0];
+		image[s.rva + 1] = s.opcode[1];
+		std::memcpy(image + s.rva + 2, &s.wrong, 4);
+	}
+	Expect(lumos::render::SitesMatch(image), "Render.dll's four reads found");
+	lumos::render::Patch(image);
+	Expect(!lumos::render::SitesMatch(image), "patched once: not found again");
+	size_t changed = 0;
+	for (size_t i = 0; i < sizeof(image); ++i)
+		changed += image[i] != 0xCC;
+	Expect(changed == 4 * 6, "only the four instructions are written");
+	uint32_t disp;
+	std::memcpy(&disp, image + lumos::render::kSites[1].rva + 2, 4);
+	Expect(disp == 0x954, "the radius is read at +0x954");
+	image[lumos::render::kSites[2].rva] = 0x90;
+	Expect(!lumos::render::SitesMatch(image), "another instruction at a site: not recognised");
+}
+
 int main(int argc, char** argv)
 {
 	Remap();
 	Fill();
 	Setup();
 	Launcher();
+	Lumos();
 	if (argc > 1)
 		Dll(argv[1]);
 	else

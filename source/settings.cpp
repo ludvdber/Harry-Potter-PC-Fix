@@ -191,6 +191,30 @@ void LoadSettings(const char* iniPath)
 		c.shadowTextureSize = 0;
 	}
 	c.particleCullDistance = Clamp(Int(graphics, "ParticleCullDistance", 0), 0, 10000);
+	c.lodFactor = Float(graphics, "LODFactor", 0.0f);
+	if (c.lodFactor != 0.0f)
+		c.lodFactor = Clamp(c.lodFactor, 0.5f, 4.0f);
+	c.maxFarClip = Int(graphics, "MaxFarClip", 0);
+	if (c.maxFarClip != 0)
+		c.maxFarClip = Clamp(c.maxFarClip, 10000, 1000000);
+	c.nativeBloomSize = Int(graphics, "NativeBloomSize", 0);
+	switch (c.nativeBloomSize)
+	{
+	case 0: case 1024: case 2048:
+		break;
+	default:
+		Log("Settings: NativeBloomSize %d is not 1024 or 2048: left as shipped\n", c.nativeBloomSize);
+		c.nativeBloomSize = 0;
+	}
+	c.nativeDofSize = Int(graphics, "NativeDOFSize", 0);
+	switch (c.nativeDofSize)
+	{
+	case 0: case 512: case 1024: case 2048:
+		break;
+	default:
+		Log("Settings: NativeDOFSize %d is not 512, 1024 or 2048: left as shipped\n", c.nativeDofSize);
+		c.nativeDofSize = 0;
+	}
 	c.vsync = Bool(graphics, "VSync", false);
 	c.grading = Bool(graphics, "ColorGrading", false);
 	c.vibrance = Float(graphics, "Vibrance", 0.15f);
@@ -241,6 +265,8 @@ void LoadSettings(const char* iniPath)
 	Log("  image: FXAA=%d sharp=%.2f MSAA=%d transparency=%d AF=%d LOD=%.2f SSAA=%.2f (max height %d) shadows=%d (engine size %d) particles=%d vsync=%d grading=%d SSAO=%d bloom=%d rays=%d render=%dx%d\n",
 		c.fxaa, c.sharpness, c.msaa, c.transparencyAa, c.anisotropy, c.lodBias, c.ssaa, c.ssaaMaxHeight, c.shadowScale, c.shadowTextureSize, c.particleCullDistance, c.vsync, c.grading,
 		c.ssao, c.bloom, c.godRays, c.renderWidth, c.renderHeight);
+	Log("  engine: lodFactor=%.2f farClip=%d nativeBloom=%d nativeDOF=%d\n",
+		c.lodFactor, c.maxFarClip, c.nativeBloomSize, c.nativeDofSize);
 	Log("  colour: contrast=%.2f pivot=%.2f vibrance=%.2f skin=%.2f yellow=%.2f green=%.2f\n", c.contrast, c.contrastPivot,
 		c.vibrance, c.skinProtect, c.yellowRestraint, c.greenRestraint);
 	Log("  mipmaps=%d (filter %d, coverage %d) trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,

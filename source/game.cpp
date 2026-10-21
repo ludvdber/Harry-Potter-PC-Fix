@@ -536,6 +536,130 @@ void CullParticlesFarther(const char* exeName)
 	Log("Game: particles drawn to %d units (59 as shipped) %s\n", g_cfg.particleCullDistance, ok ? "set" : "NOT set");
 }
 
+// HP6 recomputes the camera's level-of-detail factor at every camera init (0x5F4B50): OptionLOD
+// times the float at 0x83B23C (0.05) plus the one at 0x82AE30 (1.3, good card: Quality = 1.40) or
+// at 0x83121C (1.15, small card), stored to 0x8666B8 and copied into each camera, where it scales
+// which LOD a model shows at a distance. Those constants are pooled with unrelated code (the 0.05
+// alone has 124 readers), so they are left in peace: instead the mulss and addss operands of this
+// one function are redirected to two floats of ours, zero and the chosen factor, so every
+// recalculation yields exactly that factor whatever the card or the option. Nothing is written
+// unless all four operands still point at the shipped constants.
+static float s_lodZero = 0.0f;
+static float s_lodFactor = 0.0f;
+void BoostCameraLod(const char* exeName)
+{
+	if (g_cfg.lodFactor == 0.0f || _stricmp(exeName, "hp6.exe") != 0)
+		return;
+	// The four-byte memory operands of the two branches: mulss then addss, good card then small.
+	BYTE* const mulAt[2] = { reinterpret_cast<BYTE*>(0x005F4C18), reinterpret_cast<BYTE*>(0x005F4C39) };
+	BYTE* const addAt[2] = { reinterpret_cast<BYTE*>(0x005F4C20), reinterpret_cast<BYTE*>(0x005F4C41) };
+	static const BYTE mulOld[4] = { 0x3C, 0xB2, 0x83, 0x00 };
+	static const BYTE addOld[2][4] = { { 0x30, 0xAE, 0x82, 0x00 }, { 0x1C, 0x12, 0x83, 0x00 } };
+	for (int i = 0; i < 2; ++i)
+	{
+		if (memcmp(mulAt[i], mulOld, 4) != 0 || memcmp(addAt[i], addOld[i], 4) != 0)
+		{
+			Log("Game: camera detail factor NOT set: unexpected code (other hp6.exe build?)\n");
+			return;
+		}
+	}
+	s_lodFactor = g_cfg.lodFactor;
+	const float* zero = &s_lodZero;
+	const float* factor = &s_lodFactor;
+	bool ok = true;
+	for (int i = 0; i < 2; ++i)
+	{
+		ok = WriteMemory(mulAt[i], &zero, sizeof(zero)) && ok;
+		ok = WriteMemory(addAt[i], &factor, sizeof(factor)) && ok;
+	}
+	Log("Game: camera detail factor %.2f (1.40 as shipped in Quality) %s\n", g_cfg.lodFactor, ok ? "set" : "NOT set");
+}
+
+// HP5 caps every camera's far plane with one global (0x8AF430), shipped at 10000 where HP6 ships
+// with 100000: past it the world is clipped. The game itself only rewrites that global when
+// HKCU\...\GameSettings holds a MaxFarClip, which runs after this: a cap the player has in the
+// registry still wins, and the registry is never written. Nothing is written unless the global
+// still reads its shipped 10000.
+void ExtendFarPlane(const char* exeName)
+{
+	if (g_cfg.maxFarClip == 0 || _stricmp(exeName, "hp.exe") != 0)
+		return;
+	const float current = *reinterpret_cast<const float*>(0x008AF430);
+	if (current != 10000.0f)
+	{
+		Log("Game: far plane NOT set: unexpected value %g (other hp.exe build?)\n", current);
+		return;
+	}
+	const float farClip = static_cast<float>(g_cfg.maxFarClip);
+	const bool ok = WriteMemory(reinterpret_cast<void*>(0x008AF430), &farClip, sizeof(farClip));
+	Log("Game: far plane %d (10000 as shipped) %s\n", g_cfg.maxFarClip, ok ? "set" : "NOT set");
+}
+
+// HP6 draws its own bloom ("gloom") into square targets sized branchless in four creators
+// (0x5EA030, 0x609860, 0x615530, 0x617E20): and esi,0xFFFFFE80 then add esi,0x200 yields 512 a
+// side in Quality, 128 otherwise, and that upscaled glow is what pixelates around lights.
+// Raising the add's immediate raises the Quality size (0x400 = 1024); the non-Quality result
+// becomes 128 plus the same delta, which no card running this fix uses. A fifth creator
+// (0x618E80) builds a half-size companion the same way (sbb/and edx,-0x80/add edx,0x100 =
+// 256 in Quality), kept at half the chosen size so the game's proportions hold. Nothing is
+// written unless all five adds still carry the shipped instructions.
+void SharpenNativeBloom(const char* exeName)
+{
+	if (g_cfg.nativeBloomSize == 0 || _stricmp(exeName, "hp6.exe") != 0)
+		return;
+	BYTE* const addAt[4] = { reinterpret_cast<BYTE*>(0x005EA10A), reinterpret_cast<BYTE*>(0x00609919),
+		reinterpret_cast<BYTE*>(0x006155D9), reinterpret_cast<BYTE*>(0x00617EC9) };
+	static const BYTE shipped[6] = { 0x81, 0xC6, 0x00, 0x02, 0x00, 0x00 };  // add esi, 0x200
+	for (int i = 0; i < 4; ++i)
+	{
+		if (memcmp(addAt[i], shipped, sizeof(shipped)) != 0)
+		{
+			Log("Game: native bloom NOT sized: unexpected code (other hp6.exe build?)\n");
+			return;
+		}
+	}
+	BYTE* const halfAt = reinterpret_cast<BYTE*>(0x00618F0A);
+	static const BYTE halfShipped[6] = { 0x81, 0xC2, 0x00, 0x01, 0x00, 0x00 };  // add edx, 0x100
+	if (memcmp(halfAt, halfShipped, sizeof(halfShipped)) != 0)
+	{
+		Log("Game: native bloom NOT sized: unexpected code (other hp6.exe build?)\n");
+		return;
+	}
+	const LONG size = g_cfg.nativeBloomSize;
+	const LONG half = size / 2;
+	bool ok = true;
+	for (int i = 0; i < 4; ++i)
+		ok = WriteMemory(addAt[i] + 2, &size, sizeof(size)) && ok;
+	ok = WriteMemory(halfAt + 2, &half, sizeof(half)) && ok;
+	Log("Game: native bloom %ld pixels a side, companion %ld (512 and 256 as shipped in Quality) %s\n",
+		size, half, ok ? "set" : "NOT set");
+}
+
+// HP6 has a real depth of field (the DOFHQ surface of 0x607AC0, driven by the FocusDistance and
+// FocusRange the level cameras carry) but renders it into 256 by 256 targets, pushed as two
+// immediates: the blur is honest, the pixels are not. Nothing is written unless both pushes
+// still carry the shipped 256.
+void SharpenNativeDof(const char* exeName)
+{
+	if (g_cfg.nativeDofSize == 0 || _stricmp(exeName, "hp6.exe") != 0)
+		return;
+	BYTE* const pushAt[2] = { reinterpret_cast<BYTE*>(0x00607AE7), reinterpret_cast<BYTE*>(0x00607AEC) };
+	static const BYTE shipped[5] = { 0x68, 0x00, 0x01, 0x00, 0x00 };  // push 0x100
+	for (int i = 0; i < 2; ++i)
+	{
+		if (memcmp(pushAt[i], shipped, sizeof(shipped)) != 0)
+		{
+			Log("Game: native depth of field NOT sized: unexpected code (other hp6.exe build?)\n");
+			return;
+		}
+	}
+	const LONG size = g_cfg.nativeDofSize;
+	bool ok = true;
+	for (int i = 0; i < 2; ++i)
+		ok = WriteMemory(pushAt[i] + 1, &size, sizeof(size)) && ok;
+	Log("Game: native depth of field %ld pixels a side (256 as shipped) %s\n", size, ok ? "set" : "NOT set");
+}
+
 // Counted for the log (ReportHaze): whether the haze is drawn at all, and how wide it asked.
 LONG g_hazeCalls = 0;
 LONG g_hazeWidest = 0;
@@ -884,6 +1008,10 @@ void ApplyGamePatches()
 	DefaultTextureDetail(p->exe);
 	SizeShadowTextures(p->exe);
 	CullParticlesFarther(p->exe);
+	BoostCameraLod(p->exe);
+	ExtendFarPlane(p->exe);
+	SharpenNativeBloom(p->exe);
+	SharpenNativeDof(p->exe);
 	DescribePlayStationPads(p->exe);
 	GuardAudioStream(p->exe);
 }

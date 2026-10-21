@@ -85,6 +85,7 @@
     <ClInclude Include="..\source\winmm\remap.h" />
     <ClInclude Include="..\source\winmm\fill.h" />
     <ClInclude Include="..\source\winmm\setup.h" />
+    <ClInclude Include="..\source\winmm\lumos.h" />
     <ClInclude Include="..\source\winmm\exports.inc" />
     <ClInclude Include="..\source\version.h" />
   </ItemGroup>

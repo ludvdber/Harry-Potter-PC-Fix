@@ -322,6 +322,82 @@ int main(int argc, char** argv)
 		EXPECT(c.particleCullDistance == 0);
 	}
 	{
+		// The camera detail factor: 0 = untouched, anything else bounded to 0.5..4.
+		const char* game = "camera detail factor";
+		const std::string path = scratch + "\\lodfactor.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nLODFactor=2.0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.lodFactor == 2.0f);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nLODFactor=9\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.lodFactor == 4.0f);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nLODFactor=0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.lodFactor == 0.0f);
+	}
+	{
+		// The far plane cap: 0 = untouched, anything else bounded to 10000..1000000.
+		const char* game = "far plane";
+		const std::string path = scratch + "\\farclip.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nMaxFarClip=100000\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.maxFarClip == 100000);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nMaxFarClip=500\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.maxFarClip == 10000);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nMaxFarClip=0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.maxFarClip == 0);
+	}
+	{
+		// The native bloom and depth-of-field sizes: fixed sets, anything else as shipped.
+		const char* game = "native bloom and DOF sizes";
+		const std::string path = scratch + "\\nativesizes.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nNativeBloomSize=1024\r\nNativeDOFSize=1024\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.nativeBloomSize == 1024);
+		EXPECT(c.nativeDofSize == 1024);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nNativeBloomSize=512\r\nNativeDOFSize=300\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.nativeBloomSize == 0);
+		EXPECT(c.nativeDofSize == 0);
+	}
+	{
 		// Supersampling takes any factor (1.5 costs about half of 2), bounded to 1..4.
 		const char* game = "supersampling";
 		const std::string path = scratch + "\\ssaa.ini";

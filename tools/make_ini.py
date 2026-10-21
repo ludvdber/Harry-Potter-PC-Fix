@@ -102,7 +102,8 @@ JEUX = {
 }
 
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
-                    SSAAFactor=1, ShadowMapScale=1, ShadowTextureSize=0, ParticleCullDistance=0, VSync=0, ColorGrading=0, Vibrance="0.25",
+                    SSAAFactor=1, ShadowMapScale=1, ShadowTextureSize=0, ParticleCullDistance=0,
+                    LODFactor=0, MaxFarClip=0, NativeBloomSize=0, NativeDOFSize=0, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
                     Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", GreenRestraint="0.00", ContrastPivot="0.50", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
@@ -449,6 +450,18 @@ def ini(jeu, graphismes=None):
     a("; as shipped; try 120). Torches, fires and fountains stay visible farther away.")
     a("; 0 = as shipped.")
     a(f"ParticleCullDistance={g['ParticleCullDistance']}")
+    a("; HP6 only: the camera's level-of-detail factor (1.40 as shipped in Quality; try 2.0).")
+    a("; Models should keep their detailed version farther away. 0.5 to 4; 0 = as shipped.")
+    a(f"LODFactor={g['LODFactor']}")
+    a("; HP5 only: the far plane (10000 as shipped there, where HP6 ships with 100000; try 100000).")
+    a("; Less of the world cut off in the distance. 10000 to 1000000; 0 = as shipped.")
+    a(f"MaxFarClip={g['MaxFarClip']}")
+    a("; HP6 only: the size of the game's own bloom targets (512 as shipped in Quality; 1024 or")
+    a("; 2048). A finer glow around lights. 0 = as shipped.")
+    a(f"NativeBloomSize={g['NativeBloomSize']}")
+    a("; HP6 only: the size of the game's own depth-of-field targets (256 as shipped; 512, 1024")
+    a("; or 2048). A cleaner background blur in cut-scenes. 0 = as shipped.")
+    a(f"NativeDOFSize={g['NativeDOFSize']}")
     a("")
     a(f"VSync={g['VSync']}")
     a("")
@@ -514,9 +527,9 @@ def ini(jeu, graphismes=None):
 # WineLauncherFix: HP2's launcher is black under Wine; HP1 has the same pair of calls, left as is.
 UE1 = {
     "HP1": dict(titre="Harry Potter and the Philosopher's Stone", ini_jeu="HP.ini", pads=True, map=False,
-                alt_enter=False, setup=True, wine=False),
+                alt_enter=False, setup=True, wine=False, lumos=False),
     "HP2": dict(titre="Harry Potter and the Chamber of Secrets", ini_jeu="Game.ini", pads=True, map=False,
-                alt_enter=True, setup=False, wine=True),
+                alt_enter=True, setup=False, wine=True, lumos=True),
 }
 
 
@@ -591,6 +604,23 @@ def winmm_ini(jeu):
     a(f"ShareKey={9 if c['pads'] and c['map'] else 0}")
     a(f"OptionsKey={27 if c['pads'] else 0}")
     a("")
+    if c["lumos"]:
+        a("")
+        a("; ----------------------------------------------------------------------------")
+        a(";  Lumos")
+        a("; ----------------------------------------------------------------------------")
+        a("[Accio.Lumos]")
+        a("")
+        a("; With Lumos, the walls near the wand should fade out and show what they hide.")
+        a("; They stayed solid: the game's Render.dll reads the wand's switch and radius")
+        a("; one slot short, and its renderer ignores the fade the engine computes. 1 =")
+        a("; both corrected in memory when the game starts (nothing on disk). 0 = as")
+        a("; shipped.")
+        a("LumosFade=1")
+        a("")
+        a("; Writes every Lumos surface to winmm_accio.log (large). For a report.")
+        a("LumosLog=0")
+        a("")
     return "\r\n".join(L)
 
 
