@@ -124,6 +124,7 @@
     <ClInclude Include="..\source\mipmaps.h" />
     <ClInclude Include="..\source\render_state.h" />
     <ClInclude Include="..\source\shaderswap.h" />
+    <ClInclude Include="..\source\shot.h" />
     <ClInclude Include="..\source\version.h" />
   </ItemGroup>
   <ItemGroup>

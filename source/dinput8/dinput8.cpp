@@ -26,11 +26,17 @@
 #include <windows.h>
 #include <initguid.h>   // IID_IDirectInput8W defined here, not taken from a library
 #include "pad.h"
+#include "screen.h"
 #include "../version.h"
 #include <cstdarg>
 #include <cstdio>
 #include <cwchar>
 #include <share.h>
+
+// For screen.cpp and redirect.h (defined at the end of this file).
+void AccioLog(const char* fmt, ...);
+HMODULE AccioSelf();
+bool AccioGameInFront();
 
 namespace
 {
@@ -100,19 +106,26 @@ struct Key
 };
 Key g_keys[2];
 
-void Log(const char* fmt, ...)
+void LogV(const char* fmt, va_list args)
 {
 	if (!g_log)
 		return;
 	EnterCriticalSection(&g_logLock);
 	fprintf(g_log, "[%llu] ", GetTickCount64());
-	va_list args;
-	va_start(args, fmt);
 	vfprintf(g_log, fmt, args);
-	va_end(args);
 	fflush(g_log);
 	LeaveCriticalSection(&g_logLock);
 }
+
+void Log(const char* fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	LogV(fmt, args);
+	va_end(args);
+}
+
+screen::Settings g_screen;
 
 // A file next to this DLL.
 void Beside(const wchar_t* name, wchar_t* out)
@@ -416,6 +429,14 @@ extern "C" HRESULT WINAPI Accio_DirectInput8Create(HINSTANCE instance, DWORD ver
 	const HRESULT hr = real ? real(instance, version, iid, out, outer) : DIERR_NOTINITIALIZED;
 	if (FAILED(hr) || !out || !*out)
 		return hr;
+	// The frames (screen.cpp): from here, on the game's thread, outside the loader's lock, and
+	// before the game opens its viewport and loads D3DDrv.dll.
+	static bool screenTried = false;
+	if (!screenTried && screen::Wanted(g_screen))
+	{
+		screenTried = true;
+		screen::Install(g_screen);
+	}
 	if (iid != IID_IDirectInput8W)
 	{
 		Log("DirectInput8Create: not the wide interface, left as it is\n");
@@ -445,8 +466,26 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 	Log("Accio Launcher PC fix " ACCIO_VERSION_STR " (dinput8.dll), %ls\n", path);
 	Log("Settings: XboxLayout=%d DeadZone=%d ShareKey=%u OptionsKey=%u\n", g_cfg.xboxLayout, g_cfg.deadZone,
 		g_cfg.shareKey, g_cfg.optionsKey);
+	Beside(L"dinput8.ini", path);
+	screen::LoadSettings(path, g_screen);
+	Log("Overlay: ShowFPS=%d ShowFrameTime=%d ShowGraph=%d OverlayKey=%d BenchmarkKey=%d Position=%d Size=%d; "
+		"screenshots: key=%d folder=%s\n", g_screen.showFps, g_screen.showFrameTime, g_screen.showGraph,
+		g_screen.overlayKey, g_screen.benchmarkKey, g_screen.position, g_screen.size, g_screen.screenshotKey,
+		g_screen.screenshotFolder[0] ? "set" : "next to the game");
 
 	// Every Windows has one. Without it the game would have no input at all: refuse to load, and
 	// Windows says dinput8.dll is broken, which is the truth.
 	return LoadSystemDinput8() ? TRUE : FALSE;
 }
+
+void AccioLog(const char* fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	LogV(fmt, args);
+	va_end(args);
+}
+
+HMODULE AccioSelf() { return g_self; }
+
+bool AccioGameInFront() { return GameInFront(); }

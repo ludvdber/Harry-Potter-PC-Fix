@@ -41,11 +41,20 @@
       <WarningLevel>Level4</WarningLevel>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir)shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <Optimization>Disabled</Optimization>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
+    <FxCompile>
+      <ShaderModel>4.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <HeaderFileOutput>$(IntDir)shaders\%(Filename).h</HeaderFileOutput>
+      <VariableName>g_%(Filename)</VariableName>
+      <ObjectFileOutput />
+      <TreatWarningAsError>true</TreatWarningAsError>
+    </FxCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -59,6 +68,7 @@
       <WarningLevel>Level4</WarningLevel>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir)shaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -67,6 +77,14 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
+    <FxCompile>
+      <ShaderModel>4.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <HeaderFileOutput>$(IntDir)shaders\%(Filename).h</HeaderFileOutput>
+      <VariableName>g_%(Filename)</VariableName>
+      <ObjectFileOutput />
+      <TreatWarningAsError>true</TreatWarningAsError>
+    </FxCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -80,12 +98,27 @@
   <ItemGroup>
     <ClCompile Include="..\source\winmm\winmm.cpp" />
     <ClCompile Include="..\source\winmm\remap.cpp" />
+    <ClCompile Include="..\source\winmm\overlay11.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\source\shaders\overlay11_vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="..\source\shaders\overlay11_flat.hlsl">
+      <ShaderType>Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="..\source\shaders\overlay11_text.hlsl">
+      <ShaderType>Pixel</ShaderType>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\source\winmm\remap.h" />
     <ClInclude Include="..\source\winmm\fill.h" />
     <ClInclude Include="..\source\winmm\setup.h" />
     <ClInclude Include="..\source\winmm\lumos.h" />
+    <ClInclude Include="..\source\winmm\frame.h" />
+    <ClInclude Include="..\source\winmm\overlay11.h" />
+    <ClInclude Include="..\source\shot.h" />
     <ClInclude Include="..\source\winmm\exports.inc" />
     <ClInclude Include="..\source\version.h" />
   </ItemGroup>

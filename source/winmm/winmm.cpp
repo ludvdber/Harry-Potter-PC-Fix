@@ -4,8 +4,11 @@
 // winmm.dll for HP2 (Chamber of Secrets) and HP1 (Philosopher's Stone), next to the game's exe in
 // its system folder. Both are Unreal Engine 1 games with no Direct3D 9 of their own (their
 // renderer is Direct3D 11), so d3d9.dll cannot reach them; winmm.dll is the one Windows file their
-// Core.dll and WinDrv.dll load, and it holds the pad. Seven jobs, each one switched in winmm.ini
+// Core.dll and WinDrv.dll load, and it holds the pad. Eight jobs, each one switched in winmm.ini
 // (HP1's turns the pad keys and Alt+Enter off: no pad bindings there, Alt+Enter SEEN fine):
+//   - The frame, as d3d9.dll has it for the other games: the performance panel and benchmark
+//     ([Accio.Overlay]), the screenshot key and the frame-rate limit ([Accio.Window]), on the
+//     renderer's Unlock, the call that ends every frame (frame.h, overlay11.cpp).
 //   - HP2 only: Lumos. The walls near the lit wand fade out and show what they hide, as the game
 //     meant: Render.dll's four reads of the wand's switch and radius are moved to where the actor
 //     holds them, and the renderer's DrawComplexSurface goes through a relay that binds the fade
@@ -33,6 +36,7 @@
 #include "fill.h"
 #include "launcher.h"
 #include "lumos.h"
+#include "overlay11.h"
 #include "remap.h"
 #include "setup.h"
 #include "../version.h"
@@ -83,7 +87,9 @@ struct Pad
 	HWND held[2];        // where Share's and Options' key went down, until it goes up
 };
 Pad g_pads[kPads];
+}
 
+// Declared in overlay11.h for the frame module; the file and its lock are this file's.
 void Log(const char* fmt, ...)
 {
 	if (!g_log)
@@ -97,6 +103,9 @@ void Log(const char* fmt, ...)
 	fflush(g_log);
 	LeaveCriticalSection(&g_logLock);
 }
+
+namespace
+{
 
 // A file next to this DLL.
 void Beside(const wchar_t* name, wchar_t* out)
@@ -122,6 +131,7 @@ void LoadSettings(const wchar_t* ini)
 	g_cfg.xboxLayout = flag(L"Accio.Controller", L"XboxLayout", g_cfg.xboxLayout);
 	g_cfg.shareKey = GetPrivateProfileIntW(L"Accio.Controller", L"ShareKey", g_cfg.shareKey, ini) & 0xFF;
 	g_cfg.optionsKey = GetPrivateProfileIntW(L"Accio.Controller", L"OptionsKey", g_cfg.optionsKey, ini) & 0xFF;
+	overlay11::Load(ini);
 }
 
 bool LoadSystemWinmm()
@@ -481,16 +491,26 @@ void FixRenderLumos()
 }
 
 // Once the renderer is loaded (the engine loads it when it opens its window): its virtual table's
-// DrawComplexSurface slot is pointed at the relay. Another build of the DLL: left as it is.
-void HookLumos()
+// Unlock slot goes to the frame (overlay11.cpp, both builds), and in HP2 its DrawComplexSurface
+// slot to the Lumos relay. Another build of the DLL: left as it is.
+void HookRenderer()
 {
 	HMODULE renderer = GetModuleHandleW(L"d3d11drv.dll");
 	if (!renderer)
 		return;
 	g_lumosTried = true;
+	auto* image = reinterpret_cast<uint8_t*>(renderer);
+	if (overlay11::Wanted())
+	{
+		if (const frame::Build* build = frame::Recognised(image))
+			overlay11::Hook(image, *build);
+		else
+			Log("Overlay: this d3d11drv.dll is not a build read (1.6.2 of 2020-12-29), left as it is\n");
+	}
+	if (!g_cfg.lumosFade && !g_cfg.lumosLog)
+		return;
 	if (g_cfg.lumosFade)
 		FixRenderLumos();
-	auto* image = reinterpret_cast<uint8_t*>(renderer);
 	if (!lumos::Recognised(image))
 	{
 		Log("Lumos: this d3d11drv.dll is not the build read (1.6.2 of 2020-12-29), left as it is\n");
@@ -511,11 +531,18 @@ void HookLumos()
 		image, g_cfg.lumosFade, g_cfg.lumosLog);
 }
 
-// Sees the game's thread take its messages: the renderer is looked for until it is there.
-LRESULT CALLBACK OnMessageLumos(int code, WPARAM removal, LPARAM lParam)
+// Sees the game's thread take its messages: the renderer is looked for until it is there, and
+// a key going down (not held) starts the latency clock of the panel.
+LRESULT CALLBACK OnMessageRenderer(int code, WPARAM removal, LPARAM lParam)
 {
-	if (code == HC_ACTION && !g_lumosTried)
-		HookLumos();
+	if (code == HC_ACTION)
+	{
+		if (!g_lumosTried)
+			HookRenderer();
+		const MSG* msg = reinterpret_cast<const MSG*>(lParam);
+		if (removal == PM_REMOVE && (msg->message == WM_KEYDOWN || msg->message == WM_SYSKEYDOWN) && !(msg->lParam & (1 << 30)))
+			overlay11::NoteKeyPressed();
+	}
 	return CallNextHookEx(nullptr, code, removal, lParam);
 }
 
@@ -673,9 +700,10 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 	GetModuleFileNameW(nullptr, path, MAX_PATH);
 	Log("Accio Launcher PC fix " ACCIO_VERSION_STR " (winmm.dll), %ls\n", path);
 	Log("Settings: XboxLayout=%d ShareKey=%u OptionsKey=%u BlockAltEnter=%d FillScreen=%d SkipSetup=%d"
-		" WineLauncherFix=%d LumosFade=%d LumosLog=%d\n",
+		" WineLauncherFix=%d LumosFade=%d LumosLog=%d FPSLimit=%d ScreenshotKey=%u OverlayKey=%u BenchmarkKey=%u\n",
 		g_cfg.xboxLayout, g_cfg.shareKey, g_cfg.optionsKey, g_cfg.blockAltEnter, g_cfg.fillScreen,
-		g_cfg.skipSetup, g_cfg.wineLauncherFix, g_cfg.lumosFade, g_cfg.lumosLog);
+		g_cfg.skipSetup, g_cfg.wineLauncherFix, g_cfg.lumosFade, g_cfg.lumosLog, overlay11::g_cfg.fpsLimit,
+		overlay11::g_cfg.screenshotKey, overlay11::g_cfg.overlayKey, overlay11::g_cfg.benchmarkKey);
 
 	// Every Windows has one. Without it the stubs would have nowhere to go: refuse to load, and
 	// Windows says winmm.dll is broken, which is the truth.
@@ -702,12 +730,13 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 		else
 			Log("Fill the screen: hook refused (error %lu)\n", GetLastError());
 	}
-	if (g_cfg.lumosFade || g_cfg.lumosLog)
+	if (g_cfg.lumosFade || g_cfg.lumosLog || overlay11::Wanted())
 	{
-		if (SetWindowsHookExW(WH_GETMESSAGE, OnMessageLumos, nullptr, GetCurrentThreadId()))
-			Log("Lumos: waiting for d3d11drv.dll\n");
+		if (SetWindowsHookExW(WH_GETMESSAGE, OnMessageRenderer, nullptr, GetCurrentThreadId()))
+			Log("Renderer: waiting for d3d11drv.dll (Lumos %d, frame %d)\n", g_cfg.lumosFade || g_cfg.lumosLog,
+				overlay11::Wanted());
 		else
-			Log("Lumos: hook refused (error %lu)\n", GetLastError());
+			Log("Renderer: hook refused (error %lu)\n", GetLastError());
 	}
 	return TRUE;
 }
