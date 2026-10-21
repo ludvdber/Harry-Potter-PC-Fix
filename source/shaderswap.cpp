@@ -5,6 +5,7 @@
 // room or ends without an end token is not touched at all.
 
 #include "shaderswap.h"
+#include <cstring>
 #include <cwchar>
 
 size_t ShaderBytecodeBytes(const DWORD* code, size_t maxBytes)
@@ -105,4 +106,129 @@ bool DumpShaderFile(const wchar_t* folder, bool pixel, unsigned long long finger
 	if (!ok)
 		DeleteFileW(path); // a half-written file must not pass for a shader
 	return ok;
+}
+
+// ---- Soft shadows -------------------------------------------------------------------------
+namespace
+{
+// Register type of an operand token: bits 28..30 are the low three bits, bits 11..12 the high two.
+DWORD RegisterType(DWORD token)
+{
+	return ((token >> 28) & 7) | (((token >> 11) & 3) << 3);
+}
+
+// The constant table of a D3DX-compiled shader (the comment that opens with 'CTAB'): true when
+// its sampler 4 is named LightTextureMap. `ctab` points right after the fourcc.
+bool LightMapAtSampler4(const DWORD* ctab, size_t tokens)
+{
+	const unsigned char* base = reinterpret_cast<const unsigned char*>(ctab);
+	const size_t bytes = tokens * 4;
+	if (bytes < 28 || ctab[0] != 28)
+		return false;
+	const DWORD count = ctab[3], info = ctab[4];
+	for (DWORD i = 0; i < count; i++)
+	{
+		const size_t at = static_cast<size_t>(info) + 20 * i;
+		if (at + 20 > bytes)
+			return false;
+		DWORD name = 0;
+		WORD set = 0, index = 0;
+		memcpy(&name, base + at, 4);
+		memcpy(&set, base + at + 4, 2);
+		memcpy(&index, base + at + 6, 2);
+		if (set == 3 && index == 4) // D3DXRS_SAMPLER, s4
+		{
+			static const char wanted[] = "LightTextureMap";
+			return name + sizeof(wanted) <= bytes && memcmp(base + name, wanted, sizeof(wanted)) == 0;
+		}
+	}
+	return false;
+}
+}
+
+bool SoftenShadowSampling(const DWORD* code, size_t bytes, std::vector<DWORD>& out)
+{
+	out.clear();
+	const size_t n = bytes / 4;
+	if (!code || n < 2 || code[0] != 0xFFFF0300) // ps_3_0 only
+		return false;
+	bool lightMap = false;
+	size_t texld = 0, lastHeader = 0, found = 0, i = 1;
+	DWORD maxTemp = 0;
+	for (; i < n; )
+	{
+		const DWORD t = code[i];
+		if (t == 0x0000FFFF)
+			break;
+		if ((t & 0xFFFF) == 0xFFFE) // comment
+		{
+			const size_t len = (t >> 16) & 0x7FFF;
+			if (i + 1 + len > n)
+				return false;
+			if (len >= 8 && code[i + 1] == 0x42415443) // 'CTAB'
+				lightMap = LightMapAtSampler4(code + i + 2, len - 1);
+			i += 1 + len;
+			continue;
+		}
+		const DWORD op = t & 0xFFFF;
+		const size_t len = (t >> 24) & 0xF;
+		if (i + 1 + len > n)
+			return false;
+		if (op == 0x1F || op == 0x51) // dcl, def: no register operands to weigh, floats after def
+			lastHeader = i + 1 + len;
+		else
+		{
+			for (size_t k = 1; k <= len; k++)
+			{
+				const DWORD o = code[i + k];
+				const DWORD type = RegisterType(o), number = o & 0x7FF;
+				if (type == 0 && number > maxTemp)
+					maxTemp = number;
+				if (type == 2 && number == 220)
+					return false; // c220 is taken
+				if (k > 1 && (o & 0x2000)) // relative addressing: one more token follows
+					k++;
+			}
+			if (op == 0x42 && len == 3 && RegisterType(code[i + 3]) == 10 && (code[i + 3] & 0x7FF) == 4) // texld ..., s4
+			{
+				if (RegisterType(code[i + 1]) != 0 || RegisterType(code[i + 2]) != 1)
+					return false; // not the pattern: the map read into or from something else
+				texld = i;
+				found++;
+			}
+		}
+		i += 1 + len;
+	}
+	if (i >= n || !lightMap || found != 1 || maxTemp + 2 > 31 || !lastHeader || lastHeader > texld)
+		return false;
+	const DWORD a = maxTemp + 1, b = maxTemp + 2; // two free temporaries
+	const DWORD x = code[texld + 1] & 0x7FF, src = code[texld + 2], sampler = code[texld + 3];
+	out.reserve(n + 54);
+	out.insert(out.end(), code, code + lastHeader);
+	// def c220, d, -d, 0.25, 0 (d = 0.75 / 128, as the files seen in game carry it)
+	const float d = 0.005859f, minus = -d, quarter = 0.25f;
+	DWORD dBits = 0, minusBits = 0, quarterBits = 0;
+	memcpy(&dBits, &d, 4);
+	memcpy(&minusBits, &minus, 4);
+	memcpy(&quarterBits, &quarter, 4);
+	const DWORD def[6] = { 0x05000051, 0xA00F00DC, dBits, minusBits, quarterBits, 0 };
+	out.insert(out.end(), def, def + 6);
+	out.insert(out.end(), code + lastHeader, code + texld);
+	// add rB.xy, vN, c220.xx ; texld_pp rX, rB, s4 ; then three more taps into rA, each added to rX.
+	static const DWORD swizzle[4] = { 0x00, 0x54, 0x01, 0x55 }; // xx, xy, yx, yy
+	for (int k = 0; k < 4; k++)
+	{
+		const DWORD tap[8] = { 0x03000002, 0x80030000 | b, src, 0xA00000DC | (swizzle[k] << 16),
+			0x03000042, 0x802F0000 | (k ? a : x), 0x80E40000 | b, sampler };
+		out.insert(out.end(), tap, tap + 8);
+		if (k)
+		{
+			const DWORD sum[4] = { 0x03000002, 0x802F0000 | x, 0x80E40000 | x, 0x80E40000 | a };
+			out.insert(out.end(), sum, sum + 4);
+		}
+	}
+	const DWORD mean[4] = { 0x03000005, 0x802F0000 | x, 0x80E40000 | x, 0xA0AA00DC }; // mul_pp rX, rX, c220.z
+	out.insert(out.end(), mean, mean + 4);
+	out.insert(out.end(), code + texld + 4, code + i + 1); // the rest, end token included
+	return true;
 }

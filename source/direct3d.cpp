@@ -742,6 +742,16 @@ const DWORD* SwapShader(bool pixel, const DWORD* code, std::vector<DWORD>& repla
 				print, static_cast<unsigned long>(replacement.size() * 4));
 		return replacement.data();
 	}
+	// No file for it: the soft-shadow rewrite, when asked and when the shader is one that samples
+	// the light map (shaderswap.h). A file in shaders\ keeps the last word.
+	if (pixel && g_cfg.softShadows && SoftenShadowSampling(code, bytes, replacement))
+	{
+		static std::set<unsigned long long> said;
+		if (said.insert(print).second)
+			Log("Shaders: ps %016llX softened (its light-map sample became four taps, %lu bytes)\n",
+				print, static_cast<unsigned long>(replacement.size() * 4));
+		return replacement.data();
+	}
 	return code;
 }
 
@@ -764,7 +774,7 @@ HRESULT STDMETHODCALLTYPE CreateVertexShader(IDirect3DDevice9* self, const DWORD
 HRESULT STDMETHODCALLTYPE CreatePixelShader(IDirect3DDevice9* self, const DWORD* code, IDirect3DPixelShader9** out)
 {
 	const auto original = g_CreatePixelShader.Original<CreatePixelShaderFn>(self);
-	if (g_internal || !code || (!g_cfg.shaderDump && !g_cfg.shaderReplace))
+	if (g_internal || !code || (!g_cfg.shaderDump && !g_cfg.shaderReplace && !g_cfg.softShadows))
 		return original(self, code, out);
 	std::vector<DWORD> replacement;
 	const DWORD* use = SwapShader(true, code, replacement);

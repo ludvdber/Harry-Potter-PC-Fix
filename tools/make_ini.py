@@ -105,8 +105,8 @@ JEUX = {
 }
 
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
-                    SSAAFactor=1, ShadowMapScale=1, ShadowTextureSize=0, ParticleCullDistance=0,
-                    CullDistance=0, LODFactor=0, HybridLodFactor=0, MaxFarClip=0, NativeBloomSize=0, NativeDOFSize=0, VSync=0, ColorGrading=0, Vibrance="0.25",
+                    SSAAFactor=1, ShadowMapScale=1, ShadowTextureSize=0, SoftShadows=0, ParticleCullDistance=0,
+                    CullDistance=0, LODFactor=0, ParticleTypeDistanceFactor=0, MaxFarClip=0, NativeBloomSize=0, NativeDOFSize=0, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
                     Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", GreenRestraint="0.00", ContrastPivot="0.50", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
@@ -449,6 +449,11 @@ def ini(jeu, graphismes=None):
     a("; Sharpens every shadow, nothing else changes. Powers of two only, 128 to 2048;")
     a("; any other value is left as shipped. 0 = as shipped.")
     a(f"ShadowTextureSize={g['ShadowTextureSize']}")
+    a("; HP5 and HP6 only: soft shadow edges. Every pixel shader that receives the engine's shadow")
+    a("; map samples it once; 1 rewrites that sample, as the shader is created, into the mean of")
+    a("; four taps 0.75 texel apart (seen in game 2026-10-21 from files in shaders\; no file needed")
+    a("; now). A file of the same fingerprint in shaders\ still wins. 0 = as shipped.")
+    a(f"SoftShadows={g['SoftShadows']}")
     a("; HP4 and HP6: the radius in game units inside which particle effects are drawn (about 59")
     a("; as shipped on HP6, 20 on HP4; try 120 and 60). Torches, fires and fountains stay visible")
     a("; farther away. 0 = as shipped.")
@@ -463,7 +468,8 @@ def ini(jeu, graphismes=None):
     a("; HP5 and HP6: the eight per-type particle distances of the game's HybridLionControl (LOD0..7,")
     a("; 100 down to 30 as shipped), used for effects without a position or when ParticleCullDistance")
     a("; is 0, all scaled by this factor (try 2.0). Not the mesh pop-in. 0.5 to 4; 0 = as shipped.")
-    a(f"HybridLodFactor={g['HybridLodFactor']}")
+    a("; (Named HybridLodFactor until 2026-10-21: that name is still read when this one is absent.)")
+    a(f"ParticleTypeDistanceFactor={g['ParticleTypeDistanceFactor']}")
     a("; HP4 and HP5: the far plane cap (100 as shipped on HP4, 10000 on HP5, where HP6 ships with")
     a("; 100000; try 1000 on HP4, 100000 on HP5). Less of the world cut off in the distance, where a")
     a("; level asks for more. 100 to 1000000; 0 = as shipped.")

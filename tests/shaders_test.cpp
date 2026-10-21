@@ -69,6 +69,51 @@ int main(int argc, char** argv)
 	EXPECT(DumpShaderFile(scratch.c_str(), true, cutPrint, cut, sizeof(cut)));
 	EXPECT(!LoadShaderReplacement(scratch.c_str(), true, cutPrint, back));
 
+	// The soft-shadow rewrite. A ps_3_0 with a constant table naming LightTextureMap at s4
+	// (header of 7 DWORDs, one constant of 5, the name), dcl_texcoord v1.xy, dcl_2d s4,
+	// texld_pp r0, v1, s4, mov oC0, r0, end.
+	const DWORD ctab[] = { 0x42415443, 0x0000001C, 0, 0xFFFF0300, 1, 0x0000001C, 0, 0, // 'CTAB', header
+	                       0x00000030, 0x00040003, 0x00000001, 0, 0,                      // name at 0x30, sampler 4, count 1
+	                       0x6867694C, 0x78655474, 0x65727574, 0x0070614D };             // "LightTextureMap\0"
+	std::vector<DWORD> soft = { 0xFFFF0300, 0x0011FFFE };
+	soft.insert(soft.end(), ctab, ctab + 17);
+	const DWORD body[] = { 0x0200001F, 0x80000005, 0x90030001, 0x0200001F, 0x90000000, 0xA00F0804,
+	                       0x03000042, 0x802F0000, 0x90E40001, 0xA0E40804, 0x02000001, 0x800F0800, 0x80E40000, 0x0000FFFF };
+	soft.insert(soft.end(), body, body + 14);
+	std::vector<DWORD> soften;
+	EXPECT(SoftenShadowSampling(soft.data(), soft.size() * 4, soften));
+	// Expected: the same up to the last dcl, def c220, then four taps (r2 the coordinate, r1 the
+	// extra tap, added into r0), the mean, the rest.
+	const DWORD taps[] = { 0x05000051, 0xA00F00DC, 0x3BBFFCDB, 0xBBBFFCDB, 0x3E800000, 0,
+	                       0x03000002, 0x80030002, 0x90E40001, 0xA00000DC, 0x03000042, 0x802F0000, 0x80E40002, 0xA0E40804,
+	                       0x03000002, 0x80030002, 0x90E40001, 0xA05400DC, 0x03000042, 0x802F0001, 0x80E40002, 0xA0E40804,
+	                       0x03000002, 0x802F0000, 0x80E40000, 0x80E40001,
+	                       0x03000002, 0x80030002, 0x90E40001, 0xA00100DC, 0x03000042, 0x802F0001, 0x80E40002, 0xA0E40804,
+	                       0x03000002, 0x802F0000, 0x80E40000, 0x80E40001,
+	                       0x03000002, 0x80030002, 0x90E40001, 0xA05500DC, 0x03000042, 0x802F0001, 0x80E40002, 0xA0E40804,
+	                       0x03000002, 0x802F0000, 0x80E40000, 0x80E40001,
+	                       0x03000005, 0x802F0000, 0x80E40000, 0xA0AA00DC,
+	                       0x02000001, 0x800F0800, 0x80E40000, 0x0000FFFF };
+	std::vector<DWORD> expected(soft.begin(), soft.begin() + 2 + 17 + 6);
+	expected.insert(expected.end(), taps, taps + sizeof(taps) / 4);
+	EXPECT(soften == expected);
+	EXPECT(ShaderBytecodeBytes(soften.data(), soften.size() * 4) == soften.size() * 4);
+	// Refused: another sampler name, a second sample of s4, c220 in use, not shader model 3.
+	std::vector<DWORD> other = soft;
+	other[2 + 13] = 0x6867694D; // "Might..."
+	EXPECT(!SoftenShadowSampling(other.data(), other.size() * 4, soften) && soften.empty());
+	std::vector<DWORD> twice = soft;
+	twice.insert(twice.end() - 4, body + 6, body + 10);
+	EXPECT(!SoftenShadowSampling(twice.data(), twice.size() * 4, soften));
+	std::vector<DWORD> taken = soft;
+	const DWORD movC220[] = { 0x02000001, 0x800F0001, 0xA0E400DC };
+	taken.insert(taken.end() - 4, movC220, movC220 + 3);
+	EXPECT(!SoftenShadowSampling(taken.data(), taken.size() * 4, soften));
+	std::vector<DWORD> ps2 = soft;
+	ps2[0] = 0xFFFF0200;
+	EXPECT(!SoftenShadowSampling(ps2.data(), ps2.size() * 4, soften));
+	EXPECT(!SoftenShadowSampling(nullptr, 64, soften));
+
 	printf("%d failure(s)\n", failures);
 	return failures ? 1 : 0;
 }

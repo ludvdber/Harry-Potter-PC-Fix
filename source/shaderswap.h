@@ -34,3 +34,14 @@ bool LoadShaderReplacement(const wchar_t* folder, bool pixel, unsigned long long
 // already there (the same shader is created again on every Reset) or cannot be written.
 bool DumpShaderFile(const wchar_t* folder, bool pixel, unsigned long long fingerprint,
 	const void* data, size_t bytes);
+
+// Soft shadows (SoftShadows=1, HP5 and HP6). Both games draw their shadows as a coloured light
+// map projected by the vertex shader, and every pixel shader that receives it samples it ONCE
+// (`texld_pp rX, vN, s4`, the sampler the constant table names LightTextureMap): hard-edged
+// shadows whatever the map's size. This rewrites that one sample into the mean of four taps
+// offset by 0.75 texel of the 128-wide map (a constant c220 of ours, two free temporaries), the
+// same rewrite seen in game on 2026-10-21 from files in shaders\. Only a shader-model-3 pixel
+// shader whose constant table names LightTextureMap at sampler 4, with exactly one such sample
+// read from an input register, c220 unused and two temporaries to spare is rewritten; `out`
+// then holds the new stream and true comes back. Anything else: false, `out` empty.
+bool SoftenShadowSampling(const DWORD* code, size_t bytes, std::vector<DWORD>& out);

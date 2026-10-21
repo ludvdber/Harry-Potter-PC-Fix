@@ -661,9 +661,9 @@ void BoostCameraLod(const char* exeName)
 // fields is filled after this initialiser and still wins. Nothing is written unless all eight
 // operands still point at the shipped constants.
 static float s_hybridLod[8];
-void BoostHybridLod(const char* exeName)
+void ScaleParticleTypeDistances(const char* exeName)
 {
-	if (g_cfg.hybridLodFactor == 0.0f)
+	if (g_cfg.particleTypeDistanceFactor == 0.0f)
 		return;
 	const bool hp6 = _stricmp(exeName, "hp6.exe") == 0;
 	if (!hp6 && _stricmp(exeName, "hp.exe") != 0)
@@ -690,12 +690,12 @@ void BoostHybridLod(const char* exeName)
 	bool ok = true;
 	for (int i = 0; i < 8; ++i)
 	{
-		s_hybridLod[i] = (100.0f - 10.0f * i) * g_cfg.hybridLodFactor;
+		s_hybridLod[i] = (100.0f - 10.0f * i) * g_cfg.particleTypeDistanceFactor;
 		const float* value = &s_hybridLod[i];
 		ok = WriteMemory(reinterpret_cast<BYTE*>(sites[i].at) + 4, &value, sizeof(value)) && ok;
 	}
 	Log("Game: per-type particle distances (HybridLionControl LOD0..7) x%.2f (100 down to 30 as shipped) %s\n",
-		g_cfg.hybridLodFactor, ok ? "set" : "NOT set");
+		g_cfg.particleTypeDistanceFactor, ok ? "set" : "NOT set");
 }
 
 // HP5 caps every camera's far plane with one global (0x8AF430), shipped at 10000 where HP6 ships
@@ -1170,7 +1170,7 @@ void ApplyGamePatches()
 	CullParticlesFarther(p->exe);
 	KeepSmallObjectsFarther(p->exe);
 	BoostCameraLod(p->exe);
-	BoostHybridLod(p->exe);
+	ScaleParticleTypeDistances(p->exe);
 	ExtendFarPlane(p->exe);
 	SharpenNativeBloom(p->exe);
 	SharpenNativeDof(p->exe);

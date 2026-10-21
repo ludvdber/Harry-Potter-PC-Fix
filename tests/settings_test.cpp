@@ -54,6 +54,7 @@ int main(int argc, char** argv)
 		// Engine shadow size untouched until seen in game: HP5 seen 2026-10-21 (sharper silhouette, no crash).
 		EXPECT(c.shadowTextureSize == (strcmp(game, "HP5") == 0 ? 512 : 0));
 		EXPECT(c.particleCullDistance == 0); // particle radius untouched until seen in game
+		EXPECT(!c.softShadows && c.particleTypeDistanceFactor == 0.0f); // off until seen in game from the DLL itself
 		EXPECT(c.legacyAspectIndex == 0 && c.legacyFov == 0);
 	}
 
@@ -350,31 +351,60 @@ int main(int argc, char** argv)
 		EXPECT(c.lodFactor == 0.0f);
 	}
 	{
-		// The hybrid models' detail distances: 0 = untouched, anything else bounded to 0.5..4.
-		const char* game = "hybrid detail distances";
-		const std::string path = scratch + "\\hybridlod.ini";
+		// The per-type particle distances: 0 = untouched, anything else bounded to 0.5..4; the
+		// key's old name (HybridLodFactor, generated inis before 2026-10-21) still read, the new
+		// name winning when both are there.
+		const char* game = "particle type distances";
+		const std::string path = scratch + "\\particletype.ini";
 		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nParticleTypeDistanceFactor=2.0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.particleTypeDistanceFactor == 2.0f);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nParticleTypeDistanceFactor=0.1\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.particleTypeDistanceFactor == 0.5f);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nParticleTypeDistanceFactor=0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.particleTypeDistanceFactor == 0.0f);
 		fopen_s(&f, path.c_str(), "wb");
 		if (!f)
 			return 3;
 		fputs("[Accio.Graphics]\r\nHybridLodFactor=2.0\r\n", f);
 		fclose(f);
 		Load(path);
-		EXPECT(c.hybridLodFactor == 2.0f);
+		EXPECT(c.particleTypeDistanceFactor == 2.0f);
 		fopen_s(&f, path.c_str(), "wb");
 		if (!f)
 			return 3;
-		fputs("[Accio.Graphics]\r\nHybridLodFactor=0.1\r\n", f);
+		fputs("[Accio.Graphics]\r\nHybridLodFactor=2.0\r\nParticleTypeDistanceFactor=1.5\r\n", f);
 		fclose(f);
 		Load(path);
-		EXPECT(c.hybridLodFactor == 0.5f);
+		EXPECT(c.particleTypeDistanceFactor == 1.5f);
+	}
+	{
+		// Soft shadows: a plain switch, off by default.
+		const char* game = "soft shadows";
+		const std::string path = scratch + "\\softshadows.ini";
+		FILE* f = nullptr;
 		fopen_s(&f, path.c_str(), "wb");
 		if (!f)
 			return 3;
-		fputs("[Accio.Graphics]\r\nHybridLodFactor=0\r\n", f);
+		fputs("[Accio.Graphics]\r\nSoftShadows=1\r\n", f);
 		fclose(f);
 		Load(path);
-		EXPECT(c.hybridLodFactor == 0.0f);
+		EXPECT(c.softShadows);
 	}
 	{
 		// HP4's small-object cull threshold: 0 = untouched, bounded to 0..1000 registry units.
