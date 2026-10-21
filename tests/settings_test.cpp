@@ -376,6 +376,33 @@ int main(int argc, char** argv)
 		EXPECT(c.hybridLodFactor == 0.0f);
 	}
 	{
+		// HP4's small-object cull threshold: 0 = untouched, bounded to 0..1000 registry units.
+		const char* game = "small-object cull";
+		const std::string path = scratch + "\\culldist.ini";
+		FILE* f = nullptr;
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nCullDistance=1\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.cullDistance == 1);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nCullDistance=5000\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.cullDistance == 1000);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nCullDistance=0\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.cullDistance == 0);
+	}
+	{
 		// The far plane cap: 0 = untouched, anything else bounded to 10000..1000000.
 		const char* game = "far plane";
 		const std::string path = scratch + "\\farclip.ini";

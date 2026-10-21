@@ -191,6 +191,7 @@ void LoadSettings(const char* iniPath)
 		c.shadowTextureSize = 0;
 	}
 	c.particleCullDistance = Clamp(Int(graphics, "ParticleCullDistance", 0), 0, 10000);
+	c.cullDistance = Clamp(Int(graphics, "CullDistance", 0), 0, 1000);
 	c.lodFactor = Float(graphics, "LODFactor", 0.0f);
 	if (c.lodFactor != 0.0f)
 		c.lodFactor = Clamp(c.lodFactor, 0.5f, 4.0f);
@@ -268,8 +269,8 @@ void LoadSettings(const char* iniPath)
 	Log("  image: FXAA=%d sharp=%.2f MSAA=%d transparency=%d AF=%d LOD=%.2f SSAA=%.2f (max height %d) shadows=%d (engine size %d) particles=%d vsync=%d grading=%d SSAO=%d bloom=%d rays=%d render=%dx%d\n",
 		c.fxaa, c.sharpness, c.msaa, c.transparencyAa, c.anisotropy, c.lodBias, c.ssaa, c.ssaaMaxHeight, c.shadowScale, c.shadowTextureSize, c.particleCullDistance, c.vsync, c.grading,
 		c.ssao, c.bloom, c.godRays, c.renderWidth, c.renderHeight);
-	Log("  engine: lodFactor=%.2f hybridLod=%.2f farClip=%d nativeBloom=%d nativeDOF=%d\n",
-		c.lodFactor, c.hybridLodFactor, c.maxFarClip, c.nativeBloomSize, c.nativeDofSize);
+	Log("  engine: lodFactor=%.2f hybridLod=%.2f farClip=%d nativeBloom=%d nativeDOF=%d cull=%d\n",
+		c.lodFactor, c.hybridLodFactor, c.maxFarClip, c.nativeBloomSize, c.nativeDofSize, c.cullDistance);
 	Log("  colour: contrast=%.2f pivot=%.2f vibrance=%.2f skin=%.2f yellow=%.2f green=%.2f\n", c.contrast, c.contrastPivot,
 		c.vibrance, c.skinProtect, c.yellowRestraint, c.greenRestraint);
 	Log("  mipmaps=%d (filter %d, coverage %d) trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,

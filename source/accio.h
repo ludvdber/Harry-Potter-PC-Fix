@@ -101,7 +101,8 @@ struct Settings
 	int   ssaaMaxHeight = 2880;     // the enlarged image never taller than this, 0 = no limit
 	int   shadowScale = 1;
 	int   shadowTextureSize = 0;    // HP6: the engine's own shadow texture size (128 as shipped), 0 = untouched
-	int   particleCullDistance = 0; // HP6: radius inside which particle effects are drawn (3500 as shipped), 0 = untouched
+	int   particleCullDistance = 0; // HP4+HP6: radius inside which particle effects are drawn (HP6 59, HP4 20 as shipped), 0 = untouched
+	int   cullDistance = 0;         // HP4: projected-size threshold culling small far objects (64 as shipped, registry units), 0 = untouched
 	float lodFactor = 0.0f;         // HP6: the camera's level-of-detail factor (1.40 as shipped in Quality), 0 = untouched
 	float hybridLodFactor = 0.0f;   // HP5+HP6: hybrid models' default LOD distances (100..30 as shipped) scaled by this, 0 = untouched
 	int   maxFarClip = 0;           // HP5: the far plane cap (10000 as shipped; HP6 ships with 100000), 0 = untouched

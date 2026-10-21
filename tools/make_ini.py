@@ -103,7 +103,7 @@ JEUX = {
 
 GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntialiasing=0, AnisotropicFiltering=0, TextureLODBias=0,
                     SSAAFactor=1, ShadowMapScale=1, ShadowTextureSize=0, ParticleCullDistance=0,
-                    LODFactor=0, HybridLodFactor=0, MaxFarClip=0, NativeBloomSize=0, NativeDOFSize=0, VSync=0, ColorGrading=0, Vibrance="0.25",
+                    CullDistance=0, LODFactor=0, HybridLodFactor=0, MaxFarClip=0, NativeBloomSize=0, NativeDOFSize=0, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
                     Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", GreenRestraint="0.00", ContrastPivot="0.50", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
@@ -446,10 +446,14 @@ def ini(jeu, graphismes=None):
     a("; Sharpens every shadow, nothing else changes. Powers of two only, 128 to 2048;")
     a("; any other value is left as shipped. 0 = as shipped.")
     a(f"ShadowTextureSize={g['ShadowTextureSize']}")
-    a("; HP6 only: the radius in game units inside which particle effects are drawn (about 59")
-    a("; as shipped; try 120). Torches, fires and fountains stay visible farther away.")
-    a("; 0 = as shipped.")
+    a("; HP4 and HP6: the radius in game units inside which particle effects are drawn (about 59")
+    a("; as shipped on HP6, 20 on HP4; try 120 and 60). Torches, fires and fountains stay visible")
+    a("; farther away. 0 = as shipped.")
     a(f"ParticleCullDistance={g['ParticleCullDistance']}")
+    a("; HP4 only: the projected-size threshold under which a far object stops being drawn (64 as")
+    a("; shipped). Lower keeps small scenery visible farther: try 1 for virtually no cut.")
+    a("; 1 to 1000; 0 = as shipped.")
+    a(f"CullDistance={g['CullDistance']}")
     a("; HP5 and HP6: the camera's level-of-detail factor (1.40 as shipped in Quality; try 2.0).")
     a("; Models should keep their detailed version farther away. 0.5 to 4; 0 = as shipped.")
     a(f"LODFactor={g['LODFactor']}")

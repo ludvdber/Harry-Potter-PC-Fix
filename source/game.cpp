@@ -520,9 +520,41 @@ void SizeShadowTextures(const char* exeName)
 // ParticleCullDistance (also squared units), applied after this: a value the player has in the
 // registry still wins, and the registry is never written. Nothing is written unless the global
 // still reads its shipped 3500.0: on another build of hp6.exe that address could hold anything.
+// HP4 keeps the same squared radius in a global of its own (0x928124 holds the cull threshold,
+// 0x928128 this radius), filled by its settings initialiser (0x48F6F0) from pooled constants
+// (400.0 good card, 320.0 small card: radii of 20 and 18 units). The constants have other
+// readers, so the two movss source operands of the initialiser are redirected to a float of
+// ours instead; a registry value, applied right after, still wins.
+static float s_particleCull;
 void CullParticlesFarther(const char* exeName)
 {
-	if (g_cfg.particleCullDistance == 0 || _stricmp(exeName, "hp6.exe") != 0)
+	if (g_cfg.particleCullDistance == 0)
+		return;
+	if (_stricmp(exeName, "gof_f.exe") == 0)
+	{
+		struct Site { DWORD at; DWORD shipped; };
+		static const Site sites[2] = { { 0x0048FEA9, 0x00727070 }, { 0x0048FF12, 0x00749414 } };
+		for (int i = 0; i < 2; ++i)
+		{
+			BYTE expect[8] = { 0xF3, 0x0F, 0x10, 0x05 };
+			memcpy(expect + 4, &sites[i].shipped, 4);
+			if (memcmp(reinterpret_cast<const void*>(sites[i].at), expect, sizeof(expect)) != 0)
+			{
+				Log("Game: particle radius NOT set: unexpected code (other %s build?)\n", exeName);
+				return;
+			}
+		}
+		const float radius = static_cast<float>(g_cfg.particleCullDistance);
+		s_particleCull = radius * radius;
+		const float* value = &s_particleCull;
+		bool ok = true;
+		for (int i = 0; i < 2; ++i)
+			ok = WriteMemory(reinterpret_cast<BYTE*>(sites[i].at) + 4, &value, sizeof(value)) && ok;
+		Log("Game: particles drawn to %d units (20 as shipped) %s\n",
+			g_cfg.particleCullDistance, ok ? "set" : "NOT set");
+		return;
+	}
+	if (_stricmp(exeName, "hp6.exe") != 0)
 		return;
 	const float current = *reinterpret_cast<const float*>(0x00866A74);
 	if (current != 3500.0f)
@@ -534,6 +566,36 @@ void CullParticlesFarther(const char* exeName)
 	const float squared = radius * radius;
 	const bool ok = WriteMemory(reinterpret_cast<void*>(0x00866A74), &squared, sizeof(squared));
 	Log("Game: particles drawn to %d units (59 as shipped) %s\n", g_cfg.particleCullDistance, ok ? "set" : "NOT set");
+}
+
+// HP4 stops drawing a far object once its projected size falls under one threshold (0x928124),
+// filled by the same initialiser (0x48F6F0) from pooled constants (0.0064 good card, 0.0128
+// small card); the hidden registry CullDistance is this threshold times 10000 and, applied right
+// after, still wins. The ini key is in those registry units: CullDistance=1 is a threshold of
+// 0.0001, so small scenery stays drawn until it is next to invisible anyway.
+static float s_cullThreshold;
+void KeepSmallObjectsFarther(const char* exeName)
+{
+	if (g_cfg.cullDistance == 0 || _stricmp(exeName, "gof_f.exe") != 0)
+		return;
+	struct Site { DWORD at; DWORD shipped; };
+	static const Site sites[2] = { { 0x0048FE99, 0x00749420 }, { 0x0048FF02, 0x00749418 } };
+	for (int i = 0; i < 2; ++i)
+	{
+		BYTE expect[8] = { 0xF3, 0x0F, 0x10, 0x05 };
+		memcpy(expect + 4, &sites[i].shipped, 4);
+		if (memcmp(reinterpret_cast<const void*>(sites[i].at), expect, sizeof(expect)) != 0)
+		{
+			Log("Game: small-object cull threshold NOT set: unexpected code (other %s build?)\n", exeName);
+			return;
+		}
+	}
+	s_cullThreshold = static_cast<float>(g_cfg.cullDistance) * 0.0001f;
+	const float* value = &s_cullThreshold;
+	bool ok = true;
+	for (int i = 0; i < 2; ++i)
+		ok = WriteMemory(reinterpret_cast<BYTE*>(sites[i].at) + 4, &value, sizeof(value)) && ok;
+	Log("Game: small-object cull threshold %d (64 as shipped) %s\n", g_cfg.cullDistance, ok ? "set" : "NOT set");
 }
 
 // HP6 recomputes the camera's level-of-detail factor at every camera init (0x5F4B50): OptionLOD
@@ -1069,6 +1131,7 @@ void ApplyGamePatches()
 	DefaultTextureDetail(p->exe);
 	SizeShadowTextures(p->exe);
 	CullParticlesFarther(p->exe);
+	KeepSmallObjectsFarther(p->exe);
 	BoostCameraLod(p->exe);
 	BoostHybridLod(p->exe);
 	ExtendFarPlane(p->exe);
