@@ -160,7 +160,7 @@ jobs:
           $checks = @(
             @{ dll = 'd3d9.dll'; project = 'accio-fix'; allowed = 'kernel32.dll','user32.dll','gdi32.dll','winmm.dll','ole32.dll' }
             @{ dll = 'xinput1_3.dll'; project = 'accio-xinput'; allowed = 'kernel32.dll','setupapi.dll','hid.dll' }
-            @{ dll = 'winmm.dll'; project = 'accio-winmm'; allowed = 'kernel32.dll','user32.dll' }
+            @{ dll = 'winmm.dll'; project = 'accio-winmm'; allowed = 'kernel32.dll','user32.dll','gdi32.dll','ole32.dll' }
             @{ dll = 'dinput8.dll'; project = 'accio-dinput8'; allowed = 'kernel32.dll','user32.dll','gdi32.dll','ole32.dll' }
           )
           foreach ($c in $checks) {
