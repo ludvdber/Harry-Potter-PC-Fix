@@ -14,8 +14,10 @@
 #include <initguid.h>   // the GUIDs below, without linking DirectInput
 #include "../source/dinput8/pad.h"
 #include "../source/dinput8/perf.h"
+#include "../source/dinput8/tick.h"
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 static int failures = 0;
 static void Expect(bool ok, const char* what)
@@ -240,12 +242,74 @@ static void Perf()
 	}
 }
 
+// tick.h: the engine's frame-rate ceiling, on the bytes read in Engine.dll and on a made-up image.
+static void Tick()
+{
+	// The export's jump thunk as Engine.dll has it: E9 B5 31 11 00 at rva 0x5916 lands on 0x118AD0.
+	const uint8_t thunk[5] = { 0xE9, 0xB5, 0x31, 0x11, 0x00 };
+	Expect(tick::ThunkToBody(thunk, tick::kThunk), "the export's thunk lands on the body");
+	Expect(!tick::ThunkToBody(thunk, tick::kThunk + 4), "the same jump elsewhere does not");
+	const uint8_t elsewhere[5] = { 0xE9, 0xB6, 0x31, 0x11, 0x00 };
+	Expect(!tick::ThunkToBody(elsewhere, tick::kThunk), "a jump to another body is refused");
+
+	// The load, at the preferred base and at a relocated one.
+	uint8_t load[6] = { 0xD9, 0x05, 0x54, 0x55, 0x67, 0x10 };
+	Expect(tick::LoadMatches(load, 0x10300000), "fld dword ptr [0x10675554] at the preferred base");
+	Expect(!tick::LoadMatches(load, 0x10400000), "the same bytes are not a relocated module's");
+	const uint8_t relocated[6] = { 0xD9, 0x05, 0x54, 0x55, 0x77, 0x10 };
+	Expect(tick::LoadMatches(relocated, 0x10400000), "relocated: the constant at base + 0x375554");
+	load[1] = 0x06;
+	Expect(!tick::LoadMatches(load, 0x10300000), "another instruction is refused");
+
+	// A made-up image with the header, the thunk, the load and the constant where Engine.dll has them.
+	std::vector<uint8_t> image(tick::kSixty + 4, 0);
+	auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(image.data());
+	dos->e_magic = IMAGE_DOS_SIGNATURE;
+	dos->e_lfanew = 0x80;
+	auto* nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(image.data() + 0x80);
+	nt->Signature = IMAGE_NT_SIGNATURE;
+	nt->FileHeader.TimeDateStamp = tick::kTimeDateStamp;
+	nt->OptionalHeader.SizeOfImage = tick::kSizeOfImage;
+	memcpy(image.data() + tick::kThunk, thunk, sizeof(thunk));
+	image[tick::kLoad] = 0xD9;
+	image[tick::kLoad + 1] = 0x05;
+	const uint32_t disp = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(image.data()) + tick::kSixty);
+	memcpy(image.data() + tick::kLoad + 2, &disp, sizeof(disp));
+	const float sixty = 60.0f;
+	memcpy(image.data() + tick::kSixty, &sixty, sizeof(sixty));
+	Expect(tick::Recognised(image.data()), "the build read is recognised");
+	const std::vector<uint8_t> before = image;
+
+	static float ours = 120.0f;
+	tick::Point(image.data(), &ours);
+	size_t changed = 0;
+	for (size_t i = 0; i < image.size(); ++i)
+		changed += image[i] != before[i];
+	Expect(changed > 0 && changed <= 4, "only the load's address changes (4 bytes at most)");
+	uint32_t now;
+	memcpy(&now, image.data() + tick::kLoad + 2, sizeof(now));
+	Expect(now == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&ours)), "the load now reads our float");
+	Expect(!tick::Recognised(image.data()), "once pointed, no longer the shipped code: not done twice");
+
+	image = before;
+	image[tick::kSixty] ^= 1;
+	Expect(!tick::Recognised(image.data()), "a constant that is not 60 is refused");
+	image = before;
+	nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(image.data() + 0x80);
+	nt->FileHeader.TimeDateStamp ^= 1;
+	Expect(!tick::Recognised(image.data()), "another build (time stamp) is refused");
+
+	Expect(tick::Bounded(0) == 0 && tick::Bounded(120) == 120 && tick::Bounded(5) == 30 && tick::Bounded(5000) == 1000
+		&& tick::Bounded(-3) == 0, "the cap is 0 or bounded to 30..1000");
+}
+
 int main(int argc, char** argv)
 {
 	Identify();
 	DeadZone();
 	Xbox();
 	Perf();
+	Tick();
 	if (argc > 1)
 		Dll(argv[1]);
 	if (failures)

@@ -27,6 +27,7 @@
 #include <initguid.h>   // IID_IDirectInput8W defined here, not taken from a library
 #include "pad.h"
 #include "screen.h"
+#include "tick.h"
 #include "../version.h"
 #include <cstdarg>
 #include <cstdio>
@@ -58,6 +59,7 @@ struct Settings
 	int deadZone = 15;          // percent of the travel, each side of the middle
 	UINT shareKey = 0;
 	UINT optionsKey = VK_ESCAPE;
+	int frameRateCap = 0;       // [Accio.Game] the engine's own ceiling (60 as shipped), 0 = untouched; tick.h
 } g_cfg;
 
 // IDirectInput8W and IDirectInputDevice8W slots (dinput.h order).
@@ -145,6 +147,41 @@ void LoadSettings(const wchar_t* ini)
 	g_cfg.deadZone = zone < 0 ? 0 : (zone > 90 ? 90 : zone);
 	g_cfg.shareKey = GetPrivateProfileIntW(s, L"ShareKey", g_cfg.shareKey, ini) & 0xFF;
 	g_cfg.optionsKey = GetPrivateProfileIntW(s, L"OptionsKey", g_cfg.optionsKey, ini) & 0xFF;
+	g_cfg.frameRateCap = tick::Bounded(static_cast<int>(GetPrivateProfileIntW(L"Accio.Game", L"FrameRateCap", 0, ini)));
+}
+
+// The engine's own frame-rate ceiling (tick.h), once Engine.dll is loaded: from DirectInput8Create,
+// which WinDrv.dll calls from UWindowsClient::Init, after Engine.dll (WinDrv depends on it).
+void CapFrameRate()
+{
+	const int cap = g_cfg.frameRateCap;
+	if (cap == 0)
+		return;
+	HMODULE engine = GetModuleHandleW(L"Engine.dll");
+	if (!engine)
+	{
+		Log("Engine.dll: not loaded, frame-rate cap left as shipped (60)\n");
+		return;
+	}
+	auto* image = reinterpret_cast<uint8_t*>(engine);
+	const void* exported = reinterpret_cast<const void*>(GetProcAddress(engine, tick::kExport));
+	if (exported != image + tick::kThunk || !tick::Recognised(image))
+	{
+		Log("Engine.dll: not the build read (GetMaxTickRate), frame-rate cap left as shipped (60)\n");
+		return;
+	}
+	static float s_cap;
+	s_cap = static_cast<float>(cap);
+	DWORD protect;
+	if (!VirtualProtect(image + tick::kLoad, tick::kLoadSize, PAGE_EXECUTE_READWRITE, &protect))
+	{
+		Log("Engine.dll: frame-rate cap NOT set (error %lu)\n", GetLastError());
+		return;
+	}
+	tick::Point(image, &s_cap);
+	VirtualProtect(image + tick::kLoad, tick::kLoadSize, protect, &protect);
+	FlushInstructionCache(GetCurrentProcess(), image + tick::kLoad, tick::kLoadSize);
+	Log("Engine.dll: frame-rate cap %d (60 as shipped) set\n", cap);
 }
 
 bool LoadSystemDinput8()
@@ -437,6 +474,12 @@ extern "C" HRESULT WINAPI Accio_DirectInput8Create(HINSTANCE instance, DWORD ver
 		screenTried = true;
 		screen::Install(g_screen);
 	}
+	static bool capTried = false;
+	if (!capTried)
+	{
+		capTried = true;
+		CapFrameRate();
+	}
 	if (iid != IID_IDirectInput8W)
 	{
 		Log("DirectInput8Create: not the wide interface, left as it is\n");
@@ -464,8 +507,8 @@ BOOL WINAPI DllMain(HMODULE module, DWORD reason, void*)
 	}
 	GetModuleFileNameW(nullptr, path, MAX_PATH);
 	Log("Accio Launcher PC fix " ACCIO_VERSION_STR " (dinput8.dll), %ls\n", path);
-	Log("Settings: XboxLayout=%d DeadZone=%d ShareKey=%u OptionsKey=%u\n", g_cfg.xboxLayout, g_cfg.deadZone,
-		g_cfg.shareKey, g_cfg.optionsKey);
+	Log("Settings: XboxLayout=%d DeadZone=%d ShareKey=%u OptionsKey=%u FrameRateCap=%d\n", g_cfg.xboxLayout,
+		g_cfg.deadZone, g_cfg.shareKey, g_cfg.optionsKey, g_cfg.frameRateCap);
 	Beside(L"dinput8.ini", path);
 	screen::LoadSettings(path, g_screen);
 	Log("Overlay: ShowFPS=%d ShowFrameTime=%d ShowGraph=%d OverlayKey=%d BenchmarkKey=%d Position=%d Size=%d; "

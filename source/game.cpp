@@ -647,14 +647,19 @@ void BoostCameraLod(const char* exeName)
 	Log("Game: camera detail factor %.2f (1.40 as shipped in Quality) %s\n", g_cfg.lodFactor, ok ? "set" : "NOT set");
 }
 
-// Both Lion games register a reflected class named HybridLionControl whose instances carry the
-// eight LOD switch distances LOD0..LOD7 at +0x60..+0x7C, shipped at 100, 90 .. 30: the ladder a
-// hybrid model climbs down with distance, hence the scale of mesh pop-in. Its default initialiser
-// (HP6 0x45DD80, HP5 0x441FC0) fills them from eight pooled float constants (100.0 alone has many
-// other readers), so the constants are left in peace: the eight movss source operands of that one
-// function are redirected to eight floats of ours, the shipped distances times the chosen factor.
-// Entities whose zone data carries explicit LOD fields are filled after this initialiser and
-// still win. Nothing is written unless all eight operands still point at the shipped constants.
+// Both Lion games register a reflected class named HybridLionControl whose instances carry eight
+// distances LOD0..LOD7 at +0x60..+0x7C, shipped at 100, 90 .. 30. Read further on 2026-10-21
+// (notes/HP6.md, "LOD et surgissement"): the control's apply method (HP6 0x45DDF0, HP5 0x442040)
+// copies them into eight globals (HP6 0x891800, HP5 0x8D8B40) whose only reader is the particle
+// visibility test (HP6 0x6116E0, HP5 0x6443D0): a distance per effect type, used when the global
+// particle radius (ParticleCullDistance) is 0 or for an effect without a position. Not the mesh
+// pop-in ladder, then: that one is the camera's detail factor (LODFactor) and the FadeRange fields
+// of the zones. Its default initialiser (HP6 0x45DD80, HP5 0x441FC0) fills the eight from pooled
+// float constants (100.0 alone has many other readers), so the constants are left in peace: the
+// eight movss source operands of that one function are redirected to eight floats of ours, the
+// shipped distances times the chosen factor. A control whose zone data carries explicit LOD
+// fields is filled after this initialiser and still wins. Nothing is written unless all eight
+// operands still point at the shipped constants.
 static float s_hybridLod[8];
 void BoostHybridLod(const char* exeName)
 {
@@ -689,7 +694,7 @@ void BoostHybridLod(const char* exeName)
 		const float* value = &s_hybridLod[i];
 		ok = WriteMemory(reinterpret_cast<BYTE*>(sites[i].at) + 4, &value, sizeof(value)) && ok;
 	}
-	Log("Game: hybrid detail distances x%.2f (100 down to 30 as shipped) %s\n",
+	Log("Game: per-type particle distances (HybridLionControl LOD0..7) x%.2f (100 down to 30 as shipped) %s\n",
 		g_cfg.hybridLodFactor, ok ? "set" : "NOT set");
 }
 
@@ -698,9 +703,41 @@ void BoostHybridLod(const char* exeName)
 // HKCU\...\GameSettings holds a MaxFarClip, which runs after this: a cap the player has in the
 // registry still wins, and the registry is never written. Nothing is written unless the global
 // still reads its shipped 10000.
+// HP4 has the same cap in a global of its own (0x75F730), and each camera takes the smaller of
+// the far plane its level asks for and that cap (camera set-up 0x4A5620: `if (cap < far) far = cap`). The
+// settings initialiser (0x48F6F0) fills it from pooled constants: 100.0 (0x749214, 87 other
+// readers) on a good card and on the 16-bit path, 64.0 (0x749288) on a small card. As for the
+// particle radius, the three movss source operands are redirected to a float of ours; the
+// registry MaxFarClip, applied right after, still wins. More of a level shows only where its
+// cameras ask for more than 100: to be seen in game.
+static float s_farPlane;
 void ExtendFarPlane(const char* exeName)
 {
-	if (g_cfg.maxFarClip == 0 || _stricmp(exeName, "hp.exe") != 0)
+	if (g_cfg.maxFarClip == 0)
+		return;
+	if (_stricmp(exeName, "gof_f.exe") == 0)
+	{
+		struct Site { DWORD at; DWORD shipped; };
+		static const Site sites[3] = { { 0x0048F909, 0x00749214 }, { 0x0048FEB9, 0x00749214 }, { 0x0048FEE2, 0x00749288 } };
+		for (int i = 0; i < 3; ++i)
+		{
+			BYTE expect[8] = { 0xF3, 0x0F, 0x10, 0x05 };
+			memcpy(expect + 4, &sites[i].shipped, 4);
+			if (memcmp(reinterpret_cast<const void*>(sites[i].at), expect, sizeof(expect)) != 0)
+			{
+				Log("Game: far plane NOT set: unexpected code (other %s build?)\n", exeName);
+				return;
+			}
+		}
+		s_farPlane = static_cast<float>(g_cfg.maxFarClip);
+		const float* value = &s_farPlane;
+		bool ok = true;
+		for (int i = 0; i < 3; ++i)
+			ok = WriteMemory(reinterpret_cast<BYTE*>(sites[i].at) + 4, &value, sizeof(value)) && ok;
+		Log("Game: far plane cap %d (100 as shipped) %s\n", g_cfg.maxFarClip, ok ? "set" : "NOT set");
+		return;
+	}
+	if (_stricmp(exeName, "hp.exe") != 0)
 		return;
 	const float current = *reinterpret_cast<const float*>(0x008AF430);
 	if (current != 10000.0f)

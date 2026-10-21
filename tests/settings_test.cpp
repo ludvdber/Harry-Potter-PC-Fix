@@ -403,7 +403,7 @@ int main(int argc, char** argv)
 		EXPECT(c.cullDistance == 0);
 	}
 	{
-		// The far plane cap: 0 = untouched, anything else bounded to 10000..1000000.
+		// The far plane cap: 0 = untouched, anything else bounded to 100..1000000 (HP4 ships at 100).
 		const char* game = "far plane";
 		const std::string path = scratch + "\\farclip.ini";
 		FILE* f = nullptr;
@@ -420,7 +420,14 @@ int main(int argc, char** argv)
 		fputs("[Accio.Graphics]\r\nMaxFarClip=500\r\n", f);
 		fclose(f);
 		Load(path);
-		EXPECT(c.maxFarClip == 10000);
+		EXPECT(c.maxFarClip == 500);
+		fopen_s(&f, path.c_str(), "wb");
+		if (!f)
+			return 3;
+		fputs("[Accio.Graphics]\r\nMaxFarClip=50\r\n", f);
+		fclose(f);
+		Load(path);
+		EXPECT(c.maxFarClip == 100);
 		fopen_s(&f, path.c_str(), "wb");
 		if (!f)
 			return 3;

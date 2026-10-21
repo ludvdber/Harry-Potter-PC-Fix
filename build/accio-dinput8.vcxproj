@@ -89,6 +89,7 @@
     <ClInclude Include="..\source\dinput8\perf.h" />
     <ClInclude Include="..\source\dinput8\redirect.h" />
     <ClInclude Include="..\source\dinput8\screen.h" />
+    <ClInclude Include="..\source\dinput8\tick.h" />
     <ClInclude Include="..\source\version.h" />
   </ItemGroup>
   <ItemGroup>

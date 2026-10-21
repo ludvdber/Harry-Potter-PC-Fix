@@ -200,7 +200,7 @@ void LoadSettings(const char* iniPath)
 		c.hybridLodFactor = Clamp(c.hybridLodFactor, 0.5f, 4.0f);
 	c.maxFarClip = Int(graphics, "MaxFarClip", 0);
 	if (c.maxFarClip != 0)
-		c.maxFarClip = Clamp(c.maxFarClip, 10000, 1000000);
+		c.maxFarClip = Clamp(c.maxFarClip, 100, 1000000); // HP4 ships at 100, HP5 at 10000
 	c.nativeBloomSize = Int(graphics, "NativeBloomSize", 0);
 	switch (c.nativeBloomSize)
 	{
