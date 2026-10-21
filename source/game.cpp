@@ -539,27 +539,37 @@ void CullParticlesFarther(const char* exeName)
 // HP6 recomputes the camera's level-of-detail factor at every camera init (0x5F4B50): OptionLOD
 // times the float at 0x83B23C (0.05) plus the one at 0x82AE30 (1.3, good card: Quality = 1.40) or
 // at 0x83121C (1.15, small card), stored to 0x8666B8 and copied into each camera, where it scales
-// which LOD a model shows at a distance. Those constants are pooled with unrelated code (the 0.05
-// alone has 124 readers), so they are left in peace: instead the mulss and addss operands of this
-// one function are redirected to two floats of ours, zero and the chosen factor, so every
-// recalculation yields exactly that factor whatever the card or the option. Nothing is written
-// unless all four operands still point at the shipped constants.
+// which LOD a model shows at a distance. HP5 carries the very same two-branch function (option at
+// 0x8AE1EC, 0.05 at 0x843468, 1.3 at 0x875E58, 1.15 at 0x875AB0, stored to 0x8AF488). Those
+// constants are pooled with unrelated code (HP6's 0.05 alone has 124 readers), so they are left
+// in peace: instead the mulss and addss operands of this one function are redirected to two
+// floats of ours, zero and the chosen factor, so every recalculation yields exactly that factor
+// whatever the card or the option. Nothing is written unless all four operands still point at
+// the shipped constants.
 static float s_lodZero = 0.0f;
 static float s_lodFactor = 0.0f;
 void BoostCameraLod(const char* exeName)
 {
-	if (g_cfg.lodFactor == 0.0f || _stricmp(exeName, "hp6.exe") != 0)
+	if (g_cfg.lodFactor == 0.0f)
+		return;
+	const bool hp6 = _stricmp(exeName, "hp6.exe") == 0;
+	if (!hp6 && _stricmp(exeName, "hp.exe") != 0)
 		return;
 	// The four-byte memory operands of the two branches: mulss then addss, good card then small.
-	BYTE* const mulAt[2] = { reinterpret_cast<BYTE*>(0x005F4C18), reinterpret_cast<BYTE*>(0x005F4C39) };
-	BYTE* const addAt[2] = { reinterpret_cast<BYTE*>(0x005F4C20), reinterpret_cast<BYTE*>(0x005F4C41) };
-	static const BYTE mulOld[4] = { 0x3C, 0xB2, 0x83, 0x00 };
-	static const BYTE addOld[2][4] = { { 0x30, 0xAE, 0x82, 0x00 }, { 0x1C, 0x12, 0x83, 0x00 } };
+	BYTE* const mulAt[2] = { reinterpret_cast<BYTE*>(hp6 ? 0x005F4C18 : 0x0062C818),
+		reinterpret_cast<BYTE*>(hp6 ? 0x005F4C39 : 0x0062C839) };
+	BYTE* const addAt[2] = { reinterpret_cast<BYTE*>(hp6 ? 0x005F4C20 : 0x0062C820),
+		reinterpret_cast<BYTE*>(hp6 ? 0x005F4C41 : 0x0062C841) };
+	static const BYTE mulOld6[4] = { 0x3C, 0xB2, 0x83, 0x00 }, mulOld5[4] = { 0x68, 0x34, 0x84, 0x00 };
+	static const BYTE addOld6[2][4] = { { 0x30, 0xAE, 0x82, 0x00 }, { 0x1C, 0x12, 0x83, 0x00 } };
+	static const BYTE addOld5[2][4] = { { 0x58, 0x5E, 0x87, 0x00 }, { 0xB0, 0x5A, 0x87, 0x00 } };
+	const BYTE* const mulOld = hp6 ? mulOld6 : mulOld5;
+	const BYTE (* const addOld)[4] = hp6 ? addOld6 : addOld5;
 	for (int i = 0; i < 2; ++i)
 	{
 		if (memcmp(mulAt[i], mulOld, 4) != 0 || memcmp(addAt[i], addOld[i], 4) != 0)
 		{
-			Log("Game: camera detail factor NOT set: unexpected code (other hp6.exe build?)\n");
+			Log("Game: camera detail factor NOT set: unexpected code (other %s build?)\n", exeName);
 			return;
 		}
 	}
@@ -597,42 +607,47 @@ void ExtendFarPlane(const char* exeName)
 
 // HP6 draws its own bloom ("gloom") into square targets sized branchless in four creators
 // (0x5EA030, 0x609860, 0x615530, 0x617E20): and esi,0xFFFFFE80 then add esi,0x200 yields 512 a
-// side in Quality, 128 otherwise, and that upscaled glow is what pixelates around lights.
-// Raising the add's immediate raises the Quality size (0x400 = 1024); the non-Quality result
-// becomes 128 plus the same delta, which no card running this fix uses. A fifth creator
-// (0x618E80) builds a half-size companion the same way (sbb/and edx,-0x80/add edx,0x100 =
-// 256 in Quality), kept at half the chosen size so the game's proportions hold. Nothing is
-// written unless all five adds still carry the shipped instructions.
+// side in Quality, 128 otherwise, and that upscaled glow is what pixelates around lights. HP5
+// builds the same surfaces (bgloomthreshold, bgloommipmap0, liongloomtex) in three creators of
+// its own. Raising the add's immediate raises the Quality size (0x400 = 1024); the non-Quality
+// result becomes 128 plus the same delta, which no card running this fix uses. One more creator
+// per game builds a half-size companion the same way (sbb/and edx,-0x80/add edx,0x100 = 256 in
+// Quality), kept at half the chosen size so the game's proportions hold. Nothing is written
+// unless every add still carries the shipped instruction.
 void SharpenNativeBloom(const char* exeName)
 {
-	if (g_cfg.nativeBloomSize == 0 || _stricmp(exeName, "hp6.exe") != 0)
+	if (g_cfg.nativeBloomSize == 0)
 		return;
-	BYTE* const addAt[4] = { reinterpret_cast<BYTE*>(0x005EA10A), reinterpret_cast<BYTE*>(0x00609919),
-		reinterpret_cast<BYTE*>(0x006155D9), reinterpret_cast<BYTE*>(0x00617EC9) };
-	static const BYTE shipped[6] = { 0x81, 0xC6, 0x00, 0x02, 0x00, 0x00 };  // add esi, 0x200
-	for (int i = 0; i < 4; ++i)
+	const bool hp6 = _stricmp(exeName, "hp6.exe") == 0;
+	if (!hp6 && _stricmp(exeName, "hp.exe") != 0)
+		return;
+	// Each "add reg, imm32" (0x81 /0): its address, its ModRM byte and its shipped immediate.
+	struct Site { DWORD at; BYTE modrm; LONG shipped; };
+	static const Site sites6[5] = { { 0x005EA10A, 0xC6, 0x200 }, { 0x00609919, 0xC6, 0x200 },
+		{ 0x006155D9, 0xC6, 0x200 }, { 0x00617EC9, 0xC6, 0x200 }, { 0x00618F0A, 0xC2, 0x100 } };
+	static const Site sites5[4] = { { 0x0062217E, 0xC6, 0x200 }, { 0x00647BBD, 0xC3, 0x200 },
+		{ 0x006498D0, 0xC3, 0x200 }, { 0x0064A871, 0xC2, 0x100 } };
+	const Site* const sites = hp6 ? sites6 : sites5;
+	const int count = hp6 ? 5 : 4;
+	for (int i = 0; i < count; ++i)
 	{
-		if (memcmp(addAt[i], shipped, sizeof(shipped)) != 0)
+		const BYTE expect[6] = { 0x81, sites[i].modrm, static_cast<BYTE>(sites[i].shipped),
+			static_cast<BYTE>(sites[i].shipped >> 8), 0x00, 0x00 };
+		if (memcmp(reinterpret_cast<const void*>(sites[i].at), expect, sizeof(expect)) != 0)
 		{
-			Log("Game: native bloom NOT sized: unexpected code (other hp6.exe build?)\n");
+			Log("Game: native bloom NOT sized: unexpected code (other %s build?)\n", exeName);
 			return;
 		}
 	}
-	BYTE* const halfAt = reinterpret_cast<BYTE*>(0x00618F0A);
-	static const BYTE halfShipped[6] = { 0x81, 0xC2, 0x00, 0x01, 0x00, 0x00 };  // add edx, 0x100
-	if (memcmp(halfAt, halfShipped, sizeof(halfShipped)) != 0)
-	{
-		Log("Game: native bloom NOT sized: unexpected code (other hp6.exe build?)\n");
-		return;
-	}
 	const LONG size = g_cfg.nativeBloomSize;
-	const LONG half = size / 2;
 	bool ok = true;
-	for (int i = 0; i < 4; ++i)
-		ok = WriteMemory(addAt[i] + 2, &size, sizeof(size)) && ok;
-	ok = WriteMemory(halfAt + 2, &half, sizeof(half)) && ok;
+	for (int i = 0; i < count; ++i)
+	{
+		const LONG value = sites[i].shipped == 0x100 ? size / 2 : size;
+		ok = WriteMemory(reinterpret_cast<BYTE*>(sites[i].at) + 2, &value, sizeof(value)) && ok;
+	}
 	Log("Game: native bloom %ld pixels a side, companion %ld (512 and 256 as shipped in Quality) %s\n",
-		size, half, ok ? "set" : "NOT set");
+		size, size / 2, ok ? "set" : "NOT set");
 }
 
 // HP6 has a real depth of field (the DOFHQ surface of 0x607AC0, driven by the FocusDistance and
