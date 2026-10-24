@@ -8,6 +8,7 @@
 #include "render_state.h"
 #include "mipmaps.h"
 #include "shaderswap.h"
+#include "texdump.h"
 #include <algorithm>
 #include <set>
 #include <tuple>
@@ -399,6 +400,8 @@ MethodRedirect g_ReleaseTexture(2, reinterpret_cast<void*>(ReleaseTexture));
 // game has written the top level.
 // {5D3E4A10-7C0B-4E8B-9A51-6B3C2F0D8E21}
 const GUID kFillMips = { 0x5d3e4a10, 0x7c0b, 0x4e8b, { 0x9a, 0x51, 0x6b, 0x3c, 0x2f, 0x0d, 0x8e, 0x21 } };
+// Marks a texture whose first fill TextureDump / TextureReplace look at (texdump.cpp).
+const GUID kDumpTex = { 0x5d3e4a11, 0x7c0b, 0x4e8b, { 0x9a, 0x51, 0x6b, 0x3c, 0x2f, 0x0d, 0x8e, 0x22 } };
 LONG g_mipsFilled = 0;
 // Chains made, by pool: the game fills a texture of the default pool without locking it (a copy
 // from memory), so its chain may never be filled here. Counted to see whether that happens.
@@ -1045,6 +1048,13 @@ HRESULT STDMETHODCALLTYPE CreateTexture(IDirect3DDevice9* self, UINT w, UINT h, 
 			AddSceneTwin(self, tex, w, h, format);
 	}
 	g_UnlockRect.Install(tex);
+	if ((g_cfg.textureDump || g_cfg.textureReplace) && texdump::Wanted(usage, pool))
+	{
+		const BYTE one = 1;
+		tex->SetPrivateData(kDumpTex, &one, sizeof(one), 0);
+		if (g_cfg.textureReplace)
+			g_ReleaseTexture.Install(tex);   // an HD replacement is released with it
+	}
 	if (withChain)
 	{
 		InterlockedIncrement(&g_mipChains);
@@ -1080,6 +1090,13 @@ HRESULT STDMETHODCALLTYPE UnlockRect(IDirect3DTexture9* self, UINT level)
 		return hr;
 	BYTE mark = 0;
 	DWORD size = sizeof(mark);
+	if ((g_cfg.textureDump || g_cfg.textureReplace) && SUCCEEDED(self->GetPrivateData(kDumpTex, &mark, &size)))
+	{
+		self->FreePrivateData(kDumpTex); // the first fill only: later ones are the game animating it
+		InternalCalls inside;
+		texdump::FirstFill(self, g_cfg.textureDump, g_cfg.textureReplace);
+	}
+	size = sizeof(mark);
 	if (FAILED(self->GetPrivateData(kFillMips, &mark, &size)))
 		return hr;
 	self->FreePrivateData(kFillMips); // once: later unlocks are the game updating a live texture
@@ -1101,6 +1118,8 @@ ULONG STDMETHODCALLTYPE ReleaseTexture(IDirect3DTexture9* self)
 	const ULONG left = g_ReleaseTexture.Original<ReleaseFn>(self)(self);
 	if (!left)
 	{
+		if (g_cfg.textureReplace)
+			texdump::Released(self);
 		// The address can come back for another texture, which must not inherit the scaling.
 		auto it = g_bigTextures.find(self);
 		if (it != g_bigTextures.end())
@@ -1378,6 +1397,8 @@ HRESULT STDMETHODCALLTYPE SetSamplerState(IDirect3DDevice9* self, DWORD sampler,
 
 HRESULT STDMETHODCALLTYPE SetTexture(IDirect3DDevice9* self, DWORD stage, IDirect3DBaseTexture9* tex)
 {
+	if (!g_internal && tex && g_cfg.textureReplace)
+		tex = texdump::Swap(tex);   // an HD replacement drawn in its place (TextureReplace)
 	if (!g_internal && tex && g_cfg.shadowScale > 1 && tex->GetType() == D3DRTYPE_TEXTURE)
 	{
 		auto* t = static_cast<IDirect3DTexture9*>(tex);

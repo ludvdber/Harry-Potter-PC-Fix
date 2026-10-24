@@ -116,6 +116,7 @@ struct Settings
 	float skinProtect = 0.0f;       // 0..1: share of contrast and vibrance that skin tones are spared
 	float yellowRestraint = 0.0f;   // 0..1: share of vibrance yellows lose (plus a fifth of their saturation)
 	float greenRestraint = 0.0f;    // 0..1: green haze (HP5/HP6 skies, distance) desaturated toward blue-grey
+	float greenRestraintTerrain = 1.0f; // 0..1: share of it kept off the sky (hills, grass): 1 = same everywhere
 	float contrastPivot = 0.5f;     // the grey the contrast curve leaves in place (0.5 = the original curve)
 	bool  ssao = false;
 	float ssaoStrength = 0.5f, ssaoRadius = 6.0f, ssaoMinDelta = 0.0005f, ssaoMaxDelta = 0.05f;
@@ -127,6 +128,8 @@ struct Settings
 	bool  generateMipmaps = true;   // full mipmap chains for textures shipped without
 	bool  forceTrilinear = true;    // mipmaps used on every texture
 	int   mipmapFilter = 0;         // 0 soft (tent), 1 sharp (windowed sinc), see mipmaps.h
+	bool  textureDump = false;      // every texture the game fills saved once as .dds (accio_textures\, for modders)
+	bool  textureReplace = false;   // accio_remplacements\*_<fingerprint>.dds take those textures' place
 	bool  mipmapCoverage = false;   // cut-outs (leaves, hair) keep their density in the distance
 	int   maxFrameLatency = 1;      // frames the driver may queue; 0 = its own choice
 
@@ -202,6 +205,10 @@ bool ProcessInForegroundNow(); // asked of Windows now, not the last sample
 // keys.cpp
 void LoadKeyMap(const char* iniPath);
 void RemapKeyboardState(BYTE* keys);
+
+// hardcore.cpp: HP6 hard mode, [Accio.Hardcore] read again while the game runs
+void InstallHardcore();
+void PollHardcore();   // present.cpp, once a frame (looks at the ini once a second)
 
 // game.cpp
 void ApplyGamePatches();

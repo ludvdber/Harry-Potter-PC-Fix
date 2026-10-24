@@ -236,6 +236,7 @@ void LoadSettings(const char* iniPath)
 	c.skinProtect = Clamp(Float(graphics, "SkinProtect", 0.0f), 0.0f, 1.0f);
 	c.yellowRestraint = Clamp(Float(graphics, "YellowRestraint", 0.0f), 0.0f, 1.0f);
 	c.greenRestraint = Clamp(Float(graphics, "GreenRestraint", 0.0f), 0.0f, 1.0f);
+	c.greenRestraintTerrain = Clamp(Float(graphics, "GreenRestraintTerrain", 1.0f), 0.0f, 1.0f);
 	c.contrastPivot = Clamp(Float(graphics, "ContrastPivot", 0.5f), 0.1f, 0.9f);
 	c.ssao = Bool(graphics, "SSAO", false);
 	c.ssaoStrength = Float(graphics, "SSAOStrength", 0.50f);
@@ -256,6 +257,8 @@ void LoadSettings(const char* iniPath)
 	c.forceTrilinear = Bool(renderSize, "ForceTrilinear", true);
 	c.mipmapFilter = Clamp(Int(renderSize, "MipmapFilter", 0), 0, 1);
 	c.mipmapCoverage = Bool(renderSize, "MipmapCoverage", false);
+	c.textureDump = Bool(renderSize, "TextureDump", false);
+	c.textureReplace = Bool(renderSize, "TextureReplace", false);
 	c.maxFrameLatency = Clamp(Int(renderSize, "MaxFrameLatency", 1), 0, 16);
 
 	// Shaders of the game.
@@ -274,10 +277,10 @@ void LoadSettings(const char* iniPath)
 		c.ssao, c.bloom, c.godRays, c.renderWidth, c.renderHeight);
 	Log("  engine: lodFactor=%.2f particleTypeDistance=%.2f farClip=%d nativeBloom=%d nativeDOF=%d cull=%d softShadows=%d\n",
 		c.lodFactor, c.particleTypeDistanceFactor, c.maxFarClip, c.nativeBloomSize, c.nativeDofSize, c.cullDistance, c.softShadows);
-	Log("  colour: contrast=%.2f pivot=%.2f vibrance=%.2f skin=%.2f yellow=%.2f green=%.2f\n", c.contrast, c.contrastPivot,
-		c.vibrance, c.skinProtect, c.yellowRestraint, c.greenRestraint);
-	Log("  mipmaps=%d (filter %d, coverage %d) trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,
-		c.mipmapFilter, c.mipmapCoverage, c.forceTrilinear, c.maxFrameLatency, c.retakeInput, c.releaseStaleKeys);
+	Log("  colour: contrast=%.2f pivot=%.2f vibrance=%.2f skin=%.2f yellow=%.2f green=%.2f (terrain %.2f)\n", c.contrast, c.contrastPivot,
+		c.vibrance, c.skinProtect, c.yellowRestraint, c.greenRestraint, c.greenRestraintTerrain);
+	Log("  mipmaps=%d (filter %d, coverage %d) dump=%d replace=%d trilinear=%d latency=%d retakeInput=%d releaseKeys=%d\n", c.generateMipmaps,
+		c.mipmapFilter, c.mipmapCoverage, c.textureDump, c.textureReplace, c.forceTrilinear, c.maxFrameLatency, c.retakeInput, c.releaseStaleKeys);
 	Log("  shaders: replace=%d dump=%d\n", c.shaderReplace, c.shaderDump);
 	Log("  overlay: wine=%d pipeline=%d panel=%d text=%d ownScene=%d unbindDepth=%d\n", c.overlayUnderWine,
 		c.overlayPipeline, c.overlayPanel, c.overlayText, c.overlayOwnScene, c.overlayUnbindDepth);

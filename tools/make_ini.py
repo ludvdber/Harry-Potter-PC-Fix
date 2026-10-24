@@ -108,7 +108,7 @@ GRAPHICS_OFF = dict(FXAA=0, Sharpness="0.40", Antialiasing=0, TransparencyAntial
                     SSAAFactor=1, ShadowMapScale=1, ShadowTextureSize=0, SoftShadows=0, ParticleCullDistance=0,
                     CullDistance=0, LODFactor=0, ParticleTypeDistanceFactor=0, MaxFarClip=0, NativeBloomSize=0, NativeDOFSize=0, VSync=0, ColorGrading=0, Vibrance="0.25",
                     Vignette="0.00", Lift="0.00", Gamma="1.00", Gain="1.00", Temperature="0.00",
-                    Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", GreenRestraint="0.00", ContrastPivot="0.50", SSAO=0, SSAOStrength="0.50",
+                    Tint="0.00", Contrast="0.00", SplitTone="0.00", SkinProtect="0.00", YellowRestraint="0.00", GreenRestraint="0.00", GreenRestraintTerrain="1.00", ContrastPivot="0.50", SSAO=0, SSAOStrength="0.50",
                     SSAORadius="6.0", SSAOMinDelta="0.0005", SSAOMaxDelta="0.05", Bloom=0,
                     BloomStrength="0.35", BloomThreshold="0.75", GodRays=0, GodRaysStrength="0.45",
                     GodRaysDecay="0.96", MipmapFilter=0, MipmapCoverage=0)
@@ -486,10 +486,13 @@ def ini(jeu, graphismes=None):
     a("; Colour adjustments. SkinProtect (0 to 1) spares faces part of the contrast and vibrance;")
     a("; YellowRestraint (0 to 1) keeps yellows out of the vibrance and tones them down a little;")
     a("; GreenRestraint (0 to 1) takes the mint green out of skies and distance (HP5, HP6).")
+    a("; GreenRestraintTerrain (0 to 1): share of it kept on hills and grass, the sky keeping it all")
+    a("; (1 = everywhere, as before; 0.4 = green mountains under a neutral sky).")
     a("; ContrastPivot: the grey the contrast leaves in place; 0.5 = as before, lower (0.35) adds")
     a("; depth to a dark game without darkening it.")
     for k in ("ColorGrading", "Vibrance", "Vignette", "Lift", "Gamma", "Gain", "Temperature", "Tint",
-              "Contrast", "ContrastPivot", "SplitTone", "SkinProtect", "YellowRestraint", "GreenRestraint"):
+              "Contrast", "ContrastPivot", "SplitTone", "SkinProtect", "YellowRestraint", "GreenRestraint",
+              "GreenRestraintTerrain"):
         a(f"{k}={g[k]}")
     a("")
     a("; Ambient occlusion (contact shadows), bloom and light shafts.")
@@ -534,6 +537,38 @@ def ini(jeu, graphismes=None):
     a("; game, named by fingerprint; d3d9_accio.log lists each one. For study only.")
     a("Dump=0")
     a("")
+    if jeu in ("HP5", "HP6"):
+        # source/hardcore.cpp: in hp6.exe the damage routine (0x5CA7C0), the foes' defaults (0x4140D0) and the
+        # spell check (0xFEFEA0); in HP5's hp.exe the damage routine (0x602750) only.
+        a("; ----------------------------------------------------------------------------")
+        a(";  Hard mode")
+        a("; ----------------------------------------------------------------------------")
+        a("[Accio.Hardcore]")
+        a("")
+        a("; Changed while the game runs: this file is read again within a second of")
+        a("; being saved. 1 everywhere leaves the game as shipped.")
+        if jeu == "HP5":
+            a("; Damage the character you play receives in a duel is multiplied by")
+            a("; DamageTaken (2 = twice as much); damage your foes receive by DamageDealt")
+            a("; (0.5 = foes that last twice as long). Allies keep theirs. From 0.1 to 10.")
+            a("DamageTaken=1")
+            a("DamageDealt=1")
+            a("")
+            return "\r\n".join(L)
+        a("; Damage Harry receives is multiplied by DamageTaken (2 = twice as much).")
+        a("; Damage Harry's spells do is multiplied by DamageDealt (0.5 = foes last twice")
+        a("; as long). From 0.1 to 10.")
+        a("; EnemyReaction makes foes wait less between attacks and dodge or cast Protego")
+        a("; more often (2 = waits halved). It applies to foes met after the change.")
+        a("; RemovedSpells lists spells Harry cannot cast even once learned, separated")
+        a("; by commas: Depulso, Accio, Leviosa, LeviosaThrow, Incendio, Reparo, Lumos,")
+        a("; Protego, Expelliarmus, Stupefy, Levicorpus, Petrificus. The save keeps them:")
+        a("; emptying the line gives them back. Empty = none removed.")
+        a("DamageTaken=1")
+        a("DamageDealt=1")
+        a("EnemyReaction=1")
+        a("RemovedSpells=")
+        a("")
     return "\r\n".join(L)
 
 

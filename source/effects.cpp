@@ -484,9 +484,10 @@ static void ApplyFXAA(IDirect3DDevice9* dev, IDirect3DSurface9* pBB)
     float gradeC[4] = { g_cfg.grading ? g_cfg.contrast : 0.0f, g_cfg.grading ? g_cfg.splitTone : 0.0f,
                         g_cfg.grading ? g_cfg.skinProtect : 0.0f, g_cfg.grading ? g_cfg.yellowRestraint : 0.0f };
     dev->SetPixelShaderConstantF(6, gradeC, 1);
-    // c7 = (greenRestraint, contrast exponent): the exponent puts ContrastPivot at 0.5 (log 0.5 / log pivot).
+    // c7 = (greenRestraint, contrast exponent, share kept off the sky): the exponent puts ContrastPivot at 0.5
+    // (log 0.5 / log pivot).
     float gradeD[4] = { g_cfg.grading ? g_cfg.greenRestraint : 0.0f,
-                        g_cfg.grading ? logf(0.5f) / logf(g_cfg.contrastPivot) : 1.0f, 0.0f, 0.0f };
+                        g_cfg.grading ? logf(0.5f) / logf(g_cfg.contrastPivot) : 1.0f, g_cfg.greenRestraintTerrain, 0.0f };
     dev->SetPixelShaderConstantF(7, gradeD, 1);
 
     // SSAO: use the cached scene-depth INTZ texture (populated at CreateDepthStencilSurface time).

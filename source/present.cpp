@@ -174,6 +174,7 @@ void BeforePresent(IDirect3DDevice9* dev)
 	OverlayFrameSent();
 	g_depth.aoDoneThisFrame = false;
 	ReportHaze();
+	PollHardcore();
 	const LONG n = InterlockedIncrement(&g_frames);
 	ApplyLateGamePatches(n);
 	ReportMipmaps(n);

@@ -14,7 +14,7 @@
 //            c5 = (bloomStrength, godRayStrength, _, _) — 0 disables that effect's composite
 //            c6 = (contrast, splitToneStrength, skinProtect, yellowRestraint) — S-curve contrast; teal/orange split
 //                 toning; how much of both contrast and vibrance skin tones are spared; yellows held back
-//            c7 = (greenRestraint, contrastExponent, _, _) — green haze held back (HP5/HP6 skies and distance);
+//            c7 = (greenRestraint, contrastExponent, terrainShare, _) — green haze held back (HP5/HP6 skies and distance);
 //                 exponent that moves the contrast pivot to ContrastPivot (1 = pivot 0.5, the original curve)
 // Samplers: s0 = scene color, s1 = depth (INTZ when available), s2 = bloom, s3 = god rays
 sampler2D scene    : register(s0);
@@ -124,7 +124,11 @@ float3 grade(float3 col,float2 uv){
     float gOverB = col.g - col.b;
     float green = saturate(gLead / max(s2, 1e-4) * 2.0) * saturate(s2 * 10.0)
                 * saturate((col.g - col.r) / max(s2, 1e-4) * 1.5);
-    float gw = gradeD.x * green;
+    // The sky keeps the full restraint; hills and grass keep gradeD.z of it (2026-10-22: at full strength
+    // HP6's mountains turned grey). The sky is told by its brightness (luma 0.63 over the stone circle,
+    // hills 0.42): the depth is not readable in this pass when SSAO ran at the depth unbind.
+    float sky = smoothstep(0.50, 0.62, luma(col));
+    float gw = gradeD.x * green * lerp(gradeD.z, 1.0, sky);
     float l2 = luma(col);
     col = lerp(col, l2.xxx + (col - l2.xxx) * 0.4, gw);
     col += float3(0.0, -0.35 * gLead, 0.35 * gOverB) * (gw * 0.5);   // clamped by the split toning below

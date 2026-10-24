@@ -173,6 +173,7 @@ BOOL WINAPI DllMain(HMODULE self, DWORD reason, LPVOID)
 		BecomeDpiAware();
 
 	ApplyGamePatches();
+	InstallHardcore();
 	InstallInputHooks();
 	InstallFocusHooks();
 	return TRUE;

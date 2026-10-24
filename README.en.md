@@ -74,6 +74,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 | Even frames | `FPSLimit` | 120 by default, for the same reason as in *Half-Blood Prince*: the game's own ceiling alone works in bursts (1% low measured at 38 fps in the common room, against 84 with the limit). |
 | Distance fog | `DistanceFog` | The same switch as in *Half-Blood Prince*. `1`, the default, keeps the fog as shipped; `0` removes it (not yet seen outdoors in this game). |
 | Detail level on a first start | `TextureDetail` | As in *Half-Blood Prince*: `2`, the default, starts on "Quality" while no level is saved; a level chosen in the game's own options stays the player's. |
+| Hard mode | `[Accio.Hardcore]` | The two factors of *Half-Blood Prince*, read again while playing: `DamageTaken` on what the character you play receives in a duel, `DamageDealt` on what their foes receive; allies keep theirs. `1` and `1`: the game as shipped. |
 
 ### Inside *Harry Potter and the Half-Blood Prince* (`hp6.exe`)
 
@@ -88,6 +89,7 @@ It turns the game's exclusive full screen into a borderless window that survives
 | Start-up language | `Language` | The menu of 16 languages opens on the Windows language and takes it by itself after 15 s, but the game knows only one variant of each language: Windows in French from Belgium, Switzerland or Canada, or in Spanish as Windows sets it in Spain today, made it start in English. `auto` (default) brings the Windows language to the one the game knows; `fr`, `en`, `es`, `de`, `it`… choose; `windows` leaves it to the game. |
 | Distance fog | `DistanceFog` | The game drowns distant scenery in a green haze: the hills around the castle melt into it. `0` removes it (sharp, contrasted hills, the scene a little darker); `1`, the default, keeps it as shipped. |
 | Detail level on a first start | `TextureDetail` | While no level is saved, the game starts on "Balanced" without saying so. `2`, the default, starts it on "Quality", the sharpest textures; `1` as shipped, `0` "Speed". A level chosen in the game's own options stays the player's, and nothing is written to the registry. |
+| Hard mode | `[Accio.Hardcore]` | Changed while playing: the file is read again within a second. `DamageTaken` multiplies the damage Harry receives (2 = twice as much), `DamageDealt` the damage of his spells (0.5 = foes that last twice as long), from 0.1 to 10. `EnemyReaction` shortens how long foes wait between attacks and makes them dodge or cast Protego more often (2 = waits halved), for foes met after the change. `RemovedSpells` takes away spells already learned (`Protego, Expelliarmus`…): the save keeps them, emptying the line gives them back. `1` everywhere and `RemovedSpells` empty: the game as shipped. |
 
 Each change is made in the executable once it is loaded, never on disk, and only where the expected bytes are found: another build of a game simply runs unchanged, and the log says so.
 
