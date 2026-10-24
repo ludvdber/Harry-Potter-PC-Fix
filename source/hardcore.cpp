@@ -43,6 +43,7 @@ namespace
 float g_taken = 1.0f;
 float g_dealt = 1.0f;
 float g_react = 1.0f;
+volatile bool g_scaling = false;   // a damage factor other than 1
 BYTE* g_back = nullptr;
 volatile LONG g_hitsTaken = 0, g_hitsDealt = 0, g_foes = 0;   // hits and foes seen, for the log
 LONG g_saidTaken = 0, g_saidDealt = 0, g_saidFoes = 0;
@@ -72,6 +73,8 @@ const struct { const char* name; int number; } kSpells[] = {
 __declspec(naked) void DamageScaleHP5()
 {
 	__asm {
+		cmp byte ptr [g_scaling], 0        // 1 and 1: straight to the game, nothing read
+		je replay
 		test eax, eax
 		jz replay
 		cmp eax, dword ptr ds:[0C1FC14h]
@@ -218,6 +221,7 @@ void Read(const char* why)
 	g_taken = taken;
 	g_dealt = dealt;
 	g_react = react;
+	g_scaling = taken != 1.0f || dealt != 1.0f;
 	InterlockedExchange(&g_removed, removed);
 	Log("Hardcore: damage taken x%.2f, dealt x%.2f, enemy reaction x%.2f, spells removed %04lX (%s)\n", taken, dealt,
 		react, removed, why);
