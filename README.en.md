@@ -29,9 +29,9 @@ A PC fix for the five Harry Potter games Electronic Arts built on Direct3D 9, fr
 
 *Philosopher's Stone* and *Chamber of Secrets* do not use Direct3D 9: they get a `winmm.dll` of their own, for a screen-sized picture, the controller and Alt+Enter ([below](#inside-the-unreal-engine-1-games-winmmdll-winmmini)). *Prisoner of Azkaban* gets a `dinput8.dll`, for its controller ([below](#inside-prisoner-of-azkaban-dinput8dll-dinput8ini)).
 
-It turns the game's exclusive full screen into a borderless window that survives Alt+Tab, gives keyboard and mouse back the moment you return, lets you choose your own keys, and patches the resolution, aspect ratio, field of view and frame rate the engine starts with. Optional post-processing sharpens and grades the image. Every setting lives in `d3d9.ini`, read once when the game starts.
+It turns the game's exclusive full screen into a borderless window that survives Alt+Tab, gives keyboard and mouse back the moment you return, lets you choose your own keys, and patches the resolution, aspect ratio, field of view and frame rate the engine starts with. Optional post-processing sharpens and grades the image. Every setting lives in `d3d9.ini`, read when the game starts; only hard mode (`[Accio.Hardcore]`) is read again while playing.
 
-**One common base.** The shipped settings are the same for everyone, made for the most common screen (1920×1080). A settings screen in Accio Launcher will then let each player adjust their own.
+**One common base.** The shipped settings are the same for everyone, made for the most common screen (1920×1080). In Accio Launcher, the gear of each game lets every player adjust their own.
 
 ---
 

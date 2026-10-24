@@ -29,9 +29,9 @@ Un correctif PC pour les cinq jeux Harry Potter qu'Electronic Arts a bâtis sur 
 
 *L'École des sorciers* et *la Chambre des secrets* n'utilisent pas Direct3D 9 : elles reçoivent un `winmm.dll` à elles, pour l'image à la taille de l'écran, la manette et Alt+Entrée ([plus bas](#dans-les-jeux-unreal-engine-1-winmmdll-winmmini)). *Le Prisonnier d'Azkaban* reçoit un `dinput8.dll`, pour sa manette ([plus bas](#dans-le-prisonnier-dazkaban-dinput8dll-dinput8ini)).
 
-Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab, le clavier et la souris répondent dès le retour dans le jeu, chaque touche se change, et la résolution, le format d'image, le champ de vision et les images/s du moteur se règlent. Des effets d'image facultatifs affinent et étalonnent le rendu. Tout se règle dans `d3d9.ini`, lu une fois au lancement du jeu.
+Le plein écran exclusif devient une fenêtre sans bordure qui survit à Alt+Tab, le clavier et la souris répondent dès le retour dans le jeu, chaque touche se change, et la résolution, le format d'image, le champ de vision et les images/s du moteur se règlent. Des effets d'image facultatifs affinent et étalonnent le rendu. Tout se règle dans `d3d9.ini`, lu au lancement du jeu ; seul le mode difficile (`[Accio.Hardcore]`) est relu pendant la partie.
 
-**Une base commune.** Les réglages livrés sont les mêmes pour tout le monde, pensés pour l'écran le plus répandu (1920×1080). Une interface dans Accio Launcher permettra ensuite à chacun d'adapter les siens.
+**Une base commune.** Les réglages livrés sont les mêmes pour tout le monde, pensés pour l'écran le plus répandu (1920×1080). Dans Accio Launcher, l'engrenage de chaque jeu permet à chacun d'adapter les siens.
 
 ---
 
